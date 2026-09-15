@@ -33,3 +33,9 @@ export * from './templates/shared.js';
 
 // ─── Templates (built-in) ──────────────────────────────────────────────────
 export { GENERATED_TEMPLATES } from './templates/builtin/generated/index.js';
+export * from './templates/builtin/authoring.js';
+export { screenplayStandard } from './templates/builtin/screenplay-standard.js';
+export { treatment } from './templates/builtin/treatment.js';
+export { textOutline } from './templates/builtin/text-outline.js';
+export { queryLetter } from './templates/builtin/query-letter.js';
+export { verticalDrama } from './templates/builtin/vertical-drama.js';
