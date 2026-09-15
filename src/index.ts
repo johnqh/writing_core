@@ -24,3 +24,4 @@ export * from './schema/template.js';
 // ─── Template ───────────────────────────────────────────────────────────────
 export * from './template/resolve.js';
 export * from './template/validate.js';
+export * from './template/flow.js';
