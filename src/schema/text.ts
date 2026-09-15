@@ -17,9 +17,11 @@ export function isMarkKey(key: string): boolean {
   return false;
 }
 
-export const TextAttrs = z
-  .record(z.string(), JsonValue)
-  .refine((attrs) => Object.keys(attrs).every(isMarkKey), { message: 'unknown mark attribute' });
+export const TextAttrs = z.record(z.string(), JsonValue).superRefine((attrs, ctx) => {
+  for (const key of Object.keys(attrs)) {
+    if (!isMarkKey(key)) ctx.addIssue({ code: 'custom', path: [key], message: 'unknown mark attribute' });
+  }
+});
 export type TextAttrs = z.infer<typeof TextAttrs>;
 
 export const Embed = z.discriminatedUnion('type', [

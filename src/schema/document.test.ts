@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { minimalDocumentJSON } from '../test-fixtures/minimal-document-json.js';
-import { DOC_TOP_LEVEL_KEYS, DocumentJSON, ElementJSON } from './document.js';
+import { FIXTURE_ACTION_ID, minimalDocumentJSON } from '../test-fixtures/minimal-document-json.js';
+import { BookmarkJSON, DOC_TOP_LEVEL_KEYS, DocumentJSON, ElementJSON } from './document.js';
 import { EntityJSON } from './entities.js';
 import { TextJSON, isMarkKey } from './text.js';
 
@@ -39,5 +39,29 @@ describe('record schemas', () => {
   it('rejects dual dialogue sides other than left and right', () => {
     const el = minimalDocumentJSON().elements[1]!;
     expect(ElementJSON.safeParse({ ...el, dual: { group: 'dd_01ARYZ6S410000000000000000', side: 'middle' } }).success).toBe(false);
+  });
+  it('reports the offending key in the path when an entity attribute key is invalid', () => {
+    const base = minimalDocumentJSON().entities[0]!;
+    const result = EntityJSON.safeParse({ ...base, attributes: { 'Bad Key': 1 } });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.some((i) => i.path.join('.') === 'attributes.Bad Key')).toBe(true);
+  });
+  it('reports the offending key in the path when a text attribute key is unknown', () => {
+    const result = TextJSON.safeParse({ plain: 'a', runs: [{ text: 'a', attrs: { bold: true } }], embeds: [] });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues.some((i) => i.path.join('.') === 'runs.0.attrs.bold')).toBe(true);
+  });
+});
+
+describe('PortablePos', () => {
+  const base = { id: 'bm_01ARYZ6S410000000000000004' as never, name: 'mark', elementId: FIXTURE_ACTION_ID };
+  it('accepts the portable o:<offset> form', () => {
+    expect(BookmarkJSON.safeParse({ ...base, at: 'o:0' }).success).toBe(true);
+    expect(BookmarkJSON.safeParse({ ...base, at: 'o:1234' }).success).toBe(true);
+  });
+  it('rejects empty strings, malformed offsets and base64-looking relative positions', () => {
+    for (const at of ['', 'o:', 'o:-1', 'o:1.5', 'AAAB3ElzQ29kZWMAAAAA']) {
+      expect(BookmarkJSON.safeParse({ ...base, at }).success).toBe(false);
+    }
   });
 });

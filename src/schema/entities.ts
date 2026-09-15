@@ -4,9 +4,11 @@ import { TextJSON } from './text.js';
 import { ENTITY_KINDS, type EntityKind } from './vocab.js';
 
 export const ATTRIBUTE_KEY_RE = /^[a-z][a-zA-Z0-9]*(\.[a-z][a-zA-Z0-9]*)*$/;
-export const EntityAttributes = z
-  .record(z.string(), JsonValue)
-  .refine((a) => Object.keys(a).every((k) => ATTRIBUTE_KEY_RE.test(k)), { message: 'invalid attribute key' });
+export const EntityAttributes = z.record(z.string(), JsonValue).superRefine((attrs, ctx) => {
+  for (const key of Object.keys(attrs)) {
+    if (!ATTRIBUTE_KEY_RE.test(key)) ctx.addIssue({ code: 'custom', path: [key], message: 'invalid attribute key' });
+  }
+});
 
 const Voice = z.object({
   platformVoiceId: z.string().nullable(), rate: z.number(), pitch: z.number(), volume: z.number(),
@@ -88,6 +90,6 @@ export const EntityJSON = z
   })
   .superRefine((e, ctx) => {
     const r = ENTITY_FIELD_SCHEMAS[e.kind].safeParse(e.fields);
-    if (!r.success) for (const issue of r.error.issues) ctx.addIssue({ ...issue, path: ['fields', ...issue.path] } as never);
+    if (!r.success) for (const issue of r.error.issues) ctx.addIssue({ code: 'custom', path: ['fields', ...issue.path], message: issue.message });
   });
 export type EntityJSON = z.infer<typeof EntityJSON>;

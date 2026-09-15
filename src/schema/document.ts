@@ -20,7 +20,8 @@ export const DOC_TOP_LEVEL_KEYS = [
 export type DocTopLevelKey = (typeof DOC_TOP_LEVEL_KEYS)[number];
 
 const Pos = z.string().min(1);
-const RelPosB64 = z.string().min(1);
+/** Portable position form (`o:<offset>`) written by src/model/portable-pos.ts; regex kept local to avoid a schema -> model dependency. */
+const PortablePos = z.string().regex(/^o:\d+$/);
 
 export const ElementMeta = z.object({ createdBy: z.string(), createdAt: Timestamp, editedBy: z.string(), editedAt: Timestamp });
 export type ElementMeta = z.infer<typeof ElementMeta>;
@@ -181,7 +182,7 @@ export const WriterJSON = z.object({ uid: z.string(), displayName: z.string(), i
 export type WriterJSON = z.infer<typeof WriterJSON>;
 
 export const PageLockJSON = z.object({
-  id: idSchema('plk'), label: NumberLabel, level: z.number().int().min(0), start: RelPosB64, startElementId: idSchema('el'),
+  id: idSchema('plk'), label: NumberLabel, level: z.number().int().min(0), start: PortablePos, startElementId: idSchema('el'),
   startMidElement: z.boolean(), revisionSetId: idSchema('rev').nullable(), lockedAt: Timestamp, lockedBy: z.string(), reanchored: z.boolean().optional(),
 });
 export type PageLockJSON = z.infer<typeof PageLockJSON>;
@@ -224,13 +225,13 @@ export type BinItemJSON = z.infer<typeof BinItemJSON>;
 
 export const ShotJSON = z.object({
   id: idSchema('shot'), sceneId: idSchema('el'), pos: Pos, elementId: idSchema('el').nullable(),
-  range: z.object({ startElementId: idSchema('el'), start: RelPosB64, endElementId: idSchema('el'), end: RelPosB64 }).nullable(),
+  range: z.object({ startElementId: idSchema('el'), start: PortablePos, endElementId: idSchema('el'), end: PortablePos }).nullable(),
   label: z.string(), description: TextJSON, camera: z.record(z.string(), JsonValue), attributes: z.record(z.string(), JsonValue),
   createdBy: z.string(), createdAt: Timestamp,
 });
 export type ShotJSON = z.infer<typeof ShotJSON>;
 
-export const BookmarkJSON = z.object({ id: idSchema('bm'), name: z.string(), elementId: idSchema('el'), at: RelPosB64.nullable() });
+export const BookmarkJSON = z.object({ id: idSchema('bm'), name: z.string(), elementId: idSchema('el'), at: PortablePos.nullable() });
 export type BookmarkJSON = z.infer<typeof BookmarkJSON>;
 
 export const SmartTypeEntryJSON = z.object({
