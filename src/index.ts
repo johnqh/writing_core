@@ -15,6 +15,13 @@ export * from './ids/ids.js';
 
 // ─── Model ──────────────────────────────────────────────────────────────────
 export * from './model/positions.js';
+export * from './model/origins.js';
+export * from './model/ytext.js';
+export * from './model/ymap.js';
+export * from './model/embed-template.js';
+export * from './model/element-record.js';
+export * from './model/create.js';
+export * from './smarttype/normalize.js';
 
 // ─── Schema ─────────────────────────────────────────────────────────────────
 export * from './schema/vocab.js';
