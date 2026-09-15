@@ -1,0 +1,43 @@
+{
+  "name": "@sudobility/writing_core",
+  "version": "0.0.1",
+  "description": "Headless, platform-free writing engine for screenplays, stage plays and manuscripts: document model, templates, commands, layout and pagination",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "react-native": "./dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.esm.json",
+    "clean": "rimraf dist",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "eslint src",
+    "typecheck": "tsc --noEmit",
+    "verify": "bun run typecheck && bun run lint && bun run test && bun run build",
+    "prepublishOnly": "bun run clean && bun run verify"
+  },
+  "files": ["dist/**/*", "CLAUDE.md"],
+  "keywords": ["screenwriting", "screenplay", "yjs", "pagination", "fadewright"],
+  "author": "Sudobility",
+  "license": "BUSL-1.1",
+  "devDependencies": {
+    "@eslint/js": "^9.38.0",
+    "@typescript-eslint/eslint-plugin": "^8.46.2",
+    "@typescript-eslint/parser": "^8.46.2",
+    "@types/node": "^22.10.0",
+    "eslint": "^9.38.0",
+    "globals": "^16.4.0",
+    "rimraf": "^6.0.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.10"
+  },
+  "publishConfig": { "access": "public" },
+  "repository": { "type": "git", "url": "https://github.com/johnqh/writing_core.git" }
+}
