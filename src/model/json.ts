@@ -10,7 +10,7 @@ import type { TextJSON } from '../schema/text.js';
 import { STORED_SMARTTYPE_LISTS, type EntityKind } from '../schema/vocab.js';
 import { embedTemplate, readEmbeddedTemplate } from './embed-template.js';
 import { systemOrigin } from './origins.js';
-import { generatePositions } from './positions.js';
+import { comparePositions, generatePositions } from './positions.js';
 import { fromPortablePos, toPortablePos } from './portable-pos.js';
 import { remapDocumentIds } from './remap-ids.js';
 import { childMap, orderElements, setJSONMap, sortedRecords } from './ymap.js';
@@ -233,7 +233,7 @@ export function documentToJSON(doc: Y.Doc): DocumentJSON {
   const smartType = Object.fromEntries(STORED_SMARTTYPE_LISTS.map((list) => {
     const entries = (st.get(list) as YMap | undefined) ?? new Y.Map();
     const items = [...entries.entries()].map(([key, v]) => ({ key, ...(v as object) }) as SmartTypeEntryJSON);
-    return [list, items.sort((a, b) => (a.pos < b.pos ? -1 : a.pos > b.pos ? 1 : a.key < b.key ? -1 : 1))];
+    return [list, items.sort((a, b) => comparePositions(a.pos, b.pos) || (a.key < b.key ? -1 : 1))];
   }));
 
   const rev = g('revisions');

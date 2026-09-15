@@ -37,9 +37,19 @@ export function toPortablePos(doc: Y.Doc, ytext: Y.Text, relB64: string): string
   return `o:${abs && abs.type === ytext ? abs.index : 0}`;
 }
 
+/**
+ * `portable` must already be in the `o:<offset>` form written by `toPortablePos`; anything else
+ * (a raw relative-position base64 string, an empty string, garbage) is a caller bug, not a value
+ * to silently pass through, so it throws.
+ *
+ * An offset beyond the text's current length (e.g. the anchoring element shrank since the JSON
+ * was captured) is clamped to the end rather than thrown: it is a legitimate, if stale, position
+ * — the same "unresolvable maps to a defined point" tolerance `toPortablePos` applies when a
+ * relative position can no longer be resolved (it maps to the start, `o:0`).
+ */
 export function fromPortablePos(ytext: Y.Text, portable: string, assoc: -1 | 0 = 0): string {
   const match = PORTABLE_RE.exec(portable);
-  if (!match) return portable;
+  if (!match) throw new Error(`fromPortablePos: not a portable position ("o:<offset>"): ${JSON.stringify(portable)}`);
   const index = Math.min(Number(match[1]), ytext.length);
   return encodeRelativePosition(Y.createRelativePositionFromTypeIndex(ytext, index, assoc));
 }
