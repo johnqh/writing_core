@@ -130,18 +130,18 @@ export const TITLE_PAGE_STYLES: readonly StyleDef[] = [
   titleStyle('title', 'Title', { allCaps: true, font: { underline: 'single' } }),
 ];
 
+const EN = LOCALE_SCRIPT_WORDS.en;
+
 export function standardTitlePageSeeds(): ElementSeed[] {
   return [
     { styleKey: 'st_title', text: 'UNTITLED', overrides: { spaceBefore: 20 }, titleField: 'title' },
-    { styleKey: 'st_title_center', text: 'Written by', overrides: { spaceBefore: 1 }, titleField: 'credit' },
+    { styleKey: 'st_title_center', text: EN.credit, overrides: { spaceBefore: 1 }, titleField: 'credit' },
     { styleKey: 'st_title_center', text: '', overrides: { spaceBefore: 1 }, titleField: 'author' },
     { styleKey: 'st_title_left', text: '', overrides: { anchor: 'bottom' }, titleField: 'copyright' },
     { styleKey: 'st_title_left', text: '', overrides: { anchor: 'bottom' }, titleField: 'draftDate' },
     { styleKey: 'st_title_left', text: '', overrides: { anchor: 'bottom' }, titleField: 'contact' },
   ];
 }
-
-const EN = LOCALE_SCRIPT_WORDS.en;
 
 export const ENGLISH_CONTINUEDS: ContinuedTexts = {
   more: EN.more, cont: EN.cont, joiner: ' ', sceneBottom: EN.sceneBottom, sceneTop: EN.sceneTop,
