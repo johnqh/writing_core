@@ -15,7 +15,7 @@ import { describe, expect, it } from 'vitest';
 const SRC = join(import.meta.dirname, '..');
 
 const FORBIDDEN: ReadonlyArray<{ pattern: RegExp; reason: string }> = [
-  { pattern: /globalThis\.(window|document|navigator|process|Buffer|Bun|localStorage)/, reason: 'globalThis escape hatch' },
+  { pattern: /\bglobalThis\.(window|document|navigator|process|Buffer|Bun|localStorage)/, reason: 'globalThis escape hatch' },
   { pattern: /\bimport\(\s*['"]node:/, reason: 'dynamic Node built-in import' },
   { pattern: /from ['"]node:/, reason: 'Node built-in' },
   { pattern: /\brequire\(/, reason: 'CommonJS' },
@@ -45,17 +45,39 @@ function sourceFiles(dir: string): string[] {
 
 /**
  * Strips a trailing `//` comment from a line, so a violation mentioned only
- * in prose (`// see window.location for context`) doesn't get flagged.
- * `://` (as in `https://example.com`) is deliberately not treated as a
- * comment start — only a `//` not immediately preceded by `:` counts.
- * This is a line-based heuristic, not a full tokenizer: it doesn't know
- * about string literals, so `const s = '// not a comment';` would also be
- * stripped. That's an acceptable false-negative for a guard whose job is to
- * catch real host-API usage, not to fully understand the language.
+ * in prose (`// see window.location for context`) doesn't get flagged,
+ * while a `//` inside a string literal (e.g. a protocol-relative URL like
+ * `'//cdn.example.com'`) is left alone — otherwise the rest of the line,
+ * including a real violation after the string, would silently go
+ * unscanned. Walks the line tracking whether it is inside a `'`, `"` or
+ * backtick string (honouring `\` escapes); only a `//` seen outside any
+ * such string is treated as a comment start.
+ *
+ * This is still a single-line, best-effort scan, not a real tokenizer:
+ * quote tracking does not carry across lines (a multi-line template
+ * literal is not modelled), and a regex literal containing an unescaped
+ * `//` (e.g. `/a\/\/b/`) is not recognised as a literal — the `/` and `/`
+ * delimiters aren't tracked as a quote type, so such a line would still be
+ * truncated at that `//`. Acceptable for a guard whose job is to catch real
+ * host-API usage in this repo's source, not to fully parse the language.
  */
 function stripTrailingComment(line: string): string {
-  for (let i = 0; i < line.length - 1; i += 1) {
-    if (line[i] === '/' && line[i + 1] === '/' && line[i - 1] !== ':') {
+  let quote: string | null = null;
+  for (let i = 0; i < line.length; i += 1) {
+    const ch = line[i];
+    if (quote) {
+      if (ch === '\\') {
+        i += 1; // skip the escaped character, whatever it is
+        continue;
+      }
+      if (ch === quote) quote = null;
+      continue;
+    }
+    if (ch === "'" || ch === '"' || ch === '`') {
+      quote = ch;
+      continue;
+    }
+    if (ch === '/' && line[i + 1] === '/') {
       return line.slice(0, i);
     }
   }
@@ -136,6 +158,18 @@ describe('findViolations', () => {
 
   it('does not flag a forbidden term mentioned only in a trailing comment', () => {
     expect(findViolations(`const x = 1; // window.location`)).toEqual([]);
+  });
+
+  it('still flags a violation after a string literal containing an unescaped //', () => {
+    expect(findViolations(`const cdn = '//cdn.example.com'; require('utils');`)).toHaveLength(1);
+  });
+
+  it('still flags a violation after a short string literal containing //', () => {
+    expect(findViolations(`const s = 'a//b'; require('utils');`)).toHaveLength(1);
+  });
+
+  it('does not flag a real violation only when it is truly in a trailing comment, even next to a // in a string', () => {
+    expect(findViolations(`const u = 'https://x.y'; // window.location`)).toEqual([]);
   });
 });
 
