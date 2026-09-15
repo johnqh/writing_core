@@ -40,6 +40,7 @@ describe('ids', () => {
   });
   it('separates parts unambiguously', () => {
     expect(deterministicId('el', ['ab', 'c'])).not.toBe(deterministicId('el', ['a', 'bc']));
+    expect(deterministicId('el', ['a b', 'c'])).not.toBe(deterministicId('el', ['a', 'b c']));
   });
   it('accepts built-in and generated style ids only', () => {
     expect(isStyleId(builtinStyleId('scene_heading'))).toBe(true);
