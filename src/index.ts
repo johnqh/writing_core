@@ -15,3 +15,7 @@ export * from './ids/ids.js';
 
 // ─── Model ──────────────────────────────────────────────────────────────────
 export * from './model/positions.js';
+
+// ─── Schema ─────────────────────────────────────────────────────────────────
+export * from './schema/vocab.js';
+export * from './schema/primitives.js';

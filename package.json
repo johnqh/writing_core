@@ -46,6 +46,8 @@
     "url": "https://github.com/johnqh/writing_core.git"
   },
   "dependencies": {
-    "@noble/hashes": "^2.4.0"
+    "@noble/hashes": "^2.4.0",
+    "yjs": "^13.6.32",
+    "zod": "^4.6.5"
   }
 }

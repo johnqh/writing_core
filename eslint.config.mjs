@@ -17,10 +17,13 @@ export default [
     plugins: { '@typescript-eslint': typescript },
     rules: {
       ...typescript.configs.recommended.rules,
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', ignoreRestSiblings: true }],
       '@typescript-eslint/no-explicit-any': 'error',
       '@typescript-eslint/no-non-null-assertion': 'warn',
       '@typescript-eslint/no-empty-object-type': 'off',
+      // TypeScript checks redeclaration and undefined names; the core rules misfire on TS.
+      'no-redeclare': 'off',
+      'no-undef': 'off',
     },
   },
   {
