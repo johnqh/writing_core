@@ -38,6 +38,14 @@
     "typescript": "^6.0.3",
     "vitest": "^4.1.10"
   },
-  "publishConfig": { "access": "public" },
-  "repository": { "type": "git", "url": "https://github.com/johnqh/writing_core.git" }
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/johnqh/writing_core.git"
+  },
+  "dependencies": {
+    "@noble/hashes": "^2.4.0"
+  }
 }
