@@ -25,6 +25,7 @@ export * from './model/apply-template.js';
 export * from './model/portable-pos.js';
 export * from './model/remap-ids.js';
 export * from './model/json.js';
+export * from './model/validate/index.js';
 export * from './smarttype/normalize.js';
 
 // ─── Migrations ─────────────────────────────────────────────────────────────
