@@ -20,3 +20,7 @@ export * from './model/positions.js';
 export * from './schema/vocab.js';
 export * from './schema/primitives.js';
 export * from './schema/template.js';
+
+// ─── Template ───────────────────────────────────────────────────────────────
+export * from './template/resolve.js';
+export * from './template/validate.js';

@@ -1,0 +1,149 @@
+import type { StyleId } from '../ids/ids.js';
+import type {
+  ElementOverrides, FontSpec, NumberingSpec, StyleDef, StyleFlow, TemplateJSON,
+} from '../schema/template.js';
+import type { Alignment, SmartTypeList, SplitRule, StyleRole } from '../schema/vocab.js';
+
+export interface ResolvedStyle {
+  id: StyleId;
+  name: string;
+  nameKey: string | null;
+  role: StyleRole;
+  basedOn: StyleId | null;
+  shortcut: number | null;
+  font: FontSpec;
+  allCaps: boolean;
+  align: Alignment;
+  indentLeft: number;
+  indentRight: number;
+  indentFirstLine: number;
+  spaceBefore: number;
+  lineSpacing: number;
+  column: 0 | 1 | 2;
+  keepWithNext: boolean;
+  keepTogether: boolean;
+  splitRule: SplitRule;
+  pageBreakBefore: boolean;
+  actBreak: boolean;
+  paginateAs: StyleId | null;
+  hiddenInScript: boolean;
+  printable: boolean;
+  outlineLevel: number;
+  flow: StyleFlow;
+  numbering: NumberingSpec | null;
+  prefix: string;
+  suffix: string;
+  smartTypeList: SmartTypeList | null;
+  dualDialogue: boolean;
+  leadingAdjust: number;
+  direction: 'auto' | 'ltr' | 'rtl';
+  anchor: 'flow' | 'bottom';
+}
+
+export const ROOT_REQUIRED_KEYS = [
+  'allCaps', 'align', 'indentLeft', 'indentRight', 'indentFirstLine', 'spaceBefore', 'lineSpacing', 'column',
+  'keepWithNext', 'keepTogether', 'splitRule', 'pageBreakBefore', 'actBreak', 'paginateAs', 'hiddenInScript',
+  'printable', 'outlineLevel', 'flow', 'numbering', 'prefix', 'suffix', 'smartTypeList', 'dualDialogue',
+] as const satisfies readonly (keyof StyleDef)[];
+
+export const FONT_KEYS = ['family', 'size', 'bold', 'italic', 'underline', 'strike', 'smallCaps', 'color'] as const satisfies readonly (keyof FontSpec)[];
+export const FLOW_KEYS = ['onEnter', 'onEnterEmpty', 'onTabEmpty', 'onTabText', 'onShiftTabEmpty'] as const satisfies readonly (keyof StyleFlow)[];
+
+/** Spec 01 §3.4.1 "Default split rule" column. */
+export const ROLE_DEFAULT_SPLIT: Record<StyleRole, SplitRule | 'sentencesIfBreakOnSentences'> = {
+  normal: 'lines', sceneHeading: 'never', action: 'sentencesIfBreakOnSentences', character: 'never',
+  parenthetical: 'never', dialogue: 'sentencesIfBreakOnSentences', transition: 'never', shot: 'never',
+  lyrics: 'lines', castList: 'lines', actStart: 'never', actEnd: 'never', sequence: 'never', outline: 'never',
+  synopsis: 'lines', note: 'lines', notation: 'lines', soundCue: 'never', page: 'never', panel: 'never',
+  chapter: 'never', paragraph: 'lines', subheading: 'never', quotation: 'lines', blockText: 'lines',
+  chapterEnd: 'never', titleText: 'lines',
+};
+
+type StyleSource = Pick<TemplateJSON, 'styles' | 'defaults' | 'pagination'>;
+
+/** Leaf first. A missing parent or a cycle jumps to the root (spec 01 §3.4.2 rule 1). */
+export function styleChain(styles: readonly StyleDef[], styleId: StyleId): StyleDef[] {
+  const byId = new Map(styles.map((s) => [s.id, s] as const));
+  const root = styles.find((s) => s.basedOn === null);
+  const chain: StyleDef[] = [];
+  const seen = new Set<string>();
+  let current = byId.get(styleId);
+  while (current && !seen.has(current.id)) {
+    chain.push(current);
+    seen.add(current.id);
+    if (current.basedOn === null) return chain;
+    current = byId.get(current.basedOn);
+  }
+  if (root && !seen.has(root.id)) chain.push(root);
+  return chain;
+}
+
+function nearest<K extends keyof StyleDef>(chain: readonly StyleDef[], key: K): StyleDef[K] | undefined {
+  for (const s of chain) if (s[key] !== undefined) return s[key];
+  return undefined;
+}
+
+function required<T>(value: T, styleId: string, field: string): Exclude<T, undefined> {
+  if (value === undefined) throw new Error(`style ${styleId}: no value for ${field} anywhere in its chain (incomplete root)`);
+  return value as Exclude<T, undefined>;
+}
+
+export function resolveStyle(template: StyleSource, styleId: StyleId, overrides?: ElementOverrides): ResolvedStyle {
+  const leaf = template.styles.find((s) => s.id === styleId);
+  if (!leaf) throw new Error(`unknown style ${styleId}`);
+  const chain = styleChain(template.styles, styleId);
+  const get = <K extends keyof StyleDef>(k: K) => required(nearest(chain, k), styleId, k);
+
+  const font = {} as FontSpec;
+  for (const k of FONT_KEYS) {
+    const found = chain.find((s) => s.font[k] !== undefined);
+    (font as Record<string, unknown>)[k] = required(found?.font[k], styleId, `font.${k}`);
+  }
+  const flow = {} as StyleFlow;
+  for (const k of FLOW_KEYS) {
+    const found = chain.find((s) => s.flow?.[k] !== undefined);
+    (flow as Record<string, unknown>)[k] = required(found?.flow?.[k], styleId, `flow.${k}`);
+  }
+
+  const nonRoot = chain.filter((s) => s.basedOn !== null);
+  const roleSplit = ROLE_DEFAULT_SPLIT[leaf.role];
+  const splitRule: SplitRule =
+    nearest(nonRoot, 'splitRule') ??
+    (roleSplit === 'sentencesIfBreakOnSentences' ? (template.pagination.breakOnSentences ? 'sentences' : 'lines') : roleSplit);
+
+  const resolved: ResolvedStyle = {
+    id: leaf.id, name: leaf.name, nameKey: leaf.nameKey, role: leaf.role, basedOn: leaf.basedOn, shortcut: leaf.shortcut,
+    font, flow, splitRule,
+    allCaps: get('allCaps'), align: get('align'), indentLeft: get('indentLeft'), indentRight: get('indentRight'),
+    indentFirstLine: get('indentFirstLine'), spaceBefore: get('spaceBefore'), lineSpacing: get('lineSpacing'),
+    column: get('column'), keepWithNext: get('keepWithNext'), keepTogether: get('keepTogether'),
+    pageBreakBefore: get('pageBreakBefore'), actBreak: get('actBreak'), paginateAs: get('paginateAs') ?? null,
+    hiddenInScript: get('hiddenInScript'), printable: get('printable'), outlineLevel: get('outlineLevel'),
+    numbering: get('numbering') ?? null, prefix: get('prefix'), suffix: get('suffix'),
+    smartTypeList: get('smartTypeList') ?? null, dualDialogue: get('dualDialogue'),
+    leadingAdjust: 0, direction: 'auto', anchor: 'flow',
+  };
+
+  if (resolved.paginateAs && resolved.paginateAs !== styleId && template.styles.some((s) => s.id === resolved.paginateAs)) {
+    const target = resolveStyle(template, resolved.paginateAs);
+    resolved.keepWithNext = target.keepWithNext;
+    resolved.keepTogether = target.keepTogether;
+    resolved.splitRule = target.splitRule;
+  }
+
+  if (overrides) {
+    if (overrides.align !== undefined) resolved.align = overrides.align;
+    if (overrides.indentLeft !== undefined) resolved.indentLeft = overrides.indentLeft;
+    if (overrides.indentRight !== undefined) resolved.indentRight = overrides.indentRight;
+    if (overrides.indentFirstLine !== undefined) resolved.indentFirstLine = overrides.indentFirstLine;
+    if (overrides.spaceBefore !== undefined) resolved.spaceBefore = overrides.spaceBefore;
+    if (overrides.lineSpacing !== undefined) resolved.lineSpacing = overrides.lineSpacing;
+    if (overrides.keepWithNext !== undefined) resolved.keepWithNext = overrides.keepWithNext;
+    if (overrides.pageBreakBefore !== undefined) resolved.pageBreakBefore = overrides.pageBreakBefore;
+    if (overrides.column !== undefined) resolved.column = overrides.column;
+    if (overrides.leadingAdjust !== undefined) resolved.leadingAdjust = overrides.leadingAdjust;
+    if (overrides.direction !== undefined) resolved.direction = overrides.direction;
+    if (overrides.anchor !== undefined) resolved.anchor = overrides.anchor;
+  }
+  return resolved;
+}
