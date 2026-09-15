@@ -8,6 +8,7 @@ import type { TemplateJSON } from '../schema/template.js';
 import { textJSONFromPlain } from '../schema/text.js';
 import { STORED_SMARTTYPE_LISTS, type DocumentKind } from '../schema/vocab.js';
 import { normalizeKey } from '../smarttype/normalize.js';
+import { DOC_SCHEMA_VERSION, MIGRATION_STEPS } from '../migrations/index.js';
 import { insertElementRecord } from './element-record.js';
 import { embedTemplate } from './embed-template.js';
 import { systemOrigin } from './origins.js';
@@ -56,7 +57,7 @@ export function createDocument(options: CreateDocumentOptions): Y.Doc {
 
   doc.transact(() => {
     const m = map('meta');
-    m.set('schemaVersion', 1);
+    m.set('schemaVersion', DOC_SCHEMA_VERSION);
     m.set('docId', options.docId ?? newId('doc', ids));
     m.set('createdAt', now);
     m.set('createdBy', uid);
@@ -65,7 +66,8 @@ export function createDocument(options: CreateDocumentOptions): Y.Doc {
     m.set('direction', template.direction);
     m.set('templateOrigin', { templateId: template.id, key: template.key, version: template.version, hash: `v1:${sha256Hex(canonicalJSON(template))}` });
     m.set('forkedFrom', null);
-    m.set('migrations', new Y.Map());
+    const migrations = m.set('migrations', new Y.Map<unknown>());
+    for (const step of MIGRATION_STEPS) migrations.set(step.id, { at: now, by: 'create', codeVersion: 'create' });
 
     embedTemplate(doc, template);
 

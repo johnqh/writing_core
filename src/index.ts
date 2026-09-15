@@ -27,6 +27,9 @@ export * from './model/remap-ids.js';
 export * from './model/json.js';
 export * from './smarttype/normalize.js';
 
+// ─── Migrations ─────────────────────────────────────────────────────────────
+export * from './migrations/index.js';
+
 // ─── Schema ─────────────────────────────────────────────────────────────────
 export * from './schema/vocab.js';
 export * from './schema/primitives.js';
