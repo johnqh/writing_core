@@ -4,7 +4,7 @@ import { createSeededIdSource } from '../ids/id-source.js';
 import { idKind } from '../ids/ids.js';
 import { DocumentJSON } from '../schema/document.js';
 import {
-  RICH_ACTION_PLAIN, RICH_DUAL_GROUP, RICH_NOTE1_ID, RICH_TAG1_ID, richDocumentJSON,
+  RICH_ACTION_PLAIN, RICH_DUAL_GROUP, RICH_NOTE1_ID, RICH_REPRESENTATIVE_IDS, RICH_TAG1_ID, richDocumentJSON,
 } from '../test-fixtures/rich-document-json.js';
 import { documentFromJSON, documentToJSON, materializeDocument } from './json.js';
 import { comparePositions } from './positions.js';
@@ -31,7 +31,7 @@ function mustFind<T>(items: readonly T[], pred: (t: T) => boolean, what: string)
 }
 
 const SMART_TYPE_LISTS = ['sceneIntros', 'times', 'extensions', 'transitions', 'soundCues'] as const;
-const MIN2_COLLECTIONS = ['folders', 'entities', 'tags', 'tagCategories', 'notes', 'beats', 'beatLinks', 'plotColumns', 'storylines', 'lanes', 'bin', 'shots', 'bookmarks'] as const;
+const MIN2_COLLECTIONS = ['folders', 'entities', 'tags', 'tagCategories', 'notes', 'beats', 'beatLinks', 'plotColumns', 'storylines', 'lanes', 'bin', 'shots', 'bookmarks', 'traitDefs', 'macros'] as const;
 
 describe('richDocumentJSON fixture', () => {
   it('is schema-valid and rich: every listed collection has at least two entries', () => {
@@ -71,6 +71,8 @@ describe('documentToJSON round trip on the rich fixture', () => {
     assertAscending(out.shots, (r) => r.pos, (r) => r.id);
     assertAscending(out.bookmarks, () => undefined, (r) => r.id);
     assertAscending(out.production.pageLocks, () => undefined, (r) => r.id);
+    assertAscending(out.traitDefs, (r) => r.pos, (r) => r.id);
+    assertAscending(out.macros, (r) => r.pos, (r) => r.id);
     for (const list of SMART_TYPE_LISTS) assertAscending(out.smartType[list], (r) => r.pos, (r) => r.key);
   });
 
@@ -85,6 +87,15 @@ describe('documentToJSON round trip on the rich fixture', () => {
 const ID_TOKEN_RE = /[a-z]+_[0-9A-HJKMNP-TV-Z]{26}/g;
 
 describe('materializeDocument(preserveIds: false) / remapDocumentIds on the rich fixture', () => {
+  it('REMAPPED_PREFIXES is exactly the independently-named set of document-scoped id prefixes', () => {
+    // RICH_REPRESENTATIVE_IDS is written by hand from the spec's id-prefix registry, in
+    // src/test-fixtures/rich-document-json.ts — it does not read REMAPPED_PREFIXES. If someone
+    // narrows REMAPPED_PREFIXES (e.g. drops 'el'), this equality fails even though every id-shaped
+    // token scan elsewhere in this file is (necessarily) filtered by REMAPPED_PREFIXES itself.
+    const independentPrefixes = RICH_REPRESENTATIVE_IDS.map(([prefix]) => prefix).sort();
+    expect([...REMAPPED_PREFIXES].sort()).toEqual(independentPrefixes);
+  });
+
   it('changes every document-scoped id and leaves no dangling reference', () => {
     const base = richDocumentJSON();
     const baseStr = JSON.stringify(base);
@@ -102,6 +113,24 @@ describe('materializeDocument(preserveIds: false) / remapDocumentIds on the rich
 
     expect(out.meta.docId).not.toBe(base.meta.docId);
     for (const oldId of originalIds) expect(outStr.includes(oldId)).toBe(false);
+
+    // Independent proof (see the preceding test): for every prefix named in
+    // RICH_REPRESENTATIVE_IDS — not filtered through REMAPPED_PREFIXES the way `originalIds`
+    // above is — its representative original id from the fixture is gone from the remapped
+    // output, and at least one *new* id of the same kind is present (so the field was actually
+    // remapped, not silently dropped). This is what still catches a narrowed REMAPPED_PREFIXES
+    // (e.g. 'el' removed) even though the `originalIds` scan above, by construction, cannot.
+    const outputTokensByKind = new Map<string, Set<string>>();
+    for (const token of outStr.match(ID_TOKEN_RE) ?? []) {
+      const kind = idKind(token);
+      if (!kind) continue;
+      if (!outputTokensByKind.has(kind)) outputTokensByKind.set(kind, new Set());
+      outputTokensByKind.get(kind)!.add(token);
+    }
+    for (const [prefix, oldId] of RICH_REPRESENTATIVE_IDS) {
+      expect(outStr.includes(oldId)).toBe(false);
+      expect(outputTokensByKind.get(prefix)?.size ?? 0).toBeGreaterThan(0);
+    }
 
     // --- elements, found by their stable plain text (ids all changed, per the deep scan above) ---
     const heading = mustFind(out.elements, (e) => e.text.plain === 'INT. DINER - NIGHT', 'heading element');

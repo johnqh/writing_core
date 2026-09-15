@@ -1,5 +1,5 @@
 import { createSeededIdSource } from '../ids/id-source.js';
-import { builtinStyleId, newDualGroupId, newId } from '../ids/ids.js';
+import { builtinStyleId, type IdPrefix, newDualGroupId, newId } from '../ids/ids.js';
 import { generatePositions } from '../model/positions.js';
 import { sortedRecords } from '../model/ymap.js';
 import type { DocumentJSON, ElementJSON } from '../schema/document.js';
@@ -75,11 +75,48 @@ export const RICH_BM1_ID = newId('bm', seededIds);
 export const RICH_BM2_ID = newId('bm', seededIds);
 export const RICH_PLK1_ID = newId('plk', seededIds);
 export const RICH_PLK2_ID = newId('plk', seededIds);
+export const RICH_TRT1_ID = newId('trt', seededIds);
+export const RICH_TRT2_ID = newId('trt', seededIds);
+export const RICH_MAC1_ID = newId('mac', seededIds);
+export const RICH_MAC2_ID = newId('mac', seededIds);
 const ASSET1_ID = newId('asset', seededIds);
 const SUG1_ID = newId('sug', seededIds);
 
 /** Not an addressable record (spec 01 §5.3.4): shared verbatim by both sides of the pair. */
 export const RICH_DUAL_GROUP = newDualGroupId(seededIds);
+
+/**
+ * One representative original id per document-scoped `IdPrefix`, named independently of
+ * `REMAPPED_PREFIXES` (src/model/remap-ids.ts) — this list is written by hand, from the spec's
+ * id-prefix registry, not derived from that constant, specifically so a test can assert the two
+ * agree instead of assuming it (a narrowed `REMAPPED_PREFIXES` must fail such a test, not pass it
+ * vacuously because the check was filtered by the very constant under test).
+ */
+export const RICH_REPRESENTATIVE_IDS: ReadonlyArray<readonly [IdPrefix, string]> = [
+  ['el', RICH_HEADING_ID],
+  ['fld', RICH_FOLDER1_ID],
+  ['ent', RICH_CHARACTER_ENTITY_ID],
+  ['trt', RICH_TRT1_ID],
+  ['cat', RICH_CAT1_ID],
+  ['tag', RICH_TAG1_ID],
+  ['note', RICH_NOTE1_ID],
+  ['rep', REPLY1_ID],
+  ['ntp', RICH_NTP1_ID],
+  ['rev', RICH_REV1_ID],
+  ['chg', CHG1_ID],
+  ['alt', RICH_ALT1_ID],
+  ['sv', RICH_SV1_ID],
+  ['beat', RICH_BEAT1_ID],
+  ['lnk', RICH_LNK1_ID],
+  ['col', RICH_COL1_ID],
+  ['stl', RICH_STL1_ID],
+  ['lane', RICH_LANE1_ID],
+  ['bin', RICH_BIN1_ID],
+  ['shot', RICH_SHOT1_ID],
+  ['bm', RICH_BM1_ID],
+  ['plk', RICH_PLK1_ID],
+  ['mac', RICH_MAC1_ID],
+];
 
 const META = { createdBy: 'uid-1', createdAt: 1, editedBy: 'uid-1', editedAt: 1 };
 
@@ -187,6 +224,8 @@ export function richDocumentJSON(): DocumentJSON {
   const [binPos1, binPos2] = generatePositions(2, null, null, null) as [string, string];
   const [shotPos1, shotPos2] = generatePositions(2, null, null, null) as [string, string];
   const [stPos1, stPos2] = generatePositions(2, null, null, null) as [string, string];
+  const [trtPos1, trtPos2] = generatePositions(2, null, null, null) as [string, string];
+  const [macPos1, macPos2] = generatePositions(2, null, null, null) as [string, string];
 
   return {
     meta: {
@@ -213,7 +252,10 @@ export function richDocumentJSON(): DocumentJSON {
         attributes: {}, categoryId: null, retain: false, mergedInto: null, createdBy: 'uid-1', createdAt: 1, origin: 'manual',
       },
     ]),
-    traitDefs: [],
+    traitDefs: sortedRecords([
+      { id: RICH_TRT1_ID, key: 'role', name: 'Role', type: 'choice', options: ['Lead', 'Supporting'], pos: trtPos1 },
+      { id: RICH_TRT2_ID, key: null, name: 'Custom Trait', type: 'text', options: [], pos: trtPos2 },
+    ]),
     tagCategories: sortedRecords([
       { id: RICH_CAT1_ID, key: 'cast', name: 'Cast', color: '#0000FF', entityKind: 'character', textStyle: { bold: true, underline: false, highlight: false }, visible: true, pos: catPos1, fdxGuid: null, osfUuid: null },
       { id: RICH_CAT2_ID, key: 'locations', name: 'Locations', color: '#00FF00', entityKind: 'location', textStyle: { bold: false, underline: true, highlight: false }, visible: true, pos: catPos2, fdxGuid: null, osfUuid: null },
@@ -306,7 +348,16 @@ export function richDocumentJSON(): DocumentJSON {
       { id: RICH_BM1_ID, name: 'Top', elementId: RICH_HEADING_ID, at: 'o:0' },
       { id: RICH_BM2_ID, name: 'Mid', elementId: RICH_ACTION_ID, at: 'o:4' },
     ]),
-    macros: [],
+    macros: sortedRecords([
+      {
+        id: RICH_MAC1_ID, pos: macPos1, name: 'INT.', text: 'INT. ', styleId: builtinStyleId('scene_heading'),
+        nextStyleId: builtinStyleId('action'), shortcut: 'Mod+Alt+1', alias: null,
+      },
+      {
+        id: RICH_MAC2_ID, pos: macPos2, name: 'V.O.', text: '(V.O.)', styleId: null, nextStyleId: null,
+        shortcut: null, alias: { text: 'voiceover', confirm: false, matchCase: false, smartReplace: true, wordOnly: true, activeIn: [builtinStyleId('character')] },
+      },
+    ]),
     smartType: {
       sceneIntros: [
         { key: 'int', text: 'INT.', pos: stPos1, origin: 'seed', count: 0 },

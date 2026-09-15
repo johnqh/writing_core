@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { normalizeKey, stripExtension } from './normalize.js';
 
 describe('normalizeKey', () => {
@@ -34,5 +34,25 @@ describe('normalizeKey', () => {
     const withoutMarker = normalizeKey('Mira', { speaker: true });
     expect(withMarker).toBe(withoutMarker);
     expect(withMarker).toBe('mira');
+  });
+  it("never calls toLocaleUpperCase() while matching the CONT'D/extension marker (regression guard for the fix above)", () => {
+    // The test above pins native JS semantics (`'i'.toLocaleUpperCase('tr')` vs `.toUpperCase()`)
+    // but does not itself exercise normalizeKey in a way that fails if the implementation reverts
+    // to a bare `toLocaleUpperCase()` for the marker match: that match finds an index in the
+    // *uppercased* string and then slices the *original, untransformed* string, so a length- and
+    // position-preserving substitution (Turkish dotted/dotless I is exactly that) never changes
+    // the final sliced-and-lower-folded output — confirmed empirically by reverting normalize.ts
+    // to bare toLocaleUpperCase() and re-running an output-equality version of this test: it still
+    // passed. A spy on `toLocaleUpperCase` is the assertion that actually has teeth: it fails the
+    // moment the marker match calls the locale-dependent form at all, regardless of whether that
+    // particular call happens to produce an observably different final key in this environment.
+    const spy = vi.spyOn(String.prototype, 'toLocaleUpperCase');
+    try {
+      normalizeKey("Mira (CONTINUING)", { speaker: true, contTexts: ['(CONTINUING)'] });
+      normalizeKey('SAM (DEVAMI)', { speaker: true, contTexts: ['(DEVAMI)'] });
+      expect(spy).not.toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
