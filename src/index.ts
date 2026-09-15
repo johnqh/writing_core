@@ -7,3 +7,8 @@ export * from './units.js';
 // ─── Hash ───────────────────────────────────────────────────────────────────
 export * from './hash/canonical-json.js';
 export * from './hash/sha256.js';
+
+// ─── IDs ────────────────────────────────────────────────────────────────────
+export * from './ids/crockford.js';
+export * from './ids/id-source.js';
+export * from './ids/ids.js';
