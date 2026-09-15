@@ -19,3 +19,4 @@ export * from './model/positions.js';
 // ─── Schema ─────────────────────────────────────────────────────────────────
 export * from './schema/vocab.js';
 export * from './schema/primitives.js';
+export * from './schema/template.js';

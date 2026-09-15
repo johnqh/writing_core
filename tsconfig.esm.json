@@ -7,5 +7,5 @@
     "sourceMap": true,
     "noEmit": false
   },
-  "exclude": ["node_modules", "dist", "**/*.test.ts", "src/__guards/**"]
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "src/__guards/**", "src/test-fixtures/**"]
 }
