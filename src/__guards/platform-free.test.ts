@@ -33,6 +33,16 @@ const FORBIDDEN: ReadonlyArray<{ pattern: RegExp; reason: string }> = [
     pattern: /\bdocument\.(createElement|getElementById|querySelector|querySelectorAll|body|head|addEventListener|fonts|activeElement)\b/,
     reason: 'DOM global',
   },
+  // `toLocaleUpperCase()`, `toLocaleLowerCase()`, `toLocaleString()` and `localeCompare(` called
+  // with NO argument fall back to the host's default locale, which this platform-free package
+  // must never depend on (see src/smarttype/normalize.ts for the ASCII-vs-locale distinction).
+  // Called *with* an explicit locale argument (e.g. `s.toLocaleLowerCase(language)`) is fine and
+  // must not be flagged, so each pattern requires a `)` immediately after the opening `(`.
+  { pattern: /\.toLocaleUpperCase\(\s*\)/, reason: 'locale-dependent case fold with no explicit locale' },
+  { pattern: /\.toLocaleLowerCase\(\s*\)/, reason: 'locale-dependent case fold with no explicit locale' },
+  { pattern: /\.toLocaleString\(\s*\)/, reason: 'locale-dependent formatting with no explicit locale' },
+  { pattern: /\.localeCompare\(\s*\)/, reason: 'locale-dependent comparison with no argument' },
+  { pattern: /\bnew Intl\./, reason: 'host-locale-dependent Intl API' },
 ];
 
 function sourceFiles(dir: string): string[] {
@@ -166,6 +176,42 @@ describe('findViolations', () => {
 
   it('still flags a violation after a short string literal containing //', () => {
     expect(findViolations(`const s = 'a//b'; require('utils');`)).toHaveLength(1);
+  });
+
+  it('flags toLocaleUpperCase() called with no locale argument', () => {
+    expect(findViolations(`const s = x.toLocaleUpperCase();`)).toHaveLength(1);
+  });
+
+  it('does not flag toLocaleUpperCase(locale) called with an explicit locale', () => {
+    expect(findViolations(`const s = x.toLocaleUpperCase('en');`)).toEqual([]);
+  });
+
+  it('flags toLocaleLowerCase() called with no locale argument', () => {
+    expect(findViolations(`const s = x.toLocaleLowerCase();`)).toHaveLength(1);
+  });
+
+  it('does not flag toLocaleLowerCase(language) called with an explicit locale', () => {
+    expect(findViolations(`const s = x.toLocaleLowerCase(language);`)).toEqual([]);
+  });
+
+  it('flags toLocaleString() called with no locale argument', () => {
+    expect(findViolations(`const s = n.toLocaleString();`)).toHaveLength(1);
+  });
+
+  it('does not flag toLocaleString(locale) called with an explicit locale', () => {
+    expect(findViolations(`const s = n.toLocaleString('en-US');`)).toEqual([]);
+  });
+
+  it('flags localeCompare() called with no argument', () => {
+    expect(findViolations(`const c = a.localeCompare();`)).toHaveLength(1);
+  });
+
+  it('does not flag localeCompare(b) called with an argument', () => {
+    expect(findViolations(`const c = a.localeCompare(b);`)).toEqual([]);
+  });
+
+  it('flags bare `new Intl.` usage', () => {
+    expect(findViolations(`const f = new Intl.Collator('en');`)).toHaveLength(1);
   });
 
   it('does not flag a real violation only when it is truly in a trailing comment, even next to a // in a string', () => {

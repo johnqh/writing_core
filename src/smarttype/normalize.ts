@@ -17,8 +17,11 @@ export function normalizeKey(
 ): string {
   let s = input.normalize('NFKC');
   if (options.speaker) {
+    // Plain (non-locale) case fold: the CONT'D/extension marker is a fixed ASCII/CJK token from
+    // the template, not user prose, so matching it must not depend on the host's default locale
+    // (toLocaleUpperCase() with no argument would, e.g. dotted capital I in a Turkish locale).
     for (const cont of options.contTexts ?? ALL_CONT_TEXTS) {
-      const i = s.toLocaleUpperCase().lastIndexOf(cont.normalize('NFKC').toLocaleUpperCase());
+      const i = s.toUpperCase().lastIndexOf(cont.normalize('NFKC').toUpperCase());
       if (i >= 0 && s.slice(i + cont.length).trim() === '') s = s.slice(0, i);
     }
     s = stripExtension(s).name;

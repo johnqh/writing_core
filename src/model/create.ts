@@ -3,7 +3,7 @@ import { canonicalJSON } from '../hash/canonical-json.js';
 import { sha256Hex } from '../hash/sha256.js';
 import type { IdSource } from '../ids/id-source.js';
 import { type DocId, type StyleId, newId } from '../ids/ids.js';
-import type { SettingsJSON, TableReadJSON } from '../schema/document.js';
+import type { DocTopLevelKey, SettingsJSON, TableReadJSON } from '../schema/document.js';
 import type { TemplateJSON } from '../schema/template.js';
 import { textJSONFromPlain } from '../schema/text.js';
 import { STORED_SMARTTYPE_LISTS, type DocumentKind } from '../schema/vocab.js';
@@ -13,7 +13,7 @@ import { insertElementRecord } from './element-record.js';
 import { embedTemplate } from './embed-template.js';
 import { systemOrigin } from './origins.js';
 import { generatePositions } from './positions.js';
-import { setJSONMap } from './ymap.js';
+import { getMap, setJSONMap } from './ymap.js';
 
 export interface CreateDocumentOptions {
   template: TemplateJSON;
@@ -52,7 +52,7 @@ export function createDocument(options: CreateDocumentOptions): Y.Doc {
   const clock = options.clock ?? (() => Date.now());
   const now = clock();
   const doc = new Y.Doc({ gc: true });
-  const map = (key: string) => doc.getMap<unknown>(key);
+  const map = (key: DocTopLevelKey) => getMap(doc, key);
   const meta = { createdBy: uid, createdAt: now, editedBy: uid, editedAt: now };
 
   doc.transact(() => {
@@ -118,7 +118,7 @@ export function createDocument(options: CreateDocumentOptions): Y.Doc {
     });
     for (const [k, v] of Object.entries({ activeSetId: null, headerSetId: null, mode: false, display: 'none', selectedSetIds: [], showPageColor: false, colorRevisedText: false, markColumn: 7_086_600 })) rev.set(k, v);
 
-    const seedCollection = <T>(key: string, prefix: 'cat' | 'ntp' | 'trt', items: readonly T[], shape: (item: T, id: string, pos: string) => Record<string, unknown>) => {
+    const seedCollection = <T>(key: DocTopLevelKey, prefix: 'cat' | 'ntp' | 'trt', items: readonly T[], shape: (item: T, id: string, pos: string) => Record<string, unknown>) => {
       const target = map(key);
       const pos = generatePositions(items.length, null, null, null);
       items.forEach((item, i) => {
@@ -164,7 +164,8 @@ export function createDocument(options: CreateDocumentOptions): Y.Doc {
     if (template.category === 'verticalDrama') settings.set('targetEpisodeSeconds', 90);
 
     // Empty collections: touching the map creates it.
-    for (const key of ['folders', 'entities', 'tags', 'notes', 'writers', 'beats', 'beatLinks', 'plotColumns', 'storylines', 'lanes', 'bin', 'shots', 'bookmarks', 'importMeta', 'aiSuggestions']) map(key);
+    const EMPTY_COLLECTIONS = ['folders', 'entities', 'tags', 'notes', 'writers', 'beats', 'beatLinks', 'plotColumns', 'storylines', 'lanes', 'bin', 'shots', 'bookmarks', 'importMeta', 'aiSuggestions'] as const satisfies readonly DocTopLevelKey[];
+    for (const key of EMPTY_COLLECTIONS) map(key);
   }, systemOrigin('create'));
 
   return doc;
