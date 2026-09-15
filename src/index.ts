@@ -29,3 +29,6 @@ export * from './template/flow.js';
 // ─── Templates (seeds) ──────────────────────────────────────────────────────
 export * from './templates/role-table.js';
 export * from './templates/shared.js';
+
+// ─── Templates (built-in) ──────────────────────────────────────────────────
+export { GENERATED_TEMPLATES } from './templates/builtin/generated/index.js';
