@@ -21,6 +21,9 @@ export * from './model/ymap.js';
 export * from './model/embed-template.js';
 export * from './model/element-record.js';
 export * from './model/create.js';
+export * from './model/portable-pos.js';
+export * from './model/remap-ids.js';
+export * from './model/json.js';
 export * from './smarttype/normalize.js';
 
 // ─── Schema ─────────────────────────────────────────────────────────────────
