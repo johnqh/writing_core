@@ -20,6 +20,9 @@ export * from './model/positions.js';
 export * from './schema/vocab.js';
 export * from './schema/primitives.js';
 export * from './schema/template.js';
+export * from './schema/text.js';
+export * from './schema/entities.js';
+export * from './schema/document.js';
 
 // ─── Template ───────────────────────────────────────────────────────────────
 export * from './template/resolve.js';
