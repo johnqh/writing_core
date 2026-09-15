@@ -1,13 +1,14 @@
 import type * as Y from 'yjs';
 import { systemOrigin } from '../origins.js';
 import { createValidationContext } from './context.js';
+import { REFERENCE_INVARIANTS } from './references.js';
 import { STRUCTURAL_INVARIANTS } from './structural.js';
 import type { Invariant, InvariantCode, Issue } from './types.js';
 
 export * from './types.js';
 export { allTexts, createValidationContext, BUILTIN_STYLE_ROLES } from './context.js';
 
-const INVARIANTS: Invariant[] = [...STRUCTURAL_INVARIANTS];
+const INVARIANTS: Invariant[] = [...STRUCTURAL_INVARIANTS, ...REFERENCE_INVARIANTS];
 
 export function registerInvariants(extra: readonly Invariant[]): void {
   for (const inv of extra) if (!INVARIANTS.some((i) => i.code === inv.code)) INVARIANTS.push(inv);
