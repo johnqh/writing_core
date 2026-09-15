@@ -4,12 +4,9 @@ import type { StyleId } from '../../ids/ids.js';
 import { SCENE_ROLES, SPEAKER_ROLES, SPEECH_MEMBER_ROLES } from '../../schema/vocab.js';
 import { resolveStyle } from '../../template/resolve.js';
 import { decodeRelativePosition, encodeRelativePosition } from '../portable-pos.js';
+import { type YMap, has, records } from './helpers.js';
 import { allTexts, roleOf, scanText } from './marks.js';
 import { type Invariant, type Issue, issue } from './types.js';
-
-type YMap = Y.Map<unknown>;
-const records = (map: YMap) => [...map.entries()].filter((e): e is [string, YMap] => e[1] instanceof Y.Map);
-const has = <T extends readonly string[]>(list: T, v: string | null) => v !== null && (list as readonly string[]).includes(v);
 
 const I7: Invariant = {
   code: 'I7', severity: 'warning', autoRepair: true,

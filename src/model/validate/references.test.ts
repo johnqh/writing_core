@@ -7,6 +7,7 @@ import { screenplayStandard } from '../../templates/builtin/screenplay-standard.
 import { createDocument } from '../create.js';
 import { insertElementRecord } from '../element-record.js';
 import { writeEntity } from '../json.js';
+import { encodeRelativePosition } from '../portable-pos.js';
 import { validateDocument } from './index.js';
 
 const ids = createSeededIdSource(21);
@@ -89,6 +90,51 @@ describe('reference invariants', () => {
     expect(doc.getMap('tags').size).toBe(0);
   });
 
+  it('I12 detaches a range-anchored note when its only n: mark is removed', () => {
+    const { doc, made } = docWith(['st_action']);
+    const text = made[0]!.get('text') as Y.Text;
+    const noteTypeId = [...doc.getMap('noteTypes').keys()][0]!;
+    const notes = doc.getMap('notes');
+    const noteId = newId('note', ids);
+    const note = new Y.Map<unknown>();
+    notes.set(noteId, note);
+    note.set('id', noteId);
+    note.set('typeId', noteTypeId);
+    note.set('anchor', { kind: 'range' });
+    text.format(0, 1, { [`n:${noteId}`]: true });
+    // The mark is present, so the range note is still attached; nothing should fire yet.
+    expect(codes(doc)).toEqual([]);
+    text.format(0, 1, { [`n:${noteId}`]: null });
+    const v = validateDocument(doc);
+    expect(v.issues.map((i) => i.code)).toEqual(['I12']);
+    v.repair();
+    expect(note.get('anchor')).toEqual({ kind: 'document' });
+    expect(codes(doc)).toEqual([]);
+  });
+
+  it('I12 does not fire for a document/element/beat-anchored note with no mark', () => {
+    const { doc, made } = docWith(['st_action']);
+    const notes = doc.getMap('notes');
+    const noteTypeId = [...doc.getMap('noteTypes').keys()][0]!;
+    const elementId = made[0]!.get('id') as string;
+    const anchors = [
+      { kind: 'document' as const },
+      { kind: 'element' as const, elementId },
+      { kind: 'beat' as const, beatId: newId('beat', ids) },
+    ];
+    for (const anchor of anchors) {
+      const noteId = newId('note', ids);
+      const note = new Y.Map<unknown>();
+      notes.set(noteId, note);
+      note.set('id', noteId);
+      note.set('typeId', noteTypeId);
+      note.set('anchor', anchor);
+    }
+    // None of these notes has an 'n:<id>' mark anywhere, and none is range-anchored, so I12
+    // (unlike I10, which would separately flag e.g. a dangling beat anchor) must stay silent.
+    expect(validateDocument(doc).issues.some((i) => i.code === 'I12')).toBe(false);
+  });
+
   it('I13 removes marks for unknown revision sets', () => {
     const { doc, made } = docWith(['st_action']);
     const text = made[0]!.get('text') as Y.Text;
@@ -98,6 +144,34 @@ describe('reference invariants', () => {
     expect(v.issues.map((i) => i.code)).toEqual(['I13', 'I13']);
     v.repair();
     expect(text.toDelta()).toEqual([{ insert: 'x' }]);
+  });
+
+  it('I15 re-anchors a page lock whose start no longer resolves, marking it reanchored', () => {
+    const { doc, made } = docWith(['st_action', 'st_action']);
+    const firstId = String(made[0]!.get('id'));
+    const firstText = made[0]!.get('text') as Y.Text;
+    const locks = doc.getMap('production').get('pageLocks') as Y.Map<unknown>;
+    const lockId = newId('plk', ids);
+    const lock = new Y.Map<unknown>();
+    locks.set(lockId, lock);
+    lock.set('id', lockId);
+    lock.set('label', { base: 0, prefix: [], suffix: [] });
+    lock.set('level', 0);
+    lock.set('startElementId', firstId);
+    lock.set('start', encodeRelativePosition(Y.createRelativePositionFromTypeIndex(firstText, 0, 0)));
+    lock.set('startMidElement', false);
+    lock.set('revisionSetId', null);
+    lock.set('lockedAt', 0);
+    lock.set('lockedBy', 'u');
+    expect(codes(doc)).toEqual([]);
+    // Delete the anchoring element: the lock's relative position can no longer resolve.
+    doc.getMap('elements').delete(firstId);
+    const v = validateDocument(doc);
+    expect(v.issues.map((i) => i.code)).toEqual(['I15']);
+    v.repair();
+    expect(lock.get('startElementId')).toBe(made[1]!.get('id'));
+    expect(lock.get('reanchored')).toBe(true);
+    expect(codes(doc)).toEqual([]);
   });
 
   it('I16 flags duplicate entity name keys and I17 breaks merge cycles', () => {

@@ -10,6 +10,7 @@ import { MAX_POSITION_LENGTH, positionBetween, rebalancePositions } from '../pos
 import { orderElements } from '../ymap.js';
 import type { YDeltaOp } from '../ytext.js';
 import { BUILTIN_STYLE_ROLES, allTexts } from './context.js';
+import { records } from './helpers.js';
 import { type Invariant, issue } from './types.js';
 
 type YMap = Y.Map<unknown>;
@@ -30,6 +31,13 @@ const I1: Invariant = {
   code: 'I1', severity: 'error', autoRepair: false,
   check(ctx) {
     const known = new Set<string>(DOC_TOP_LEVEL_KEYS);
+    // Risk: `Y.Doc#share` is a Yjs implementation detail (the internal map of every root type ever
+    // touched via `doc.getMap`/`getArray`/`getText`), not a documented public API. If a future Yjs
+    // version stops eagerly listing every root type there — e.g. lazily creating entries on first
+    // access from elsewhere — this enumeration would silently under-report unknown top-level keys.
+    // `src/model/create.test.ts` ("creates exactly the spec 01 top-level maps") asserts
+    // `doc.share.size === DOC_TOP_LEVEL_KEYS.length` on a freshly created document; if `share` ever
+    // stopped listing every root type, that assertion (not this one) would be the one to fail first.
     const unknown = [...ctx.doc.share.keys()].filter((k) => !known.has(k));
     const out = unknown.map((k) => issue(I1, `unknown top-level key "${k}"`, [k]));
     if (!ctx.docId) out.push(issue(I1, 'meta.docId is missing', []));
@@ -81,7 +89,7 @@ const I4: Invariant = {
   check(ctx) {
     const out = [];
     for (const map of [ctx.bodyElements, ctx.titleElements].filter((m): m is YMap => m !== null)) {
-      const all = [...map.entries()].filter(([, v]) => v instanceof Y.Map) as [string, YMap][];
+      const all = records(map);
       for (const [id, el] of all) {
         const missing = (['pos', 'style', 'text', 'meta'] as const).filter((k) => (k === 'text' ? !(el.get('text') instanceof Y.Text) : el.get(k) === undefined));
         if (missing.length === 0) continue;

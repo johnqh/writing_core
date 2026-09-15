@@ -2,6 +2,7 @@ import * as Y from 'yjs';
 import { describe, expect, it } from 'vitest';
 import { createSeededIdSource } from '../../ids/id-source.js';
 import { screenplayStandard } from '../../templates/builtin/screenplay-standard.js';
+import { ROOT_STYLE_DEFAULTS } from '../../templates/shared.js';
 import { createDocument } from '../create.js';
 import { documentToJSON } from '../json.js';
 import { validateDocument } from './index.js';
@@ -19,6 +20,13 @@ describe('structural invariants', () => {
     const doc = fresh();
     doc.getMap('mystery').set('a', 1);
     const issue = validateDocument(doc).issues.find((i) => i.code === 'I1')!;
+    expect(issue).toMatchObject({ severity: 'error', autoRepair: false });
+  });
+
+  it('I1 reports a missing meta.docId without repairing', () => {
+    const doc = fresh();
+    doc.getMap('meta').delete('docId');
+    const issue = validateDocument(doc).issues.find((i) => i.code === 'I1' && i.message.includes('docId'))!;
     expect(issue).toMatchObject({ severity: 'error', autoRepair: false });
   });
 
@@ -58,6 +66,53 @@ describe('structural invariants', () => {
     expect(third.get('style')).toBe(screenplayStandard.defaults.pasteFallback);
   });
 
+  it('I4 fills a missing pos via positionBetween, leaving other fields untouched', () => {
+    const doc = fresh();
+    const noPos = new Y.Map<unknown>();
+    doc.getMap('elements').set('el_01ARYZ6S410000000000000096', noPos);
+    noPos.set('id', 'el_01ARYZ6S410000000000000096');
+    noPos.set('text', new Y.Text());
+    noPos.set('meta', { createdBy: 'u', createdAt: 0, editedBy: 'u', editedAt: 0 });
+    noPos.set('style', screenplayStandard.defaults.pasteFallback);
+    const v = validateDocument(doc);
+    expect(v.issues.map((i) => i.code)).toEqual(['I4']);
+    expect(v.issues[0]).toMatchObject({ ids: ['el_01ARYZ6S410000000000000096'] });
+    v.repair();
+    expect(typeof noPos.get('pos')).toBe('string');
+    expect((noPos.get('pos') as string).length).toBeGreaterThan(0);
+    expect(codes(doc)).toEqual([]);
+  });
+
+  it('I4 fills a missing text with an empty Y.Text', () => {
+    const doc = fresh();
+    const noText = new Y.Map<unknown>();
+    doc.getMap('elements').set('el_01ARYZ6S410000000000000095', noText);
+    noText.set('id', 'el_01ARYZ6S410000000000000095');
+    noText.set('pos', 'zz');
+    noText.set('meta', { createdBy: 'u', createdAt: 0, editedBy: 'u', editedAt: 0 });
+    noText.set('style', screenplayStandard.defaults.pasteFallback);
+    const v = validateDocument(doc);
+    expect(v.issues.map((i) => i.code)).toEqual(['I4']);
+    v.repair();
+    expect(noText.get('text')).toBeInstanceOf(Y.Text);
+    expect(codes(doc)).toEqual([]);
+  });
+
+  it('I5 remaps an unknown style to another template’s same-role style, not the paste fallback', () => {
+    const doc = fresh();
+    const el = firstElement(doc);
+    // 'st_act_heading' is a real built-in style id (from the stage-play template) with role
+    // 'actStart', a role screenplayStandard also has (as 'st_new_act'); it is unknown to
+    // screenplayStandard itself, so I5 must fire, but BUILTIN_STYLE_ROLES knows its role.
+    el.set('style', 'st_act_heading');
+    const v = validateDocument(doc);
+    expect(v.issues.map((i) => i.code)).toEqual(['I5']);
+    v.repair();
+    expect(el.get('style')).toBe('st_new_act');
+    expect(el.get('style')).not.toBe(screenplayStandard.defaults.pasteFallback);
+    expect(codes(doc)).toEqual([]);
+  });
+
   it('I6 breaks a basedOn cycle', () => {
     const doc = fresh();
     const styles = (doc.getMap('template').get('styles') as Y.Map<Y.Map<unknown>>);
@@ -66,6 +121,63 @@ describe('structural invariants', () => {
     const v = validateDocument(doc);
     expect(v.issues.some((i) => i.code === 'I6' && i.autoRepair)).toBe(true);
     v.repair();
+    expect(codes(doc)).toEqual([]);
+  });
+
+  it('I6 repairs a style based on a missing parent by rebasing it to the template root', () => {
+    const doc = fresh();
+    const styles = doc.getMap('template').get('styles') as Y.Map<Y.Map<unknown>>;
+    styles.get('st_parenthetical')!.set('basedOn', 'st_ghost_parent');
+    const v = validateDocument(doc);
+    const i6 = v.issues.filter((i) => i.code === 'I6');
+    expect(i6).toHaveLength(1);
+    expect(i6[0]).toMatchObject({ autoRepair: true });
+    v.repair();
+    expect(styles.get('st_parenthetical')!.get('basedOn')).toBe(screenplayStandard.defaults.root);
+    expect(codes(doc)).toEqual([]);
+  });
+
+  it('I6 rebases an extra root (multipleRoots) onto the template root', () => {
+    const doc = fresh();
+    const styles = doc.getMap('template').get('styles') as Y.Map<Y.Map<unknown>>;
+    styles.get('st_parenthetical')!.set('basedOn', null);
+    const v = validateDocument(doc);
+    const i6 = v.issues.filter((i) => i.code === 'I6');
+    expect(i6).toHaveLength(1);
+    expect(i6[0]).toMatchObject({ autoRepair: true });
+    v.repair();
+    expect(styles.get('st_parenthetical')!.get('basedOn')).toBe(screenplayStandard.defaults.root);
+    expect(codes(doc)).toEqual([]);
+  });
+
+  it('I6 reports noRoot and rootMismatch, neither auto-repaired, when the root gets a parent', () => {
+    const doc = fresh();
+    const styles = doc.getMap('template').get('styles') as Y.Map<Y.Map<unknown>>;
+    const rootId = screenplayStandard.defaults.root;
+    // Giving the root style itself a (nonexistent) parent removes the template's only
+    // basedOn:null style (noRoot) and gives the root a parent (rootMismatch) in one move;
+    // neither TemplateIssue has a repair branch in I6 (unlike basedOnCycle/missingParent),
+    // so both must be reported for manual resolution.
+    styles.get(rootId)!.set('basedOn', 'st_ghost_root_parent');
+    const v = validateDocument(doc);
+    const i6 = v.issues.filter((i) => i.code === 'I6');
+    expect(i6.some((i) => i.message === 'no root style')).toBe(true);
+    expect(i6.some((i) => i.message === 'defaults.root has a parent')).toBe(true);
+    expect(i6.every((i) => i.autoRepair === false)).toBe(true);
+  });
+
+  it('I6 fills an incomplete root style field', () => {
+    const doc = fresh();
+    const styles = doc.getMap('template').get('styles') as Y.Map<Y.Map<unknown>>;
+    const rootId = screenplayStandard.defaults.root;
+    const root = styles.get(rootId)!;
+    root.delete('align');
+    const v = validateDocument(doc);
+    const i6 = v.issues.filter((i) => i.code === 'I6' && i.message === 'root style lacks align');
+    expect(i6).toHaveLength(1);
+    expect(i6[0]).toMatchObject({ autoRepair: true });
+    v.repair();
+    expect(root.get('align')).toBe(ROOT_STYLE_DEFAULTS.align);
     expect(codes(doc)).toEqual([]);
   });
 
