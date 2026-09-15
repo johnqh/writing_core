@@ -39,3 +39,5 @@ export { treatment } from './templates/builtin/treatment.js';
 export { textOutline } from './templates/builtin/text-outline.js';
 export { queryLetter } from './templates/builtin/query-letter.js';
 export { verticalDrama } from './templates/builtin/vertical-drama.js';
+export * from './templates/locale.js';
+export * from './templates/catalogue.js';
