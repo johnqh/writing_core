@@ -25,3 +25,7 @@ export * from './schema/template.js';
 export * from './template/resolve.js';
 export * from './template/validate.js';
 export * from './template/flow.js';
+
+// ─── Templates (seeds) ──────────────────────────────────────────────────────
+export * from './templates/role-table.js';
+export * from './templates/shared.js';
