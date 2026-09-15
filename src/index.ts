@@ -12,3 +12,6 @@ export * from './hash/sha256.js';
 export * from './ids/crockford.js';
 export * from './ids/id-source.js';
 export * from './ids/ids.js';
+
+// ─── Model ──────────────────────────────────────────────────────────────────
+export * from './model/positions.js';
