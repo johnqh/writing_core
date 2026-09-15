@@ -33,4 +33,13 @@ describe('validateTemplate', () => {
     u.defaults = { ...u.defaults, root: S('st_action') };
     expect(codes(u)).toContain('rootMismatch');
   });
+  it('reports a mutual paginateAs pair as a cycle, keyed on its members', () => {
+    const t = minimalTemplate();
+    t.styles = t.styles.map((s) =>
+      s.id === 'st_action' ? { ...s, paginateAs: S('st_character') } : s.id === 'st_character' ? { ...s, paginateAs: S('st_action') } : s,
+    );
+    const issues = validateTemplate(t);
+    expect(issues.map((i) => i.code)).toEqual(['paginateAsCycle']);
+    expect(['st_action', 'st_character']).toContain(issues[0]?.styleId);
+  });
 });

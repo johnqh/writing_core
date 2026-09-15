@@ -5,6 +5,7 @@ import { FLOW_KEYS, FONT_KEYS, ROOT_REQUIRED_KEYS } from './resolve.js';
 export const TEMPLATE_ISSUE_CODES = [
   'duplicateStyleId', 'missingParent', 'basedOnCycle', 'multipleRoots', 'noRoot', 'rootMismatch',
   'incompleteRoot', 'danglingDefault', 'danglingFlow', 'danglingPaginateAs', 'danglingNumberingReset',
+  'paginateAsCycle',
 ] as const;
 export type TemplateIssueCode = (typeof TEMPLATE_ISSUE_CODES)[number];
 export interface TemplateIssue {
@@ -46,6 +47,28 @@ function checkStyleList(styles: readonly StyleDef[], rootId: StyleId, issues: Te
       }
       seen.push(cur.id);
       cur = byId.get(cur.basedOn);
+    }
+  }
+
+  // Same ring-detection approach as basedOn cycles above, over the paginateAs graph: resolveStyle's
+  // iterative walk never crashes on a paginateAs ring, but such a template must still be rejected.
+  const reportedPaginateCycle = new Set<string>();
+  for (const s of styles) {
+    if (!s.paginateAs || !byId.has(s.paginateAs)) continue;
+    const seen: string[] = [];
+    let cur: StyleDef | undefined = s;
+    while (cur && cur.paginateAs) {
+      if (seen.includes(cur.id)) {
+        const cycle = seen.slice(seen.indexOf(cur.id));
+        const key = [...cycle].sort().join('|');
+        if (!reportedPaginateCycle.has(key)) {
+          reportedPaginateCycle.add(key);
+          issues.push({ code: 'paginateAsCycle', styleId: cur.id, message: `paginateAs cycle through ${cycle.join(' → ')}` });
+        }
+        break;
+      }
+      seen.push(cur.id);
+      cur = byId.get(cur.paginateAs);
     }
   }
 

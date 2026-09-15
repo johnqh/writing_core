@@ -55,4 +55,14 @@ describe('resolveStyle', () => {
   it('throws for an unknown style id', () => {
     expect(() => resolveStyle(t, S('st_nope'))).toThrow(/unknown style/);
   });
+  it('terminates on a mutual paginateAs pair, borrowing the last resolved values', () => {
+    const styles = t.styles.map((s) =>
+      s.id === 'st_action' ? { ...s, paginateAs: S('st_character') } : s.id === 'st_character' ? { ...s, paginateAs: S('st_action') } : s,
+    );
+    expect(() => resolveStyle({ ...t, styles }, S('st_action'))).not.toThrow();
+    const r = resolveStyle({ ...t, styles }, S('st_action'));
+    expect(r.keepWithNext).toBe(true);
+    expect(r.keepTogether).toBe(false);
+    expect(r.splitRule).toBe('never');
+  });
 });

@@ -88,7 +88,8 @@ function required<T>(value: T, styleId: string, field: string): Exclude<T, undef
   return value as Exclude<T, undefined>;
 }
 
-export function resolveStyle(template: StyleSource, styleId: StyleId, overrides?: ElementOverrides): ResolvedStyle {
+/** Resolves every field except the paginateAs borrow (kept separate so the borrow can walk iteratively without recursing). */
+function resolveStyleCore(template: StyleSource, styleId: StyleId): ResolvedStyle {
   const leaf = template.styles.find((s) => s.id === styleId);
   if (!leaf) throw new Error(`unknown style ${styleId}`);
   const chain = styleChain(template.styles, styleId);
@@ -111,7 +112,7 @@ export function resolveStyle(template: StyleSource, styleId: StyleId, overrides?
     nearest(nonRoot, 'splitRule') ??
     (roleSplit === 'sentencesIfBreakOnSentences' ? (template.pagination.breakOnSentences ? 'sentences' : 'lines') : roleSplit);
 
-  const resolved: ResolvedStyle = {
+  return {
     id: leaf.id, name: leaf.name, nameKey: leaf.nameKey, role: leaf.role, basedOn: leaf.basedOn, shortcut: leaf.shortcut,
     font, flow, splitRule,
     allCaps: get('allCaps'), align: get('align'), indentLeft: get('indentLeft'), indentRight: get('indentRight'),
@@ -123,13 +124,31 @@ export function resolveStyle(template: StyleSource, styleId: StyleId, overrides?
     smartTypeList: get('smartTypeList') ?? null, dualDialogue: get('dualDialogue'),
     leadingAdjust: 0, direction: 'auto', anchor: 'flow',
   };
+}
 
-  if (resolved.paginateAs && resolved.paginateAs !== styleId && template.styles.some((s) => s.id === resolved.paginateAs)) {
-    const target = resolveStyle(template, resolved.paginateAs);
+/**
+ * Walks the paginateAs chain iteratively, borrowing keepWithNext/keepTogether/splitRule from the
+ * furthest reachable target. `validateTemplate` rejects a paginateAs ring as `paginateAsCycle`; this
+ * loop is the runtime backstop so a template that slips past validation (or a keystroke resolved
+ * before validation runs) still terminates instead of recursing without bound. On revisiting an id
+ * it stops and keeps the last values it borrowed rather than throwing.
+ */
+function applyPaginateAs(template: StyleSource, startId: StyleId, resolved: ResolvedStyle): void {
+  const visited = new Set<StyleId>([startId]);
+  let currentId = resolved.paginateAs;
+  while (currentId && !visited.has(currentId) && template.styles.some((s) => s.id === currentId)) {
+    visited.add(currentId);
+    const target = resolveStyleCore(template, currentId);
     resolved.keepWithNext = target.keepWithNext;
     resolved.keepTogether = target.keepTogether;
     resolved.splitRule = target.splitRule;
+    currentId = target.paginateAs;
   }
+}
+
+export function resolveStyle(template: StyleSource, styleId: StyleId, overrides?: ElementOverrides): ResolvedStyle {
+  const resolved = resolveStyleCore(template, styleId);
+  applyPaginateAs(template, styleId, resolved);
 
   if (overrides) {
     if (overrides.align !== undefined) resolved.align = overrides.align;
