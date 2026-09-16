@@ -2,6 +2,7 @@ import * as Y from 'yjs';
 import type { ContentHash } from '../hash/content.js';
 import type { IdSource } from '../ids/id-source.js';
 import { newId } from '../ids/ids.js';
+import { isNewerThanCode } from '../migrations/index.js';
 import type { Actor } from '../model/origins.js';
 import { type DocumentModel, openDocument } from '../read-model/open.js';
 import type { ModelChangeBatch } from '../read-model/views.js';
@@ -20,6 +21,12 @@ export interface BatchRequest {
   clock?: () => number;
   expectedHashes?: Readonly<Record<string, ContentHash>>;
   dryRun?: boolean;
+  /**
+   * Refuse every mutating command with `readOnly`. Omitting it does NOT mean "writable": it
+   * defaults to `isNewerThanCode(doc)` — a document whose `meta.schemaVersion` is ahead of this
+   * build (invariant I20, spec 01 §9) must be opened read-only, and that guarantee cannot depend
+   * on every caller remembering to pass the flag. Passing `false` explicitly is an override.
+   */
   readOnly?: boolean;
 }
 
@@ -29,14 +36,19 @@ export type BatchResult =
 
 type Prepared = { spec: NonNullable<ReturnType<typeof getCommand>>; params: unknown };
 
-function prepare(req: BatchRequest): { ok: true; prepared: Prepared[] } | Extract<BatchResult, { ok: false }> {
+/** Spec 01 §9 I20: a document newer than this build is read-only whatever the caller asked for. */
+function isReadOnly(req: BatchRequest): boolean {
+  return req.readOnly ?? isNewerThanCode(req.doc);
+}
+
+function prepare(req: BatchRequest, readOnly: boolean): { ok: true; prepared: Prepared[] } | Extract<BatchResult, { ok: false }> {
   const prepared: Prepared[] = [];
   for (const [index, inv] of req.commands.entries()) {
     const spec = getCommand(inv.id);
     if (!spec) return { ok: false, index, reason: 'unknownCommand', detail: { id: inv.id } };
     const parsed = spec.params.safeParse(inv.params);
     if (!parsed.success) return { ok: false, index, reason: 'invalidParams', detail: { issues: parsed.error.issues } };
-    if (spec.mutates && req.readOnly) return { ok: false, index, reason: 'readOnly' };
+    if (spec.mutates && readOnly) return { ok: false, index, reason: 'readOnly' };
     const missing = spec.requires.filter((c) => !req.capabilities.has(c));
     if (missing.length > 0) return { ok: false, index, reason: 'capabilityMissing', detail: { missing } };
     prepared.push({ spec, params: parsed.data });
@@ -50,7 +62,7 @@ function prepare(req: BatchRequest): { ok: true; prepared: Prepared[] } | Extrac
   return { ok: true, prepared };
 }
 
-function run(req: BatchRequest, doc: Y.Doc, model: DocumentModel, prepared: Prepared[], clock: () => number): BatchResult {
+function run(req: BatchRequest, doc: Y.Doc, model: DocumentModel, prepared: Prepared[], clock: () => number, readOnly: boolean): BatchResult {
   const results: CommandResult[] = [];
   const inserted = new Set<string>();
   const removed = new Set<string>();
@@ -70,7 +82,7 @@ function run(req: BatchRequest, doc: Y.Doc, model: DocumentModel, prepared: Prep
       for (const [index, { spec, params }] of prepared.entries()) {
         const ctx: CommandContext = {
           doc, model, actor: req.actor, origin: req.origin, capabilities: req.capabilities, ids: req.ids, clock,
-          changeId: newId('chg', req.ids), readOnly: req.readOnly ?? false,
+          changeId: newId('chg', req.ids), readOnly,
         };
         const availability = spec.isEnabled(ctx, params);
         if (!availability.enabled) {
@@ -105,7 +117,7 @@ function run(req: BatchRequest, doc: Y.Doc, model: DocumentModel, prepared: Prep
   };
 }
 
-function rehearse(req: BatchRequest, prepared: Prepared[], clock: () => number): BatchResult {
+function rehearse(req: BatchRequest, prepared: Prepared[], clock: () => number, readOnly: boolean): BatchResult {
   const replica = new Y.Doc({ gc: false });
   Y.applyUpdate(replica, Y.encodeStateAsUpdate(req.doc));
   const model = openDocument(replica, req.model.deps);
@@ -115,7 +127,7 @@ function rehearse(req: BatchRequest, prepared: Prepared[], clock: () => number):
   // mints exactly the ids it would have minted had rehearsal not run at all.
   const rehearsalReq: BatchRequest = { ...req, ids: req.ids.fork() };
   try {
-    return run(rehearsalReq, replica, model, prepared, clock);
+    return run(rehearsalReq, replica, model, prepared, clock, readOnly);
   } finally {
     model.dispose();
     replica.destroy();
@@ -123,24 +135,25 @@ function rehearse(req: BatchRequest, prepared: Prepared[], clock: () => number):
 }
 
 export function executeBatch(req: BatchRequest): BatchResult {
-  const p = prepare(req);
+  const readOnly = isReadOnly(req);
+  const p = prepare(req, readOnly);
   if (!p.ok) return p;
   // Resolved once so a rehearsal pass and the real apply always see the same
   // instant (spec 08 §3.3 item 4) — a clock-gated command must not be able to
   // pass rehearsal and then fail (or behave differently) for the real apply.
   const now = (req.clock ?? Date.now)();
   const clock = (): number => now;
-  if (req.dryRun) return rehearse(req, p.prepared, clock);
+  if (req.dryRun) return rehearse(req, p.prepared, clock, readOnly);
   // Single commands rehearse by default, same as multi-command batches: a
   // command that writes and then refuses must not leave a partial write
   // committed. `fastPath` opts a single command out of the extra replica
   // clone for the typing hot path; it never applies to a multi-command batch.
   const singleFastPath = p.prepared.length === 1 && p.prepared[0]!.spec.fastPath === true;
   if (!singleFastPath) {
-    const rehearsal = rehearse(req, p.prepared, clock);
+    const rehearsal = rehearse(req, p.prepared, clock, readOnly);
     if (!rehearsal.ok) return rehearsal;
   }
-  return run(req, req.doc, req.model, p.prepared, clock);
+  return run(req, req.doc, req.model, p.prepared, clock, readOnly);
 }
 
 export function executeCommand(req: Omit<BatchRequest, 'commands'> & { command: CommandInvocation }): BatchResult {

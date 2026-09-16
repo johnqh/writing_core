@@ -3,12 +3,14 @@ import { z } from 'zod/v4';
 import { describe, expect, it } from 'vitest';
 import { createSeededIdSource } from '../ids/id-source.js';
 import { newId, type ElementId } from '../ids/ids.js';
+import { DOC_SCHEMA_VERSION, isNewerThanCode } from '../migrations/index.js';
 import { createDocument } from '../model/create.js';
 import { openDocument } from '../read-model/open.js';
 import { screenplayStandard } from '../templates/builtin/screenplay-standard.js';
 import { executeBatch, executeCommand } from './execute.js';
 import { createSessionOrigins, TransactionOrigin } from './origin.js';
 import { getCommand, registerCommand } from './registry.js';
+import { TEST_ACTOR, commandHarness } from './test-harness.js';
 
 const actor = { userId: 'u1', displayName: 'U', color: '#123456', kind: 'human' as const };
 const ids = createSeededIdSource(62);
@@ -266,5 +268,31 @@ describe('rehearsal and the id stream (queued ruling C)', () => {
     const idWithRehearsal = mintedIds[mintedIds.length - 1];
 
     expect(idWithRehearsal).toBe(idWithoutRehearsal);
+  });
+});
+
+describe('read-only defaults from the document schema version (I20)', () => {
+  it('refuses a mutating command on a document newer than this build, without the caller asking', () => {
+    const h = commandHarness();
+    const [a] = h.replaceBody([['st_action', 'Maya waits.']]);
+    expect(h.run('text.insert', { at: { elementId: a, offset: 0 }, text: 'x' })).toMatchObject({ ok: true });
+    h.doc.getMap('meta').set('schemaVersion', DOC_SCHEMA_VERSION + 1);
+    expect(isNewerThanCode(h.doc)).toBe(true);
+    // The caller passes no `readOnly` at all — the same call that just succeeded.
+    expect(h.run('text.insert', { at: { elementId: a, offset: 0 }, text: 'y' })).toMatchObject({ ok: false, reason: 'readOnly' });
+    expect(h.textMap(a!).toString()).toBe('xMaya waits.');
+  });
+
+  it('an explicit readOnly: false is still an override, and a non-mutating call is unaffected', () => {
+    const h = commandHarness();
+    const [a] = h.replaceBody([['st_action', 'Maya waits.']]);
+    h.doc.getMap('meta').set('schemaVersion', DOC_SCHEMA_VERSION + 1);
+    const result = executeCommand({
+      doc: h.doc, model: h.model, ids: h.ids, actor: TEST_ACTOR, origin: h.origins.make('local-command', { commandId: 'text.insert' }),
+      capabilities: new Set(['write'] as const), clock: h.now, readOnly: false,
+      command: { id: 'text.insert', params: { at: { elementId: a, offset: 0 }, text: 'z' } },
+    });
+    expect(result).toMatchObject({ ok: true });
+    expect(h.textMap(a!).toString()).toBe('zMaya waits.');
   });
 });
