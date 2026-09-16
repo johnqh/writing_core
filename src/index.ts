@@ -39,6 +39,11 @@ export * from './commands/registry.js';
 export * from './commands/positions.js';
 export * from './commands/execute.js';
 export * from './commands/marks-policy.js';
+export * from './commands/segment.js';
+export * from './commands/element-ops.js';
+export { TEXT_COMMANDS } from './commands/text.js';
+export { MARK_COMMANDS } from './commands/mark.js';
+export * from './commands/builtin.js';
 
 // ─── Schema ─────────────────────────────────────────────────────────────────
 export * from './schema/vocab.js';
