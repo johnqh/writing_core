@@ -54,6 +54,7 @@ const KIND_BY_CATEGORY: Partial<Record<TemplateJSON['category'], DocumentKind>> 
 
 export function createDocument(options: CreateDocumentOptions): Y.Doc {
   const { template, uid, ids } = options;
+  // platform-free-allow-clock: createDocument's options.clock default — an injectable seam; callers pass options.clock to freeze createdAt/editedAt for tests/rehearsal (spec 02 §1.1)
   const clock = options.clock ?? (() => Date.now());
   const now = clock();
   const doc = new Y.Doc({ gc: true });

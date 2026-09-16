@@ -14,7 +14,22 @@ import { describe, expect, it } from 'vitest';
  */
 const SRC = join(import.meta.dirname, '..');
 
-const CLOCK_REASON = 'host clock — forbidden except as a named injectable-seam default (spec 02 §1.1)';
+const CLOCK_REASON = 'host clock — forbidden except beside a platform-free-allow-clock marker (spec 02 §1.1)';
+
+/**
+ * The exemption for a clock call is a marker at the *call site*, never a `file:line`
+ * pair (spec 02 §1.1, amended after review found the line-based version fails two
+ * ways: an unrelated edit above a seam shifts it off its listed line and the guard
+ * reddens on correct code, and — worse — a *new* ambient call that happens to land on
+ * the listed line silently inherits the exemption. A marker travels with the code it
+ * exempts, so neither failure is possible: `isMarkedClockCall` only looks at the two
+ * lines physically adjacent to the flagged call, never a remembered line number.
+ */
+const CLOCK_MARKER = 'platform-free-allow-clock:';
+
+const DATE_NOW_PATTERN = /\bDate\.now\(\)/;
+const NEW_DATE_NO_ARG_PATTERN = /\bnew Date\(\s*\)/;
+const CLOCK_CALL_PATTERNS: readonly RegExp[] = [DATE_NOW_PATTERN, NEW_DATE_NO_ARG_PATTERN];
 
 const FORBIDDEN: ReadonlyArray<{ pattern: RegExp; reason: string }> = [
   { pattern: /\bglobalThis\.(window|document|navigator|process|Buffer|Bun|localStorage)/, reason: 'globalThis escape hatch' },
@@ -51,39 +66,86 @@ const FORBIDDEN: ReadonlyArray<{ pattern: RegExp; reason: string }> = [
   // to run. `new Date(epochMs)` — an explicit, caller-supplied epoch — is fine and
   // must not be flagged (used by src/template/locale-data.ts to format an injected
   // `LocaleDataPort` argument), so this pattern requires a `)` immediately after the
-  // opening `(`, same convention as the `toLocale*` patterns above. The two
-  // legitimate ambient-clock reads in this package (`IdSource.now`'s default,
-  // `createDocument`'s `options.clock` default) are *defaults of injectable seams*
-  // that tests and rehearsal freeze — not violations — and are allowlisted by exact
-  // file+line below (`CLOCK_ALLOWLIST`), not exempted from this pattern.
-  { pattern: /\bDate\.now\(\)/, reason: CLOCK_REASON },
-  { pattern: /\bnew Date\(\s*\)/, reason: CLOCK_REASON },
+  // opening `(`, same convention as the `toLocale*` patterns above. The two legitimate
+  // ambient-clock reads in this package (`IdSource.now`'s default, `createDocument`'s
+  // `options.clock` default) are *defaults of injectable seams* that tests and
+  // rehearsal freeze — not violations — and are exempted below by a
+  // `platform-free-allow-clock:` marker at the call site, never by remembering where
+  // the call happens to live.
+  { pattern: DATE_NOW_PATTERN, reason: CLOCK_REASON },
+  { pattern: NEW_DATE_NO_ARG_PATTERN, reason: CLOCK_REASON },
 ];
+
+/** `${lineNumber} ...` → the 1-based line number, as `findViolations` formats each entry. */
+function violationLineNumber(violation: string): number {
+  const match = /^(\d+) /.exec(violation);
+  return match ? Number(match[1]) : -1;
+}
+
+function lineHasClockMarker(line: string): boolean {
+  return line.includes(CLOCK_MARKER);
+}
+
+/** The text after `platform-free-allow-clock:` on `line`, trimmed — '' when the line has no marker or the marker has no reason. */
+function markerReason(line: string): string {
+  const idx = line.indexOf(CLOCK_MARKER);
+  return idx === -1 ? '' : line.slice(idx + CLOCK_MARKER.length).trim();
+}
+
+function lineHasClockCall(line: string): boolean {
+  return CLOCK_CALL_PATTERNS.some((p) => p.test(line));
+}
 
 /**
- * The only two places in `writing_core` allowed to read the host clock: the
- * *default* of an injectable seam, so tests and rehearsal can freeze it
- * (`createSeededIdSource`, `options.clock`). Keyed by exact file + line so a new
- * `Date.now()` anywhere else — including a different line of either of these two
- * files — is still caught.
+ * True when the clock call on `lines[callLine0]` (0-based) is exempted: a
+ * `platform-free-allow-clock:` marker on that same line (a trailing comment after the
+ * call) or on the line immediately before it (a leading comment above the call).
+ * Deliberately does not look further than one line either way — "adjacent", not
+ * "somewhere nearby" — so a marker can never drift onto an unrelated call.
  */
-const CLOCK_ALLOWLIST: ReadonlyArray<{ file: string; line: number; reason: string }> = [
-  {
-    file: 'ids/id-source.ts',
-    line: 18,
-    reason: "cryptoIdSource's IdSource.now default (ULID timestamps) — createSeededIdSource is the deterministic seam tests use instead",
-  },
-  {
-    file: 'model/create.ts',
-    line: 57,
-    reason: "createDocument's options.clock default — callers pass options.clock to freeze createdAt/editedAt for tests and rehearsal",
-  },
-];
+function isMarkedClockCall(lines: readonly string[], callLine0: number): boolean {
+  return lineHasClockMarker(lines[callLine0] ?? '') || lineHasClockMarker(lines[callLine0 - 1] ?? '');
+}
 
-/** True when `violation` (as `findViolations` formats it) is a clock reference on one of `CLOCK_ALLOWLIST`'s named lines. */
-function isAllowedClockViolation(relPath: string, violation: string): boolean {
-  if (!violation.includes(CLOCK_REASON)) return false;
-  return CLOCK_ALLOWLIST.some(({ file, line }) => file === relPath && violation.startsWith(`${line} `));
+/**
+ * True when the marker on `lines[markerLine0]` (0-based) is valid: it names a
+ * non-empty reason, and there is a clock call on that same line or the next line. A
+ * marker that fails either check is stale — it exempts nothing, so it must not be
+ * allowed to sit in the tree looking like it does (spec 02 §1.1's stale-marker rule).
+ */
+function isValidClockMarker(lines: readonly string[], markerLine0: number): boolean {
+  const line = lines[markerLine0] ?? '';
+  const hasReason = markerReason(line).length > 0;
+  const hasAdjacentCall = lineHasClockCall(line) || lineHasClockCall(lines[markerLine0 + 1] ?? '');
+  return hasReason && hasAdjacentCall;
+}
+
+/**
+ * One file's platform-free violations: every `FORBIDDEN` pattern, with the marker
+ * rule applied to clock violations specifically — an ambient `Date.now()`/`new Date()`
+ * with no adjacent marker is kept, one with a valid adjacent marker is dropped, and
+ * any marker that is itself stale (§1.1) is reported even where the call it should
+ * have exempted is otherwise fine. Factored out of the repo-wide test so it can also
+ * be driven directly against small fixtures below, proving each of the three required
+ * clock-marker behaviours (and the reviewer's mode-B probe) as permanent tests, not
+ * one-off manual checks.
+ */
+function findGuardViolations(relPath: string, fileText: string): string[] {
+  const violations: string[] = [];
+  const lines = fileText.split('\n');
+  for (const violation of findViolations(fileText)) {
+    if (violation.includes(CLOCK_REASON)) {
+      const lineNum = violationLineNumber(violation);
+      if (lineNum > 0 && isMarkedClockCall(lines, lineNum - 1)) continue;
+    }
+    violations.push(`${relPath}:${violation}`);
+  }
+  lines.forEach((line, idx) => {
+    if (lineHasClockMarker(line) && !isValidClockMarker(lines, idx)) {
+      violations.push(`${relPath}:${idx + 1} stale platform-free-allow-clock marker (needs a reason and a clock call on this line or the next): ${line.trim()}`);
+    }
+  });
+  return violations;
 }
 
 function sourceFiles(dir: string): string[] {
@@ -272,25 +334,77 @@ describe('findViolations', () => {
   });
 });
 
-describe('isAllowedClockViolation (CLOCK_ALLOWLIST)', () => {
-  const clockLine = (line: number) => `${line} ${CLOCK_REASON}: now: () => Date.now(),`;
-
-  it('allows the exact allowlisted file and line', () => {
-    expect(isAllowedClockViolation('ids/id-source.ts', clockLine(18))).toBe(true);
-    expect(isAllowedClockViolation('model/create.ts', clockLine(57))).toBe(true);
+describe('clock guard: platform-free-allow-clock marker (spec 02 §1.1)', () => {
+  // Behaviour 1: an ambient call with no marker fails, naming file and line.
+  it('an ambient clock call with no marker fails, naming the file and line', () => {
+    const fileText = ['line one', 'const t = Date.now();', 'line three'].join('\n');
+    expect(findGuardViolations('some/file.ts', fileText)).toEqual([`some/file.ts:2 ${CLOCK_REASON}: const t = Date.now();`]);
   });
 
-  it('does not blanket-allow the rest of an allowlisted file — a different line still fails', () => {
-    expect(isAllowedClockViolation('ids/id-source.ts', clockLine(19))).toBe(false);
+  it('an ambient new Date() with no marker also fails', () => {
+    const fileText = 'const d = new Date();';
+    expect(findGuardViolations('some/file.ts', fileText)).toEqual([`some/file.ts:1 ${CLOCK_REASON}: const d = new Date();`]);
   });
 
-  it('does not allow a matching line number in a different, non-allowlisted file', () => {
-    expect(isAllowedClockViolation('template/tokens.ts', clockLine(18))).toBe(false);
+  // Behaviour 2: both legitimate seams pass with their markers.
+  it('a marker trailing the call on the same line passes', () => {
+    const fileText = 'now: () => Date.now(), // platform-free-allow-clock: IdSource.now default — ULID timestamps';
+    expect(findGuardViolations('ids/id-source.ts', fileText)).toEqual([]);
   });
 
-  it('never allows a non-clock violation, even on an allowlisted file+line', () => {
-    const nonClock = `18 host-locale-dependent Intl API: const f = new Intl.Collator('en');`;
-    expect(isAllowedClockViolation('ids/id-source.ts', nonClock)).toBe(false);
+  it('a marker leading the call on the line above passes', () => {
+    const fileText = [
+      '// platform-free-allow-clock: options.clock default — freezable by callers',
+      'const clock = options.clock ?? (() => Date.now());',
+    ].join('\n');
+    expect(findGuardViolations('model/create.ts', fileText)).toEqual([]);
+  });
+
+  it('a marker two lines away (not adjacent) does not exempt the call', () => {
+    const fileText = ['// platform-free-allow-clock: too far away', '', 'const t = Date.now();'].join('\n');
+    const violations = findGuardViolations('some/file.ts', fileText);
+    expect(violations.some((v) => v.startsWith('some/file.ts:3 '))).toBe(true);
+  });
+
+  // Behaviour 3: a marker with no clock call beside it fails.
+  it('a marker with no clock call on the same or next line is a stale-marker failure', () => {
+    const fileText = ['// platform-free-allow-clock: nothing clock-related follows', 'const x = 1;'].join('\n');
+    const violations = findGuardViolations('some/file.ts', fileText);
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toContain('stale platform-free-allow-clock marker');
+    expect(violations[0]).toContain('some/file.ts:1');
+  });
+
+  it('a marker with no reason text is also invalid, even sitting right next to a real call', () => {
+    const fileText = 'const t = Date.now(); // platform-free-allow-clock:';
+    const violations = findGuardViolations('some/file.ts', fileText);
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toContain('stale platform-free-allow-clock marker');
+  });
+
+  // The reviewer's two probes, reproduced as permanent regression tests.
+  it("mode A (previously reddened on correct code): an unrelated edit above the seam doesn't move the exemption off a line number, because there is no line number", () => {
+    const fileText = [
+      '// a totally unrelated comment inserted above the seam',
+      '// another unrelated line, pushing everything further down',
+      'now: () => Date.now(), // platform-free-allow-clock: IdSource.now default',
+    ].join('\n');
+    expect(findGuardViolations('ids/id-source.ts', fileText)).toEqual([]);
+  });
+
+  it('mode B (previously silently authorised): a new unmarked Date.now() that lands where the old line-based exemption used to live is still caught, while the legitimate marked seam still passes', () => {
+    const fileText = [
+      '// unrelated comment inserted above, shifting everything down',
+      'export function newHelper() {',
+      '  return Date.now(); // no marker on this call — must be caught',
+      '}',
+      '',
+      'now: () => Date.now(), // platform-free-allow-clock: IdSource.now default — legitimate seam',
+    ].join('\n');
+    const violations = findGuardViolations('ids/id-source.ts', fileText);
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toContain('ids/id-source.ts:3 ');
+    expect(violations[0]).toContain('return Date.now()');
   });
 });
 
@@ -299,15 +413,11 @@ describe('platform-free guard', () => {
     expect(sourceFiles(SRC).length).toBeGreaterThan(0);
   });
 
-  it('no shipping source references a host-specific API, except the two named clock seams', () => {
+  it('no shipping source references a host-specific API, except a clock call carrying a valid platform-free-allow-clock marker', () => {
     const violations: string[] = [];
     for (const file of sourceFiles(SRC)) {
       const relPath = relative(SRC, file);
-      const fileText = readFileSync(file, 'utf8');
-      for (const violation of findViolations(fileText)) {
-        if (isAllowedClockViolation(relPath, violation)) continue;
-        violations.push(`${relPath}:${violation}`);
-      }
+      violations.push(...findGuardViolations(relPath, readFileSync(file, 'utf8')));
     }
     expect(violations).toEqual([]);
   });
