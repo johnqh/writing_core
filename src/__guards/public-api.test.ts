@@ -57,6 +57,7 @@ const ROOT_EXPORTS = [
   'positionBetween', 'previousCluster', 'queryLetter', 'readTextJSON', 'registerBuiltinCommands', 'registerCommand',
   'registerInvariants', 'remapDocumentIds', 'renderTokenString', 'reorderVisual', 'resolveParagraphLevel', 'resolveStyle', 'roleForImportedStyle', 'rootStyle', 'roundHalfEven', 'scanText',
   'sceneContentHash', 'sceneHeadingNumbering', 'screenplayStandard', 'script', 'scriptOf', 'sentenceBoundaries', 'sentenceBreakProperty', 'sentenceEnds', 'sha256Bytes', 'sha256Hex',
+  'childSeq', 'generateBetween', 'preSeq',
   'shiftTabAction', 'shotContentHash', 'sizeEmuFromPoints', 'sliceTextJSON', 'standardHeader', 'standardTitlePageSeeds',
   'stripExtension', 'styleDef', 'tabAction', 'templateHash', 'textJSONFromPlain', 'textJSONToDelta', 'textOutline',
   'titleFromKey', 'tofuFace', 'toPortablePos', 'treatment', 'validateDocument', 'validateTemplate', 'verticalDrama', 'wordBoundaries', 'wordBreakProperty',

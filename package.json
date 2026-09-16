@@ -44,6 +44,7 @@
     "@typescript-eslint/eslint-plugin": "^8.46.2",
     "@typescript-eslint/parser": "^8.46.2",
     "eslint": "^9.38.0",
+    "fast-check": "^4.10.1",
     "fast-xml-parser": "^5.11.1",
     "fontkit": "^2.0.4",
     "globals": "^16.4.0",
