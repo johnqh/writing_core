@@ -14,6 +14,7 @@
  */
 
 import type { ElementId, StyleId } from '../ids/ids.js';
+import type { LayoutDiagnostic } from '../layout/types.js';
 import type { DocumentModel } from '../read-model/open.js';
 import type { ElementView } from '../read-model/views.js';
 import type { NumberLabel, NumberingSpec } from '../schema/template.js';
@@ -54,6 +55,15 @@ export interface AssignedNumber {
 export interface AssignNumbersResult {
   labels: Map<ElementId, AssignedNumber>;
   counts: Map<ElementId, ReadonlyMap<StyleId, number>>;
+  /**
+   * Currently carries only `duplicateNumber` (spec 02 §23.1: "Duplicate labels allowed with
+   * diagnostic `duplicateNumber`" — Edit Number on a locked style may legitimately store the same
+   * structural label as an earlier locked element; that's accepted, not rejected, but surfaced
+   * here so a caller can flag it). Shaped as `LayoutDiagnostic` (§35) so a later task folding
+   * `assignNumbers` into the full layout pass can append these directly to `LayoutResult.diagnostics`
+   * rather than translate them.
+   */
+  diagnostics: LayoutDiagnostic[];
 }
 
 /**
@@ -98,14 +108,21 @@ export class NumberGapExhaustedError extends Error {
 
 /**
  * Guards against a corrupted or hand-edited locked sequence: a stored, locked `num.label` whose
- * structural `base`/`prefix`/`suffix` does not sort strictly after the previous accepted locked
- * label in document order. `compareLabels`/`generateBetween` never read `.custom` (spec 02 §23.1's
- * "the structured base/prefix/suffix fields still carry the label's position"), so a locked
- * element whose display was blanked out (`custom: ''`) but whose structural position was never
- * updated to match — or any other out-of-order stored label — would otherwise be silently trusted
- * as the next gap-fill anchor, producing a provisional label that sorts *before* an earlier locked
- * one with no error or diagnostic. `assignNumbers` rejects the anchor instead: this is exactly the
- * class of silent-corruption failure spec 02 §22.3 says the whole section exists to prevent.
+ * structural `base`/`prefix`/`suffix` sorts *before* the previous accepted locked label in
+ * document order (strictly — an *equal* label is legitimate, spec 02 §23.1: "Duplicate labels
+ * allowed with diagnostic `duplicateNumber`" — handled separately, below).
+ * `compareLabels`/`generateBetween` never read `.custom` (spec 02 §23.1's "the structured
+ * base/prefix/suffix fields still carry the label's position"), so a locked element whose display
+ * was blanked out (`custom: ''`) but whose structural position was never updated to match — or any
+ * other out-of-order stored label — would otherwise be silently trusted as the next gap-fill
+ * anchor, producing a provisional label that sorts *before* an earlier locked one with no error or
+ * diagnostic. `assignNumbers` rejects the anchor instead: this is exactly the class of
+ * silent-corruption failure spec 02 §22.3 says the whole section exists to prevent.
+ *
+ * Fix round 2: this was originally `<= 0` (rejecting equal too), which is stricter than the spec
+ * allows — a fix that generalises a special case can reject more than the case it was built for,
+ * and legally duplicate locked labels (e.g. an intentional Edit Number matching an existing one)
+ * are exactly the input that boundary newly rejected. Narrowed to `< 0`.
  */
 export class LockedLabelOutOfOrderError extends Error {
   readonly styleId: StyleId;
@@ -270,6 +287,7 @@ function assignLockedGroup(
   ownerOf: (styleId: StyleId) => StyleId,
   numbering: NumberingSpec,
   labels: Map<ElementId, AssignedNumber>,
+  diagnostics: LayoutDiagnostic[],
 ): void {
   let previous: NumberLabel | null = null;
   let pending: ElementId[] = [];
@@ -303,13 +321,20 @@ function assignLockedGroup(
       pending.push(el.id);
       continue;
     }
-    // A locked, stored label must sort strictly after the previous accepted anchor — see
+    // A locked, stored label must not sort *before* the previous accepted anchor — see
     // `LockedLabelOutOfOrderError`. Checked before `flush` so a non-representative anchor is
     // rejected outright rather than handed to `generateBetween` as a `P`/`R` pair that no longer
     // reflects document order (which can otherwise "succeed" via step 4's unconstrained fallback
-    // and silently produce a label that sorts before an earlier locked one).
-    if (previous !== null && compareLabels(stored, previous, numbering.suffixMode) <= 0) {
-      throw new LockedLabelOutOfOrderError({ styleId: owner, mode: numbering.suffixMode, elementId: el.id, previous, stored });
+    // and silently produce a label that sorts before an earlier locked one). An *equal* label is
+    // spec-legal (§23.1's duplicateNumber case, below), not rejected here.
+    if (previous !== null) {
+      const cmp = compareLabels(stored, previous, numbering.suffixMode);
+      if (cmp < 0) {
+        throw new LockedLabelOutOfOrderError({ styleId: owner, mode: numbering.suffixMode, elementId: el.id, previous, stored });
+      }
+      if (cmp === 0) {
+        diagnostics.push({ code: 'duplicateNumber', elementId: el.id, pageIndex: null, detail: { styleId: owner } });
+      }
     }
     flush(stored);
     // §21.2's custom:'' carve-out applies here too: the element is unnumbered (no display), but
@@ -390,17 +415,18 @@ export function assignNumbers(model: DocumentModel, _opts: AssignNumbersOptions 
   }
 
   const labels = new Map<ElementId, AssignedNumber>();
+  const diagnostics: LayoutDiagnostic[] = [];
   for (const owner of groupOwners) {
     const ownerResolved = resolveStyle(template, owner);
     const numbering = ownerResolved.numbering;
     if (!numbering) continue; // defensive; a group only exists because a member was numbered
     if (isStyleLocked(owner, ownerResolved.role, production)) {
-      assignLockedGroup(visible, template, owner, ownerOf, numbering, labels);
+      assignLockedGroup(visible, template, owner, ownerOf, numbering, labels, diagnostics);
     } else {
       assignUnlockedGroup(visible, template, owner, ownerOf, numbering, labels);
     }
   }
 
   const counts = computeCounts(visible, labels);
-  return { labels, counts };
+  return { labels, counts, diagnostics };
 }

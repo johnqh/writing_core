@@ -3,6 +3,7 @@ import * as Y from 'yjs';
 import { describe, expect, it } from 'vitest';
 import { createSeededIdSource } from '../../ids/id-source.js';
 import { newId } from '../../ids/ids.js';
+import { graphicNovel } from '../../templates/builtin/generated/graphic-novel.js';
 import { screenplayStandard } from '../../templates/builtin/screenplay-standard.js';
 import { createDocument } from '../create.js';
 import { insertElementRecord } from '../element-record.js';
@@ -13,14 +14,17 @@ import { validateDocument } from './index.js';
 const ids = createSeededIdSource(21);
 const meta = { createdBy: 'u', createdAt: 0, editedBy: 'u', editedAt: 0 };
 
-function docWith(styles: string[]) {
-  const doc = createDocument({ template: screenplayStandard, uid: 'u', ids });
+function docWithTemplate(template: Parameters<typeof createDocument>[0]['template'], styles: string[]) {
+  const doc = createDocument({ template, uid: 'u', ids });
   const elements = doc.getMap('elements');
   for (const k of [...elements.keys()]) elements.delete(k);
   const made = styles.map((style, i) =>
     insertElementRecord(elements, { id: newId('el', ids), pos: String.fromCharCode(65 + i), style: style as never, text: { plain: 'x', runs: [{ text: 'x', attrs: {} }], embeds: [] } }, meta),
   );
   return { doc, made };
+}
+function docWith(styles: string[]) {
+  return docWithTemplate(screenplayStandard, styles);
 }
 const codes = (doc: Y.Doc) => validateDocument(doc).issues.map((i) => i.code).sort();
 
@@ -50,6 +54,22 @@ describe('reference invariants', () => {
 
   it('I9 reports a non-contiguous folder', () => {
     const { doc, made } = docWith(['st_scene_heading', 'st_scene_heading', 'st_scene_heading']);
+    const folder = newId('fld', ids);
+    const f = new Y.Map<unknown>();
+    doc.getMap('folders').set(folder, f);
+    for (const [k, v] of Object.entries({ id: folder, kind: 'folder', title: 'A', color: null, parentId: null, pos: 'V', collapsed: false, pageBudget: null })) f.set(k, v);
+    f.set('synopsis', new Y.Text());
+    made[0]!.set('folderId', folder);
+    made[2]!.set('folderId', folder);
+    expect(codes(doc)).toEqual(['I9']);
+  });
+
+  it('I9 also reports a non-contiguous folder split across `page`-role elements (spec 01 §3.4.1, amended: page is a scene-start role — M2 task 14 fix round 1)', () => {
+    // `SCENE_ROLES` gained `page` alongside `sceneHeading`/`chapter`; I9's folder-contiguity check
+    // walks exactly `SCENE_ROLES` elements, so the code path is identical to the sceneHeading case
+    // above — this pins that `page` actually reaches it now, since no existing fixture used a
+    // template with a `page`-role style.
+    const { doc, made } = docWithTemplate(graphicNovel, ['st_page', 'st_page', 'st_page']);
     const folder = newId('fld', ids);
     const f = new Y.Map<unknown>();
     doc.getMap('folders').set(folder, f);

@@ -328,13 +328,15 @@ describe('assignNumbers — locked numbering (§22.3/§23.2)', () => {
     expect(labels.get(gap.get('id') as never)).toEqual(assigned(label(10, [letterSeg(1)], [letterSeg(1)]), true, true));
   });
 
-  it('rejects a locked stored label that does not sort after its predecessor, instead of silently trusting a non-representative anchor', () => {
+  it('rejects a locked stored label that sorts strictly before its predecessor, instead of silently trusting a non-representative anchor (original corruption case)', () => {
     // Fix round 1, important: a locked, stored label's structural base/prefix/suffix still
     // anchors later gap-fills even when its display is blanked (`custom: ''`) — see the doc
     // comment on `LockedLabelOutOfOrderError`. If that anchor's structural position was never
     // kept in sync with reality (corrupted data, or a client bug), trusting it silently can
     // generate a provisional label that sorts *before* an earlier, correctly-ordered locked one.
-    // This must be rejected outright rather than produce that corrupted result.
+    // This must be rejected outright rather than produce that corrupted result. (Fix round 2 kept
+    // this case rejected while narrowing the comparison from `<= 0` to `< 0` — see the next two
+    // tests for the boundary that narrowing was for.)
     const { add, setNum, lockStyle, model } = setup();
     lockStyle('scene');
     const s1 = add('scene');
@@ -354,6 +356,41 @@ describe('assignNumbers — locked numbering (§22.3/§23.2)', () => {
     expect(err.elementId).toBe(bad.get('id'));
     expect(err.previous).toEqual(label(10));
     expect(err.stored).toEqual(label(1, [], [], ''));
+  });
+
+  it('still rejects a strictly out-of-order locked stored label (simple, non-custom case)', () => {
+    const { add, setNum, lockStyle, model } = setup();
+    lockStyle('scene');
+    const s1 = add('scene');
+    setNum(s1, { label: label(10), locked: true, manual: false });
+    const s2 = add('scene');
+    setNum(s2, { label: label(9), locked: true, manual: false }); // strictly before s1
+    let caught: unknown;
+    try {
+      assignNumbers(model());
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(LockedLabelOutOfOrderError);
+  });
+
+  it('accepts a duplicate locked label (spec 02 §23.1: "Duplicate labels allowed with diagnostic duplicateNumber") and reports it, instead of throwing', () => {
+    // Fix round 2, critical: the round-1 guard used `<= 0`, rejecting an *equal* stored label too
+    // — but spec 02 §23.1 explicitly permits this (e.g. an intentional Edit Number that matches an
+    // existing locked number). For that legal input, throwing for the whole document was worse
+    // than the corruption round 1 was fixing. Narrowed to `< 0`; an equal label is now accepted
+    // and reported via `diagnostics`, not rejected.
+    const { add, setNum, lockStyle, model } = setup();
+    lockStyle('scene');
+    const s1 = add('scene');
+    setNum(s1, { label: label(10), locked: true, manual: false });
+    const s2 = add('scene'); // deliberately the same locked label, via a manual Edit Number
+    setNum(s2, { label: label(10), locked: true, manual: true });
+    const { labels, diagnostics } = assignNumbers(model());
+    expect(labels.get(s1.get('id') as never)).toEqual(assigned(label(10), false));
+    expect(labels.get(s2.get('id') as never)).toEqual(assigned(label(10), false));
+    expect(diagnostics).toContainEqual({ code: 'duplicateNumber', elementId: s2.get('id'), pageIndex: null, detail: { styleId: ST('scene') } });
+    expect(diagnostics).toHaveLength(1);
   });
 
   it('does not relabel a data-corruption guard from modes.ts (a malformed stored prefix segment) as a gap-exhausted refusal', () => {
