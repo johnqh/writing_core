@@ -14,6 +14,8 @@ import { describe, expect, it } from 'vitest';
  */
 const SRC = join(import.meta.dirname, '..');
 
+const CLOCK_REASON = 'host clock — forbidden except as a named injectable-seam default (spec 02 §1.1)';
+
 const FORBIDDEN: ReadonlyArray<{ pattern: RegExp; reason: string }> = [
   { pattern: /\bglobalThis\.(window|document|navigator|process|Buffer|Bun|localStorage)/, reason: 'globalThis escape hatch' },
   { pattern: /\bimport\(\s*['"]node:/, reason: 'dynamic Node built-in import' },
@@ -43,7 +45,46 @@ const FORBIDDEN: ReadonlyArray<{ pattern: RegExp; reason: string }> = [
   { pattern: /\.toLocaleString\(\s*\)/, reason: 'locale-dependent formatting with no explicit locale' },
   { pattern: /\.localeCompare\(\s*\)/, reason: 'locale-dependent comparison with no argument' },
   { pattern: /\bnew Intl\./, reason: 'host-locale-dependent Intl API' },
+  // A clock is a host dependency of exactly the same kind as a host locale (spec 02
+  // §1.1's "no ambient inputs" rule): `Date.now()` and no-argument `new Date()` read
+  // the *current* time from the host, so the same input can render differently run
+  // to run. `new Date(epochMs)` — an explicit, caller-supplied epoch — is fine and
+  // must not be flagged (used by src/template/locale-data.ts to format an injected
+  // `LocaleDataPort` argument), so this pattern requires a `)` immediately after the
+  // opening `(`, same convention as the `toLocale*` patterns above. The two
+  // legitimate ambient-clock reads in this package (`IdSource.now`'s default,
+  // `createDocument`'s `options.clock` default) are *defaults of injectable seams*
+  // that tests and rehearsal freeze — not violations — and are allowlisted by exact
+  // file+line below (`CLOCK_ALLOWLIST`), not exempted from this pattern.
+  { pattern: /\bDate\.now\(\)/, reason: CLOCK_REASON },
+  { pattern: /\bnew Date\(\s*\)/, reason: CLOCK_REASON },
 ];
+
+/**
+ * The only two places in `writing_core` allowed to read the host clock: the
+ * *default* of an injectable seam, so tests and rehearsal can freeze it
+ * (`createSeededIdSource`, `options.clock`). Keyed by exact file + line so a new
+ * `Date.now()` anywhere else — including a different line of either of these two
+ * files — is still caught.
+ */
+const CLOCK_ALLOWLIST: ReadonlyArray<{ file: string; line: number; reason: string }> = [
+  {
+    file: 'ids/id-source.ts',
+    line: 18,
+    reason: "cryptoIdSource's IdSource.now default (ULID timestamps) — createSeededIdSource is the deterministic seam tests use instead",
+  },
+  {
+    file: 'model/create.ts',
+    line: 57,
+    reason: "createDocument's options.clock default — callers pass options.clock to freeze createdAt/editedAt for tests and rehearsal",
+  },
+];
+
+/** True when `violation` (as `findViolations` formats it) is a clock reference on one of `CLOCK_ALLOWLIST`'s named lines. */
+function isAllowedClockViolation(relPath: string, violation: string): boolean {
+  if (!violation.includes(CLOCK_REASON)) return false;
+  return CLOCK_ALLOWLIST.some(({ file, line }) => file === relPath && violation.startsWith(`${line} `));
+}
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -217,6 +258,40 @@ describe('findViolations', () => {
   it('does not flag a real violation only when it is truly in a trailing comment, even next to a // in a string', () => {
     expect(findViolations(`const u = 'https://x.y'; // window.location`)).toEqual([]);
   });
+
+  it('flags Date.now()', () => {
+    expect(findViolations(`const t = Date.now();`)).toHaveLength(1);
+  });
+
+  it('flags new Date() with no argument', () => {
+    expect(findViolations(`const d = new Date();`)).toHaveLength(1);
+  });
+
+  it('does not flag new Date(epochMs) with an explicit, caller-supplied epoch', () => {
+    expect(findViolations(`const d = new Date(epochMs);`)).toEqual([]);
+  });
+});
+
+describe('isAllowedClockViolation (CLOCK_ALLOWLIST)', () => {
+  const clockLine = (line: number) => `${line} ${CLOCK_REASON}: now: () => Date.now(),`;
+
+  it('allows the exact allowlisted file and line', () => {
+    expect(isAllowedClockViolation('ids/id-source.ts', clockLine(18))).toBe(true);
+    expect(isAllowedClockViolation('model/create.ts', clockLine(57))).toBe(true);
+  });
+
+  it('does not blanket-allow the rest of an allowlisted file — a different line still fails', () => {
+    expect(isAllowedClockViolation('ids/id-source.ts', clockLine(19))).toBe(false);
+  });
+
+  it('does not allow a matching line number in a different, non-allowlisted file', () => {
+    expect(isAllowedClockViolation('template/tokens.ts', clockLine(18))).toBe(false);
+  });
+
+  it('never allows a non-clock violation, even on an allowlisted file+line', () => {
+    const nonClock = `18 host-locale-dependent Intl API: const f = new Intl.Collator('en');`;
+    expect(isAllowedClockViolation('ids/id-source.ts', nonClock)).toBe(false);
+  });
 });
 
 describe('platform-free guard', () => {
@@ -224,12 +299,14 @@ describe('platform-free guard', () => {
     expect(sourceFiles(SRC).length).toBeGreaterThan(0);
   });
 
-  it('no shipping source references a host-specific API', () => {
+  it('no shipping source references a host-specific API, except the two named clock seams', () => {
     const violations: string[] = [];
     for (const file of sourceFiles(SRC)) {
+      const relPath = relative(SRC, file);
       const fileText = readFileSync(file, 'utf8');
       for (const violation of findViolations(fileText)) {
-        violations.push(`${relative(SRC, file)}:${violation}`);
+        if (isAllowedClockViolation(relPath, violation)) continue;
+        violations.push(`${relPath}:${violation}`);
       }
     }
     expect(violations).toEqual([]);

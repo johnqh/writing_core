@@ -60,6 +60,14 @@ export interface TokenContext {
   document?: { filename: string; project: string | null; snapshot: string | null; label: string | null; lastRevised: number | null };
   locale: LocaleDataPort; // never `Intl`
   language: string; // BCP 47, from meta.language
+  /**
+   * Caller-supplied render time, epoch ms — {date}'s "now" (§20.2's "Render-time date
+   * (PDF export time)"). Ambient time enters the same way locale does: injected here,
+   * never read from a host clock (spec 02 §1.1's no-ambient-inputs rule — the same
+   * document laid out twice must produce the same bytes). Required, not optional: a
+   * caller always has *some* render time to supply, even if it's just "now".
+   */
+  renderTimeMs: number;
 }
 
 // ─── Parse tree ─────────────────────────────────────────────────────────────────
@@ -148,10 +156,13 @@ function parseSegment(text: string, start: number, mode: ParseMode): { nodes: To
       if (lower === 'if' || lower.startsWith('if ')) {
         flush();
         const [condName, condArg] = splitNameArg(content.slice(2).trim());
+        // Trimmed even when the condition name is empty ({if} / {if }) — `if ${''}`
+        // would otherwise leave a trailing space ("if ") in the diagnostic.
+        const unclosedRaw = `if ${content.slice(2).trim()}`.trim();
         const thenResult = parseSegment(text, found.end, 'then');
         if (thenResult.terminator === 'eof') {
           // No matching {else}/{/if} before end of input: the whole conditional is malformed.
-          nodes.push({ kind: 'malformed', raw: `if ${content.slice(2).trim()}` });
+          nodes.push({ kind: 'malformed', raw: unclosedRaw });
           pos = thenResult.pos;
           continue;
         }
@@ -160,7 +171,7 @@ function parseSegment(text: string, start: number, mode: ParseMode): { nodes: To
         if (thenResult.terminator === 'else') {
           const elseResult = parseSegment(text, cursor, 'else');
           if (elseResult.terminator === 'eof') {
-            nodes.push({ kind: 'malformed', raw: `if ${content.slice(2).trim()}` });
+            nodes.push({ kind: 'malformed', raw: unclosedRaw });
             pos = elseResult.pos;
             continue;
           }
@@ -241,25 +252,56 @@ function toBijectiveBase26(n: number): string {
   return out;
 }
 
-function formatNToken(label: NumberLabel, args: string[], ctx: TokenContext, unknown: string[]): { text: string; numeric: number } {
+type ParsedNArg =
+  | { kind: 'plain' }
+  | { kind: 'pad'; digits: number }
+  | { kind: 'words' | 'Words' | 'WORDS' | 'roman' | 'ROMAN' | 'alpha' | 'ALPHA' };
+
+/**
+ * Validates and parses `{n:<arg>}`'s format arg, independent of whether `ctx.number`
+ * happens to be populated — whether an arg is malformed is a property of the token
+ * text, not of the context, so this must run (and `unknown` must be told about a bad
+ * arg) whether or not there is a label to format it against.
+ */
+function parseNArg(arg: string | undefined): ParsedNArg | null {
+  if (arg === undefined) return { kind: 'plain' };
+  const padMatch = /^pad(\d+)$/i.exec(arg);
+  if (padMatch) return { kind: 'pad', digits: Number(padMatch[1]!) };
+  if (arg === 'words' || arg === 'Words' || arg === 'WORDS' || arg === 'roman' || arg === 'ROMAN' || arg === 'alpha' || arg === 'ALPHA') {
+    return { kind: arg };
+  }
+  return null;
+}
+
+function formatNBase(base: number, parsed: ParsedNArg, ctx: TokenContext): string {
+  switch (parsed.kind) {
+    case 'plain':
+      return String(base);
+    case 'pad':
+      return String(base).padStart(parsed.digits, '0');
+    case 'words':
+      return ctx.locale.spellOut(base, ctx.language);
+    case 'Words':
+      return capitalize(ctx.locale.spellOut(base, ctx.language));
+    case 'WORDS':
+      return ctx.locale.spellOut(base, ctx.language).toUpperCase();
+    case 'roman':
+      return toRoman(base);
+    case 'ROMAN':
+      return toRoman(base).toUpperCase();
+    case 'alpha':
+      return toBijectiveBase26(base);
+    case 'ALPHA':
+      return toBijectiveBase26(base).toUpperCase();
+    default:
+      return String(base);
+  }
+}
+
+function formatNToken(label: NumberLabel, parsed: ParsedNArg, ctx: TokenContext): { text: string; numeric: number } {
   // A custom label overrides the whole label text (mirrors formatNumberLabel); no format arg applies to it.
   if (label.custom !== undefined && label.custom !== '') return { text: label.custom, numeric: label.base };
-  const arg = args[0];
-  const padMatch = arg === undefined ? null : /^pad(\d+)$/i.exec(arg);
-  let baseText: string;
-  if (arg === undefined) baseText = String(label.base);
-  else if (padMatch) baseText = String(label.base).padStart(Number(padMatch[1]), '0');
-  else if (arg === 'words') baseText = ctx.locale.spellOut(label.base, ctx.language);
-  else if (arg === 'Words') baseText = capitalize(ctx.locale.spellOut(label.base, ctx.language));
-  else if (arg === 'WORDS') baseText = ctx.locale.spellOut(label.base, ctx.language).toUpperCase();
-  else if (arg === 'roman') baseText = toRoman(label.base);
-  else if (arg === 'ROMAN') baseText = toRoman(label.base).toUpperCase();
-  else if (arg === 'alpha') baseText = toBijectiveBase26(label.base);
-  else if (arg === 'ALPHA') baseText = toBijectiveBase26(label.base).toUpperCase();
-  else {
-    unknown.push(`n:${arg}`);
-    return { text: '', numeric: label.base };
-  }
+  const baseText = formatNBase(label.base, parsed, ctx);
   const prefixText = label.prefix.map(segText).join('');
   const suffixText = label.suffix.map(segText).join('');
   return { text: `${prefixText}${baseText}${suffixText}`, numeric: label.base };
@@ -292,6 +334,12 @@ const KNOWN_NAMES = new Set<string>(TOKEN_NAMES.map((n) => n.toLowerCase()));
 const DEFAULT_DATE_PATTERN = 'M/d/yy';
 
 function resolveTokenValue(nameLower: string, args: string[], ctx: TokenContext, unknown: string[]): { text: string; numeric: number | null } {
+  if (nameLower.trim() === '') {
+    // `{}` or a whitespace-only name: pushing '' into `unknown` would be a useless
+    // diagnostic (nothing to search the template for), so name the actual problem.
+    unknown.push('{}');
+    return { text: '', numeric: null };
+  }
   if (!KNOWN_NAMES.has(nameLower)) {
     unknown.push(nameLower);
     return { text: '', numeric: null };
@@ -302,13 +350,11 @@ function resolveTokenValue(nameLower: string, args: string[], ctx: TokenContext,
     case 'pages':
       return { text: ctx.page ? String(ctx.page.count) : '', numeric: ctx.page?.count ?? null };
     case 'date': {
-      // Render-time date (PDF export time): `TokenContext` (§20.2) declares no fixed
-      // "now" field, so this reads the wall clock at render time — that variability
-      // is the token's whole point. `Date.now()`/UTC getters are ECMA-262, not a host
-      // API, so this doesn't reintroduce the `Intl` problem; only the *formatting* of
-      // the epoch goes through `ctx.locale`, never through a global.
+      // Render-time date (PDF export time): the caller supplies the epoch via
+      // `ctx.renderTimeMs` (spec 02 §1.1's no-ambient-inputs rule) — never a host
+      // clock. Formatting also goes through `ctx.locale`, never through a global.
       const pattern = args[0] ?? DEFAULT_DATE_PATTERN;
-      return { text: ctx.locale.formatDate(Date.now(), pattern, ctx.language), numeric: null };
+      return { text: ctx.locale.formatDate(ctx.renderTimeMs, pattern, ctx.language), numeric: null };
     }
     case 'lastrevised': {
       const epoch = ctx.document?.lastRevised ?? null;
@@ -373,9 +419,16 @@ function resolveTokenValue(nameLower: string, args: string[], ctx: TokenContext,
       // renders empty rather than being unknown.
       return { text: '', numeric: null };
     case 'n': {
+      // Validate the format arg first, regardless of whether ctx.number is
+      // populated: a bad arg is malformed token text either way (fix round 1, item 3).
+      const parsedArg = parseNArg(args[0]);
+      if (parsedArg === null) {
+        unknown.push(`n:${args[0]}`);
+        return { text: '', numeric: null };
+      }
       const label = ctx.number?.label;
       if (label === undefined) return { text: '', numeric: null };
-      return formatNToken(label, args, ctx, unknown);
+      return formatNToken(label, parsedArg, ctx);
     }
     case 'count': {
       const styleId = args[0];
@@ -454,9 +507,14 @@ function renderNodes(nodes: readonly TokenNode[], ctx: TokenContext, unknown: st
       case 'literal':
         out += node.text;
         break;
-      case 'malformed':
-        unknown.push(node.raw.toLowerCase());
+      case 'malformed': {
+        // A bare trailing '{' (or one followed only by whitespace before end of
+        // input) scans to an empty/whitespace `raw`; '{' names the actual problem
+        // instead of pushing a useless empty string.
+        const trimmedRaw = node.raw.trim();
+        unknown.push(trimmedRaw === '' ? '{' : trimmedRaw.toLowerCase());
         break;
+      }
       case 'token':
         out += renderToken(node, ctx, unknown);
         break;

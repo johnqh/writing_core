@@ -13,7 +13,7 @@ function label(base: number, opts: Partial<NumberLabel> = {}): NumberLabel {
 }
 
 function ctx(overrides: Partial<TokenContext> = {}): TokenContext {
-  return { locale: defaultLocaleData, language: 'en', ...overrides };
+  return { locale: defaultLocaleData, language: 'en', renderTimeMs: 0, ...overrides };
 }
 
 const render = (s: string, c: TokenContext) => renderTokenString(s, c);
@@ -43,14 +43,25 @@ describe('§20.2 token table — every row renders', () => {
     expect(render('{pages}', c).text).toBe('90');
   });
 
-  it('{date} and {date:pattern} route through ctx.locale, never a global', () => {
+  it('{date} formats ctx.renderTimeMs (caller-supplied, never a host clock)', () => {
+    const c = ctx({ renderTimeMs: 0 });
+    expect(render('{date}', c).text).toBe('1/1/70');
+  });
+
+  it('{date} and {date:pattern} route the exact epoch through ctx.locale, never a global', () => {
     const fakeLocale: LocaleDataPort = {
       spellOut: () => 'STUB-WORDS',
-      formatDate: (epochMs, pattern, language) => `STUB(${epochMs >= 0},${pattern},${language})`,
+      formatDate: (epochMs, pattern, language) => `STUB(${epochMs},${pattern},${language})`,
     };
-    const c = ctx({ locale: fakeLocale });
-    expect(render('{date}', c).text).toBe('STUB(true,M/d/yy,en)');
-    expect(render('{date:yyyy}', c).text).toBe('STUB(true,yyyy,en)');
+    const c = ctx({ locale: fakeLocale, renderTimeMs: 1_700_000_000_123 });
+    expect(render('{date}', c).text).toBe('STUB(1700000000123,M/d/yy,en)');
+    expect(render('{date:yyyy}', c).text).toBe('STUB(1700000000123,yyyy,en)');
+  });
+
+  it('{date} is deterministic: two contexts with the same renderTimeMs render identically', () => {
+    const a = render('{date}', ctx({ renderTimeMs: 500_000 }));
+    const b = render('{date}', ctx({ renderTimeMs: 500_000 }));
+    expect(a).toEqual(b);
   });
 
   it('{lastRevised} and {lastRevised:pattern} format ctx.document.lastRevised', () => {
@@ -337,6 +348,38 @@ describe('malformed tokens: consistent with the unknown-name rule (empty + repor
     const c = ctx({ number: { label: label(1), counts: new Map([[S('st_panel'), 2]]) } });
     expect(render('{count:st_panel:bogus}', c).unknown).toEqual(['count:st_panel:bogus']);
   });
+
+  it('{n:<unrecognized arg>} is malformed even when ctx.number is absent — a bad arg is a property of the token text, not the context (fix round 1, item 3)', () => {
+    expect(render('{n:bogus}', ctx()).unknown).toEqual(['n:bogus']);
+    // And still empty text, matching the "malformed == unknown, renders empty" rule.
+    expect(render('{n:bogus}', ctx()).text).toBe('');
+  });
+
+  it('{n:padK} and other recognized args are silently empty (not malformed) when ctx.number is absent — no label to format', () => {
+    expect(render('{n:pad3}', ctx()).unknown).toEqual([]);
+    expect(render('{n:pad3}', ctx()).text).toBe('');
+    expect(render('{n}', ctx()).unknown).toEqual([]);
+  });
+
+  it('{} — a bare empty token — is malformed with a descriptive marker, not an empty string', () => {
+    const result = render('a{}b', ctx());
+    expect(result.text).toBe('ab');
+    expect(result.unknown).toEqual(['{}']);
+  });
+
+  it('a whitespace-only token name is malformed the same way as {}', () => {
+    expect(render('{   }', ctx()).unknown).toEqual(['{}']);
+  });
+
+  it('a bare trailing { (nothing after it) is malformed with a descriptive marker, not an empty string', () => {
+    const result = render('abc {', ctx());
+    expect(result.text).toBe('abc ');
+    expect(result.unknown).toEqual(['{']);
+  });
+
+  it('an unclosed { followed only by whitespace before end of input is also reported as {', () => {
+    expect(render('abc {   ', ctx()).unknown).toEqual(['{']);
+  });
 });
 
 describe('conditionals', () => {
@@ -377,6 +420,16 @@ describe('conditionals', () => {
   it('{else} and {/if} outside any open conditional are ordinary unknown tokens', () => {
     expect(render('{else}', ctx()).unknown).toEqual(['else']);
     expect(render('{/if}', ctx()).unknown).toEqual(['/if']);
+  });
+
+  it('an unclosed {if} with no name at all reports trimmed "if", not "if " with a trailing space', () => {
+    const result = render('{if}text', ctx());
+    expect(result.text).toBe('');
+    expect(result.unknown).toEqual(['if']);
+  });
+
+  it('an unclosed {if } (name-space, no name) also reports trimmed "if"', () => {
+    expect(render('{if }text', ctx()).unknown).toEqual(['if']);
   });
 });
 
