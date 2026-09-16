@@ -1,13 +1,17 @@
 import * as Y from 'yjs';
 import { describe, expect, it } from 'vitest';
 import { createSeededIdSource } from '../ids/id-source.js';
-import { newId } from '../ids/ids.js';
+import type { ElementId, StyleId } from '../ids/ids.js';
+import { newDualGroupId, newId } from '../ids/ids.js';
 import { createDocument } from '../model/create.js';
 import { insertElementRecord } from '../model/element-record.js';
 import { writeEntity } from '../model/json.js';
+import type { StyleRole } from '../schema/vocab.js';
 import { screenplayStandard } from '../templates/builtin/screenplay-standard.js';
 import { formatNumberLabel } from './number-label.js';
+import { computeOutlineTree, computeScenes, type StructureInput } from './structure.js';
 import { openDocument } from './open.js';
+import type { ElementView } from './views.js';
 
 const ids = createSeededIdSource(41);
 const meta = { createdBy: 'u', createdAt: 0, editedBy: 'u', editedAt: 0 };
@@ -33,6 +37,13 @@ function script(rows: [string, string][]) {
   for (let i = seeds.length - 1; i >= 0; i--) made[i] = insertElementRecord(elements, seeds[i]!, meta);
   const idOf = (i: number) => made[i]!.get('id') as string;
   return { doc, made, idOf, model: openDocument(doc, { ids, clock: () => 0, locale: 'en' }) };
+}
+
+function makeFolder(doc: Y.Doc, folder: { id: string; kind: 'act' | 'sequence' | 'folder'; title: string; parentId: string | null; pos: string }) {
+  const f = doc.getMap('folders').set(folder.id, new Y.Map<unknown>());
+  for (const [k, v] of Object.entries({ ...folder, color: null, collapsed: false, pageBudget: null })) f.set(k, v);
+  f.set('synopsis', new Y.Text());
+  return f;
 }
 
 describe('scenes', () => {
@@ -89,6 +100,76 @@ describe('scenes', () => {
     expect(scenes[0]).toMatchObject({ id: idOf(1), index: 0, headingText: 'INT. LAB - DAY' });
     expect(scenes[0]!.elementIds).toEqual([idOf(1)]);
   });
+
+  it('closes a scene with zero body elements when an act break follows immediately', () => {
+    const { model, idOf } = script([
+      ['st_scene_heading', 'INT. LOBBY - DAY'],
+      ['st_new_act', 'ACT TWO'],
+      ['st_scene_heading', 'INT. HALL - DAY'],
+    ]);
+    const scenes = model.scenes();
+    expect(scenes).toHaveLength(2);
+    expect(scenes[0]).toMatchObject({ id: idOf(0), headingText: 'INT. LOBBY - DAY' });
+    expect(scenes[0]!.elementIds).toEqual([idOf(0)]);
+    expect(scenes[1]!.actId).toBe(idOf(1));
+  });
+
+  it('produces no scenes, blocks or outline for a completely empty document', () => {
+    const { model } = script([]);
+    expect(model.scenes()).toEqual([]);
+    expect(model.dialogueBlocks()).toEqual([]);
+    expect(model.outlineTree()).toMatchObject({ kind: 'root', title: '', children: [] });
+  });
+});
+
+describe('chapter-role scene starts', () => {
+  // `chapter` is a valid SCENE_ROLES member (spec 01), but no built-in template currently
+  // assigns it to a style, so this exercises `computeScenes`/`computeOutlineTree` directly
+  // against a hand-built StructureInput rather than through `openDocument`.
+  function ev(role: StyleRole | null, text: string, extra: Partial<ElementView> = {}): ElementView {
+    return {
+      id: newId('el', ids) as ElementId,
+      pos: 'A',
+      style: 'st_test' as StyleId,
+      role,
+      text: { plain: text, runs: text ? [{ text, attrs: {} }] : [], embeds: [] },
+      ov: {},
+      num: null,
+      hasScene: false,
+      dual: null,
+      altCount: 0,
+      label: null,
+      outlineLevel: null,
+      shotId: null,
+      folderId: null,
+      lineAdjust: null,
+      tc: null,
+      omit: null,
+      meta: { createdBy: 'u', createdAt: 0, editedBy: 'u', editedAt: 0 },
+      field: null,
+      ...extra,
+    };
+  }
+  const baseInput = (elements: ElementView[]): StructureInput => ({
+    elements,
+    sceneMap: () => undefined,
+    folders: [],
+    vocab: { sceneIntros: [], times: [], introSeparator: ' ', timeSeparator: ' - ' },
+    resolveEntity: () => null,
+    castTagsByElement: new Map(),
+  });
+
+  it('treats a `chapter`-role element as a scene start, same as `sceneHeading`', () => {
+    const heading = ev('chapter', 'CHAPTER ONE');
+    const body = ev(null, 'It was a dark and stormy night.');
+    const input = baseInput([heading, body]);
+    const scenes = computeScenes(input);
+    expect(scenes).toHaveLength(1);
+    expect(scenes[0]).toMatchObject({ id: heading.id, headingText: 'CHAPTER ONE', index: 0 });
+    expect(scenes[0]!.elementIds).toEqual([heading.id, body.id]);
+    const tree = computeOutlineTree(input, scenes);
+    expect(tree.children).toEqual([{ kind: 'scene', id: heading.id, title: 'CHAPTER ONE', level: 0, elementId: heading.id, children: [] }]);
+  });
 });
 
 describe('dialogue blocks and outline', () => {
@@ -105,6 +186,25 @@ describe('dialogue blocks and outline', () => {
     expect(model.dialogueBlocks().map((b) => [b.name, b.extension, b.elementIds.length, b.sceneId])).toEqual([
       ['MAYA', null, 3, idOf(0)],
       ['JO', '(O.S.)', 2, idOf(0)],
+    ]);
+    expect(model.dialogueBlocks()[0]!.dualGroup).toBeNull();
+  });
+
+  it('carries the shared dual.group onto both speakers of a dual-dialogue pair', () => {
+    const { model, made } = script([
+      ['st_scene_heading', 'INT. DINER - NIGHT'],
+      ['st_character', 'MAYA'],
+      ['st_dialogue', 'Left side.'],
+      ['st_character', 'JO'],
+      ['st_dialogue', 'Right side.'],
+    ]);
+    const group = newDualGroupId(ids);
+    made[1]!.set('dual', { group, side: 'left' });
+    made[3]!.set('dual', { group, side: 'right' });
+    const blocks = model.dialogueBlocks();
+    expect(blocks.map((b) => [b.name, b.dualGroup])).toEqual([
+      ['MAYA', group],
+      ['JO', group],
     ]);
   });
 
@@ -136,6 +236,51 @@ describe('dialogue blocks and outline', () => {
     ]]);
     expect(tree.children[0]!.elementId).toBe(idOf(0));
     expect(model.scene(idOf(6) as never)!.folderPath).toEqual([folder, subFolder]);
+  });
+
+  it('renders empty folders in the outline tree, ordered by pos, after the container’s positioned children', () => {
+    const { model, doc } = script([
+      ['st_new_act', 'ACT ONE'],
+      ['st_scene_heading', 'INT. A - DAY'],
+    ]);
+    // Inserted out of pos order (Zeta before Alpha) to prove the sort is by `pos`, not insertion order.
+    makeFolder(doc, { id: newId('fld', ids), kind: 'folder', title: 'Zeta', parentId: null, pos: 'M' });
+    makeFolder(doc, { id: newId('fld', ids), kind: 'folder', title: 'Alpha', parentId: null, pos: 'A' });
+    const tree = model.outlineTree();
+    const shape = (n: typeof tree): unknown => [n.kind, n.title, n.children.map(shape)];
+    expect(shape(tree)).toEqual(['root', '', [
+      ['act', 'ACT ONE', [['scene', 'INT. A - DAY', []]]],
+      ['folder', 'Alpha', []],
+      ['folder', 'Zeta', []],
+    ]]);
+  });
+
+  it('nests an empty folder inside another empty folder, both attached under root', () => {
+    const { model, doc } = script([]);
+    const parent = newId('fld', ids);
+    makeFolder(doc, { id: parent, kind: 'folder', title: 'Outer', parentId: null, pos: 'B' });
+    const child = newId('fld', ids);
+    makeFolder(doc, { id: child, kind: 'folder', title: 'Inner', parentId: parent, pos: 'C' });
+    const tree = model.outlineTree();
+    const shape = (n: typeof tree): unknown => [n.kind, n.title, n.children.map(shape)];
+    expect(shape(tree)).toEqual(['root', '', [['folder', 'Outer', [['folder', 'Inner', []]]]]]);
+  });
+
+  it('attaches an empty folder to its non-empty parent, after the parent’s existing (scene) children', () => {
+    const { model, made, doc } = script([
+      ['st_new_act', 'ACT ONE'],
+      ['st_scene_heading', 'INT. BANK - DAY'],
+    ]);
+    const parent = newId('fld', ids);
+    makeFolder(doc, { id: parent, kind: 'folder', title: 'Heist', parentId: null, pos: 'B' });
+    made[1]!.set('folderId', parent);
+    const emptyChild = newId('fld', ids);
+    makeFolder(doc, { id: emptyChild, kind: 'folder', title: 'Deleted Scenes', parentId: parent, pos: 'A' });
+    const tree = model.outlineTree();
+    const shape = (n: typeof tree): unknown => [n.kind, n.title, n.children.map(shape)];
+    expect(shape(tree)).toEqual(['root', '', [
+      ['act', 'ACT ONE', [['folder', 'Heist', [['scene', 'INT. BANK - DAY', []], ['folder', 'Deleted Scenes', []]]]]],
+    ]]);
   });
 
   it('exposes the title page fields', () => {

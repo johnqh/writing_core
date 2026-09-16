@@ -1,5 +1,6 @@
 import * as Y from 'yjs';
 import type { ElementId, EntityId, FolderId } from '../ids/ids.js';
+import { comparePositions } from '../model/positions.js';
 import { readTextJSON } from '../model/ytext.js';
 import { SCENE_BOUNDARY_ROLES, SCENE_ROLES, SPEAKER_ROLES, SPEECH_MEMBER_ROLES } from '../schema/vocab.js';
 import { stripExtension } from '../smarttype/normalize.js';
@@ -10,7 +11,7 @@ import type { DialogueBlockView, ElementView, OutlineNode, SceneView } from './v
 export interface StructureInput {
   elements: readonly ElementView[];
   sceneMap(id: string): Y.Map<unknown> | undefined;
-  folders: readonly { id: string; kind: 'act' | 'sequence' | 'folder'; title: string; parentId: string | null }[];
+  folders: readonly { id: string; kind: 'act' | 'sequence' | 'folder'; title: string; parentId: string | null; pos: string }[];
   vocab: HeadingVocabulary;
   resolveEntity(kind: 'character' | 'location', name: string): EntityId | null;
   castTagsByElement: ReadonlyMap<string, readonly EntityId[]>;
@@ -130,6 +131,10 @@ export function computeOutlineTree(input: StructureInput, scenes: readonly Scene
   const container = () => outlines[outlines.length - 1] ?? sequence ?? act ?? root;
   const node = (kind: OutlineNode['kind'], el: ElementView, level = 0): OutlineNode => ({ kind, id: el.id, title: el.text.plain, level, elementId: el.id, children: [] });
 
+  // Non-empty folders (reached through a scene's `folderId`, directly or via a descendant
+  // folder) are attached lazily, the moment their first scene is encountered while walking
+  // `input.elements` in document order — so they land among their siblings exactly where
+  // that scene falls (spec 01 §5.13: "non-empty folders are ordered by their first scene").
   const folderNode = (folderId: string, base: OutlineNode): OutlineNode => {
     const existing = folderNodes.get(folderId);
     if (existing) return existing;
@@ -176,5 +181,35 @@ export function computeOutlineTree(input: StructureInput, scenes: readonly Scene
       }
     }
   }
+
+  // Second pass: an EMPTY folder — one with no scene anywhere in its subtree — is never
+  // visited by the walk above, so it has no entry in `folderNodes` yet. Spec 01 §5.13: a
+  // folder's `pos` is "used only for empty folders"; non-empty folders are already
+  // positioned by their first scene's document order (the walk above). An empty folder
+  // carries no document-order signal of its own, so the chosen, deterministic rule is: place
+  // it after its parent's already-positioned children (scenes and non-empty folders),
+  // ordered among its *empty* folder siblings by `pos`. A folder whose ancestor chain never
+  // reaches an existing node (its own `parentId` is null, or points to another still-empty
+  // folder) is attached directly under `root`, since without a scene there is no signal for
+  // which act or sequence it would otherwise belong to.
+  const emptySiblings = new Map<OutlineNode, { pos: string; node: OutlineNode }[]>();
+  const resolveEmptyFolder = (folderId: string): OutlineNode => {
+    const existing = folderNodes.get(folderId);
+    if (existing) return existing;
+    const f = folderById.get(folderId)!;
+    const created: OutlineNode = { kind: f.kind === 'folder' ? 'folder' : f.kind, id: f.id, title: f.title, level: 0, elementId: null, children: [] };
+    folderNodes.set(folderId, created); // registered before recursing into the parent, so a cyclic parentId chain terminates here
+    const parent = f.parentId && folderById.has(f.parentId) ? resolveEmptyFolder(f.parentId) : root;
+    const siblings = emptySiblings.get(parent) ?? [];
+    siblings.push({ pos: f.pos, node: created });
+    emptySiblings.set(parent, siblings);
+    return created;
+  };
+  for (const f of input.folders) if (!folderNodes.has(f.id)) resolveEmptyFolder(f.id);
+  for (const [parent, siblings] of emptySiblings) {
+    siblings.sort((a, b) => comparePositions(a.pos, b.pos));
+    parent.children.push(...siblings.map((s) => s.node));
+  }
+
   return root;
 }
