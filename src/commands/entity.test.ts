@@ -251,6 +251,24 @@ describe('SmartType list commands', () => {
     h.run('smartType.reorder', { list: 'soundCues', keys: ['first'] });
     expect(h.model.smartTypeSuggestions('soundCues', '').map((s) => s.text)).toEqual(['FIRST', 'upper', 'lower']);
   });
+
+  it('breaks a tie between untouched reorder entries by key, so two replicas produce the same order', () => {
+    // Two entries that landed on the same `pos` (a concurrent insert). `a < b ? -1 : 1` never
+    // returns 0, so the survivor depended on Y.Map iteration order; insert them in the order that
+    // disagrees with key order.
+    const order = (insertZfirst: boolean) => {
+      const h = commandHarness();
+      const sc = h.doc.getMap('smartType').get('soundCues') as Y.Map<{ text: string; pos: string; origin: string; count: number }>;
+      const entries: [string, string][] = insertZfirst ? [['zz', 'Z'], ['aa', 'A']] : [['aa', 'A'], ['zz', 'Z']];
+      for (const [key, text] of entries) sc.set(key, { text, pos: 'm', origin: 'manual', count: 0 });
+      sc.set('first', { text: 'FIRST', pos: '0', origin: 'manual', count: 0 });
+      h.doc.getMap('smartType').set('sortMode', 'custom');
+      h.run('smartType.reorder', { list: 'soundCues', keys: ['first'] });
+      return h.model.smartTypeSuggestions('soundCues', '').map((s) => s.text);
+    };
+    expect(order(true)).toEqual(['FIRST', 'A', 'Z']);
+    expect(order(false)).toEqual(['FIRST', 'A', 'Z']);
+  });
   it('merges cleanup candidates into one entry', () => {
     const h = commandHarness();
     const times = h.doc.getMap('smartType').get('times') as Y.Map<unknown>;

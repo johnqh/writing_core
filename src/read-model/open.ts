@@ -4,6 +4,7 @@ import { type ContentHash, elementContentHash, entityContentHash, sceneContentHa
 import { readEmbeddedTemplate } from '../model/embed-template.js';
 import { documentToJSON, readEntity, readNote, readTextKeyed } from '../model/json.js';
 import { comparePositions } from '../model/positions.js';
+import { orderElements } from '../model/ymap.js';
 import { readTextJSON, scanText } from '../model/ytext.js';
 import type {
   BeatJSON, BinItemJSON, BookmarkJSON, DocumentJSON, EmbeddedTemplateJSON, ProductionJSON, RevisionsJSON, SettingsJSON, ShotJSON, TrackChangesJSON,
@@ -27,8 +28,8 @@ type YMap = Y.Map<unknown>;
 /**
  * Element keys whose change bumps `attrsVersion` (spec 01 §10.2 / spec 02 §31.2). `scene` is here
  * for the key itself being set or removed; a change *inside* the scene map only counts when it
- * touches `omit` (see `sceneChangeCounts` below), because everything else in there — locationId,
- * storylineIds, the scene number's own state — is not a paragraph-layout input.
+ * touches `omit` (see the nested-path branch in `onElements`), because everything else in there —
+ * locationId, storylineIds, the scene number's own state — is not a paragraph-layout input.
  */
 const ATTRS_KEYS: ReadonlySet<string> = new Set(['style', 'ov', 'num', 'scene', 'dual', 'alts', 'tc', 'lineAdjust', 'omit']);
 
@@ -509,9 +510,10 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
         const tp = doc.getMap<unknown>('titlePage');
         const elements = tp.get('elements') instanceof Y.Map ? (tp.get('elements') as Y.Map<unknown>) : new Y.Map<unknown>();
         const tpTemplate = { ...template(), styles: template().titlePageStyles };
-        const views = [...elements.values()]
-          .map((v) => v as Y.Map<unknown>)
-          .sort((a, b) => comparePositions(String(a.get('pos')), String(b.get('pos'))))
+        // `orderElements` is THE document order — `pos`, then id. Sorting on `pos` alone left two
+        // title-page elements that share a position (a concurrent insert on two replicas) in
+        // whatever order the Y.Map happened to iterate, which differs per replica.
+        const views = orderElements(elements)
           .map((m) => {
             const text = readTextJSON(m.get('text') as Y.Text);
             const style = m.get('style') as StyleId;

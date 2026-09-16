@@ -273,3 +273,25 @@ describe('openDocument elements', () => {
     expect(() => model.titlePage()).toThrow(/no value for align/);
   });
 });
+
+describe('document order is pos-then-id everywhere', () => {
+  it('orders title-page elements by pos then id, so two replicas agree when positions collide', () => {
+    const doc = createDocument({ template: screenplayStandard, uid: 'u', ids });
+    const tp = doc.getMap<unknown>('titlePage').get('elements') as Y.Map<unknown>;
+    const model = openDocument(doc, deps);
+    const styleOf = (m: Y.Map<unknown>) => m.get('style') as string;
+    const existing = [...tp.values()].map((v) => v as Y.Map<unknown>)[0]!;
+    const pos = String(existing.get('pos'));
+    // Two concurrent inserts that landed on the same `pos`; insert the later id first so Y.Map
+    // iteration order and document order disagree.
+    const later = 'el_01ARYZ6S410000000000000002';
+    const earlier = 'el_01ARYZ6S410000000000000001';
+    doc.transact(() => {
+      for (const id of [later, earlier]) {
+        insertElementRecord(tp, { id: id as never, pos: pos as never, style: styleOf(existing) as never, text: { plain: id, runs: [{ text: id, attrs: {} }], embeds: [] } }, meta);
+      }
+    });
+    const ordered = model.titlePage().elements.filter((e) => e.pos === pos).map((e) => e.id);
+    expect(ordered).toEqual([earlier, later, existing.get('id') as string].sort());
+  });
+});

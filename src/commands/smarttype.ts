@@ -1,6 +1,6 @@
 import * as Y from 'yjs';
 import { z } from 'zod/v4';
-import { generatePositions, positionBetween } from '../model/positions.js';
+import { comparePositions, generatePositions, positionBetween } from '../model/positions.js';
 import { lastPosition } from '../model/ymap.js';
 import { STORED_SMARTTYPE_LISTS } from '../schema/vocab.js';
 import { harvest } from '../smarttype/harvest.js';
@@ -31,7 +31,13 @@ export const SMARTTYPE_COMMANDS: CommandSpec<never>[] = [
   spec('smartType.reorder', z.object({ list: List, keys: z.array(z.string()).min(1) }), (ctx, p) => {
     const map = entries(ctx, p.list);
     if (p.keys.some((k) => !map.has(k))) return { ok: false, reason: 'notFound' };
-    const rest = [...map.entries()].filter(([k]) => !p.keys.includes(k)).sort((a, b) => (a[1].pos < b[1].pos ? -1 : 1)).map(([k]) => k);
+    // Same rule as document order (model/ymap.ts `orderElements`): position, then key. A bare
+    // `a < b ? -1 : 1` never returns 0, so two entries sharing a position — which a concurrent
+    // insert on two replicas produces — sorted differently depending on Y.Map iteration order.
+    const rest = [...map.entries()]
+      .filter(([k]) => !p.keys.includes(k))
+      .sort((a, b) => comparePositions(a[1].pos, b[1].pos) || (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+      .map(([k]) => k);
     const order = [...p.keys, ...rest];
     const positions = generatePositions(order.length, null, null, ctx.ids);
     order.forEach((k, i) => map.set(k, { ...map.get(k)!, pos: positions[i]! }));
