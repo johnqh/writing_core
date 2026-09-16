@@ -18,8 +18,16 @@ import { createSessionOrigins } from './origin.js';
  * end up byte-identical AND valid once they exchange updates. Yjs guarantees convergence of the
  * *bytes*; what these tests check is that our data model on top of it converges too — that
  * concurrent edits cannot produce two different `documentToJSON`s, or one that violates spec 01
- * §9's invariants (a dual run split across replicas, a `pos` collision ordered differently on each
- * side, an entity merged two ways, a rebalance interleaved with an edit).
+ * §9's invariants (a dual run split across replicas, an entity merged two ways, a rebalance run
+ * independently on both sides while one also inserts).
+ *
+ * Note on scope: no scenario here manufactures two elements landing on the literal same `pos`
+ * string and checks the (pos, id) tie-break directly — that ordering rule is exercised by
+ * `orderElements`'s own callers/tests, not proven here. And where a scenario's comment describes
+ * *why* a mechanism (rebalance jitter-freedom, an auto-repair's specific tie-break) must be
+ * deterministic, that comment is explaining the mechanism, not claiming this suite pins it: `expect
+ * jsonB === jsonA` after `converge()` passes for ANY deterministic rule, not only the one the
+ * mechanism happens to use — see the per-test notes below.
  */
 
 const ACTOR_A = { userId: 'ua', displayName: 'A', color: '#224466', kind: 'human' as const };
@@ -139,7 +147,11 @@ describe('CRDT convergence', () => {
     const cycles = validateDocument(a.doc, { only: ['I17'] }).issues;
     expect(cycles).toHaveLength(1);
     // The repair has to be deterministic, or repairing on each replica independently would
-    // re-diverge them. It breaks the cycle at a sorted-last id, so both sides pick the same link.
+    // re-diverge them. I17's implementation (`references.ts`) breaks at the sorted-last id in the
+    // cycle — but this test only proves the repair converges when run independently on both
+    // replicas; it does not pin *which* link gets broken (it asserts convergence and issue counts,
+    // not e.g. which entity ends up with `mergedInto: null`), so it would stay green for any other
+    // deterministic tie-break rule too.
     for (const r of [a, b]) expect(validateDocument(r.doc, { only: ['I17'] }).repair()).toBe(1);
     converge(a, b);
     expect(a.model.entity(maya)!.id).toBe(b.model.entity(maya)!.id);
@@ -189,7 +201,12 @@ describe('CRDT convergence', () => {
   it('converges when both replicas rebalance positions while one also inserts', () => {
     const { a, b } = pair(SCRIPT);
     // `pos` is last-writer-wins per element, so a rebalance MUST be deterministic (no jitter) or
-    // the two replicas interleave their keys into a new order. This is that guarantee, tested.
+    // the two replicas would compute different keys for the same elements. `rebalancePositions`'s
+    // own determinism (no jitter) is unit-tested directly in `positions.test.ts` ("rebalances
+    // deterministically"); this test only checks that running it independently on both replicas,
+    // concurrently with an edit, still converges — `converge()`'s `jsonB === jsonA` would pass
+    // here even if rebalancing were non-deterministic, because Yjs's own LWW conflict resolution
+    // trivially converges any single last-writer-wins field regardless of what each side wrote.
     const rebalance = (r: Replica) => r.doc.transact(() => {
       const ordered = orderElements(r.doc.getMap<unknown>('elements'));
       const keys = rebalancePositions(ordered.length);

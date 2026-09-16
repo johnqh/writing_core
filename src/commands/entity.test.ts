@@ -2,6 +2,7 @@ import * as Y from 'yjs';
 import { describe, expect, it } from 'vitest';
 import { newId } from '../ids/ids.js';
 import { validateDocument } from '../model/validate/index.js';
+import { screenplayStandard } from '../templates/builtin/screenplay-standard.js';
 import { commandHarness } from './test-harness.js';
 
 describe('entity commands', () => {
@@ -213,6 +214,46 @@ describe('entity name keys are one rule everywhere (spec 01 §7.1)', () => {
     const e = entities.set(id, new Y.Map<unknown>());
     for (const [k, v] of Object.entries({ id, kind: 'character', name: 'MAYA', nameKey: 'maya', mergedInto: null })) e.set(k, v);
     expect(validateDocument(h.doc, { only: ['I16'] }).issues).toHaveLength(1);
+  });
+
+  // M1 final fix wave item A: entityNameKey must strip only a trailing parenthetical that is a
+  // known speaker extension (the template's smartType.extensions list, or a CONT'D word from any
+  // locale) — not an arbitrary one. A writer's `MAYA (YOUNG)` is a distinct character from `MAYA`.
+  it('only collapses a KNOWN extension parenthetical; an arbitrary one is part of the name', () => {
+    const h = commandHarness();
+    const maya = h.run('entity.create', { kind: 'character', name: 'MAYA' });
+    expect(maya).toMatchObject({ ok: true });
+    const mayaId = h.model.resolveEntity('character', 'MAYA')!.id;
+    // Known extensions (from the harness's default template's smartType.extensions) still collapse.
+    expect(h.run('entity.create', { kind: 'character', name: 'MAYA (V.O.)' }))
+      .toMatchObject({ ok: false, reason: 'notApplicable', detail: { existingId: mayaId } });
+    expect(h.run('entity.create', { kind: 'character', name: "MAYA (CONT'D)" }))
+      .toMatchObject({ ok: false, reason: 'notApplicable', detail: { existingId: mayaId } });
+    // An arbitrary parenthetical is NOT a known extension, so it is a distinct character.
+    const young = h.run('entity.create', { kind: 'character', name: 'MAYA (YOUNG)' });
+    expect(young).toMatchObject({ ok: true });
+    const youngId = h.model.resolveEntity('character', 'MAYA (YOUNG)')!.id;
+    expect(youngId).not.toBe(mayaId);
+    expect(h.model.entity(youngId)!.nameKey).toBe('maya (young)');
+  });
+
+  it('collapses a custom extension the template adds to smartType.extensions', () => {
+    const custom = { ...screenplayStandard, smartType: { ...screenplayStandard.smartType, extensions: [...screenplayStandard.smartType.extensions, '(RADIO)'] } };
+    const h = commandHarness(custom);
+    h.run('entity.create', { kind: 'character', name: 'MAYA' });
+    const mayaId = h.model.resolveEntity('character', 'MAYA')!.id;
+    expect(h.run('entity.create', { kind: 'character', name: 'MAYA (RADIO)' }))
+      .toMatchObject({ ok: false, reason: 'notApplicable', detail: { existingId: mayaId } });
+  });
+
+  it('tombstone round trip still matches after a delete + rebuild for a known-extension name', () => {
+    const h = commandHarness();
+    h.replaceBody([['st_character', 'MAYA (V.O.)'], ['st_dialogue', 'Hello?']]);
+    h.run('entity.create', { kind: 'character', name: 'MAYA (V.O.)' });
+    const maya = h.model.entities({ kind: 'character', includeHidden: true })[0]!.id;
+    expect(h.run('entity.delete', { entityId: maya, force: true })).toMatchObject({ ok: true });
+    expect(h.run('entity.rebuild', {})).toMatchObject({ ok: true });
+    expect(h.model.entities({ kind: 'character', includeHidden: true })).toEqual([]);
   });
 });
 

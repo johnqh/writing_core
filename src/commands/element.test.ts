@@ -1,9 +1,10 @@
 // src/commands/element.test.ts
 import * as Y from 'yjs';
 import { describe, expect, it } from 'vitest';
-import { newDualGroupId, newId } from '../ids/ids.js';
+import { builtinStyleId, newDualGroupId, newId } from '../ids/ids.js';
 import { documentToJSON } from '../model/json.js';
 import { validateDocument } from '../model/validate/index.js';
+import { screenplayStandard } from '../templates/builtin/screenplay-standard.js';
 import { commandHarness } from './test-harness.js';
 
 const at = (elementId: string, offset: number) => ({ elementId, offset });
@@ -176,6 +177,27 @@ describe('the fastPath element commands refuse without writing', () => {
     expect(h.run('element.split', { at: at('el_01ARYZ6S410000000000000000', 0) })).toMatchObject({ ok: false, reason: 'invalidPosition' });
     expect(snapshot(h)).toBe(before);
     expect(h.run('element.split', { at: at(a!, 0) })).toMatchObject({ ok: false, reason: 'notApplicable', detail: { action: 'openPicker' } });
+    expect(snapshot(h)).toBe(before);
+  });
+
+  // M1 final fix wave item B: `applyStyle` wrote `el.set('style', …)` before calling
+  // `resolveStyle`, which can throw (e.g. a style whose chain is missing a required field).
+  // element.setStyle is fastPath — no rehearsal-on-a-replica safety net — so that throw used to
+  // escape mid-write, leaving the element restyled with no refusal ever returned. `st_broken`
+  // passes `styleExists` (it's in the template) but has `basedOn: null` and an empty font, so it
+  // is its own complete chain and resolveStyleCore's `required()` throws "incomplete root".
+  it('element.setStyle leaves the document byte-identical when resolveStyle throws', () => {
+    const broken = {
+      ...screenplayStandard,
+      styles: [
+        ...screenplayStandard.styles,
+        { id: builtinStyleId('broken'), name: 'Broken', nameKey: null, role: 'action' as const, basedOn: null, shortcut: null, font: {} },
+      ],
+    };
+    const h = commandHarness(broken);
+    const [a] = h.replaceBody([['st_action', 'One']]);
+    const before = snapshot(h);
+    expect(() => h.run('element.setStyle', { elements: [a], style: builtinStyleId('broken') })).toThrow(/incomplete root/);
     expect(snapshot(h)).toBe(before);
   });
 });

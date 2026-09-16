@@ -49,9 +49,12 @@ function applyStyle(ctx: CommandContext, id: ElementId, style: StyleId): void {
   const el = record(ctx, id)!;
   const from = el.get('style') as StyleId;
   if (from === style) return;
+  // resolveStyle can throw (e.g. a style whose chain is missing a required field). This command
+  // is fastPath (see `fast()` above) — no rehearsal-on-a-replica safety net — so it must refuse
+  // before its first write, not partway through: hence resolveStyle runs before el.set below.
+  const role = resolveStyle(ctx.model.template(), style).role;
   const policy = writePolicy(ctx);
   el.set('style', style);
-  const role = resolveStyle(ctx.model.template(), style).role;
   const speechRoles: readonly string[] = [...SPEAKER_ROLES, ...SPEECH_MEMBER_ROLES];
   if (el.has('dual') && !speechRoles.includes(role)) el.delete('dual');
   if (policy.track) el.set('tc', { kind: 'style', changeId: policy.track.changeId, by: policy.track.by, at: policy.track.at, fromStyle: from });
