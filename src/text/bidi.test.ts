@@ -335,6 +335,32 @@ describe('bidiLevels — BD16 paired brackets (N0)', () => {
       expect(levels[openIdx]).toBe(levels[closeIdx]);
     }
   });
+
+  it('BD16 stack overflow (>63 open brackets) discards every pair already found in the sequence, not just stops finding new ones (task 8 fix round 1, review finding)', () => {
+    // "א(ב)x" is exactly the previous test's case: N0 resolves the pair to R (position 3,
+    // the close paren, ends at level 1 — differs from what generic N1 alone would give it,
+    // level 0, as established above). Append 64 more UNMATCHED opening brackets after it, in
+    // the same isolating run sequence (no isolates/embeddings to split it): the first 63
+    // push onto BD16's stack without overflowing (stack.length goes 0 -> 63); the 64th finds
+    // stack.length === 63 already and overflows. UAX #9's BD16 says overflow means "the
+    // bracket pair list for this isolating run sequence is empty" — not merely "stop finding
+    // new pairs" — so the FIRST pair, found and popped off the stack long before the
+    // overflow, must ALSO be discarded. With it discarded, position 3 falls back to plain
+    // N1/N2 and resolves to level 0, exactly like the BD16-disabled case above.
+    const overflowing = 'א(ב)x' + '('.repeat(64);
+    const overflowLevel = resolveParagraphLevel(overflowing, 'ltr', 0);
+    const overflowLevels = bidiLevels(overflowing, overflowLevel);
+    expect(overflowLevels[3]).toBe(0); // the completed pair's N0 resolution was discarded
+
+    // Sanity control: one fewer opening bracket (63 total after the closed pair, so the
+    // stack only ever reaches 62 pushed entries and never overflows) leaves the first pair's
+    // N0 resolution intact — proving the discard above is really about crossing the BD16
+    // stack limit, not an unrelated side effect of a long tail of unmatched brackets.
+    const notOverflowing = 'א(ב)x' + '('.repeat(62);
+    const notOverflowLevel = resolveParagraphLevel(notOverflowing, 'ltr', 0);
+    const notOverflowLevels = bidiLevels(notOverflowing, notOverflowLevel);
+    expect(notOverflowLevels[3]).toBe(1);
+  });
 });
 
 // ─── mirrorChar — BD14/BD15 (task 8 brief step 1: "mirroring applies at display-text generation") ─
@@ -368,6 +394,23 @@ describe('mirrorChar', () => {
     expect((levels[4] ?? 0) % 2).toBe(1); // ')' likewise
     expect(mirrorChar(text.codePointAt(0) as number)).toBe(0x0029); // '(' displays as ')'
     expect(mirrorChar(text.codePointAt(4) as number)).toBe(0x0028); // ')' displays as '('
+  });
+});
+
+// ─── bidiLevels — L1 (UAX #9 §5.2 implementation note) ────────────────────────────────────
+
+describe('bidiLevels — L1 resets X9-removed characters\' own levels, not just looks through them (task 8 fix round 1, review finding)', () => {
+  it('BidiTest.txt line 2476\'s shape ("LRE WS LRE"): all three positions end up at the paragraph level, including both removed LREs', () => {
+    // U+202A LRE, space, U+202A LRE — matches BidiTest.txt line 2476 (`LRE WS LRE; 3`,
+    // `@Levels: x 0 x`) exactly. The conformance file only checks the middle (WS) position
+    // (the two LREs are 'x', don't-care), which is what fix round 1's first L1 fix already
+    // covered — this proves the *removed* characters' own level entries are also reset to
+    // match, per §5.2's second sentence, not left at their X1-X8 embedding level (2, since
+    // the first LRE opens an embedding neither LRE ever closes).
+    const text = '‪ ‪';
+    const level = resolveParagraphLevel(text, 'ltr', 0);
+    const levels = bidiLevels(text, level);
+    expect(Array.from(levels)).toEqual([0, 0, 0]); // was [0, 0, 2] before this fix
   });
 });
 

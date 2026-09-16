@@ -27,7 +27,7 @@ export function lineBreakClass(cp: number): LineBreakClass {
 
 /** Unicode 16.0 Bidi_Class, derived (spec 02 §6.3). */
 export function bidiClass(cp: number): BidiClass {
-  return BIDI_CLASS_NAMES[lookupRangeValue(BIDI_CLASS_STARTS, BIDI_CLASS_VALUES, cp)] ?? 'Left_To_Right';
+  return BIDI_CLASS_NAMES[lookupRangeValue(BIDI_CLASS_STARTS, BIDI_CLASS_VALUES, cp)] ?? 'L';
 }
 
 /** Unicode 16.0 Script. */

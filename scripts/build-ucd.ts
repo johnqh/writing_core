@@ -78,6 +78,16 @@ const CONFORMANCE: Record<string, string> = {
   'BidiCharacterTest.txt': `${BASE}/BidiCharacterTest.txt`,
 };
 
+// Task 8 fix round 1 (review finding): `DerivedBidiClass.txt`'s own `@missing:` defaults spell
+// these four values by their long alias; every explicit data line spells them by short alias.
+// See the Bidi_Class generation block below for the full explanation.
+const BIDI_CLASS_LONG_ALIAS: Readonly<Record<string, string>> = {
+  Left_To_Right: 'L',
+  Right_To_Left: 'R',
+  Arabic_Letter: 'AL',
+  European_Terminator: 'ET',
+};
+
 async function fetchText(url: string): Promise<string> {
   const res = await fetch(url);
   if (!res.ok) throw new Error(`fetch ${url}: HTTP ${res.status}`);
@@ -327,7 +337,18 @@ async function main(): Promise<void> {
   // Bidi_Class (spec 02 §6.3 — consumed by a later task's bidi algorithm).
   {
     const { entries, missing } = parseRangedProperty(req('DerivedBidiClass.txt'));
-    const encoded = encodeProperty(entries, missing, 'Left_To_Right');
+    // DerivedBidiClass.txt spells its own `@missing:` defaults by LONG alias
+    // (Left_To_Right/Right_To_Left/Arabic_Letter/European_Terminator, 24 declarations —
+    // verified against the source file) while every explicit data line spells the SAME
+    // abstract values by SHORT alias (L/R/AL/ET). Left unnormalized, `encodeProperty` would
+    // bake both spellings in as distinct `BIDI_CLASS_NAMES` entries, so `bidiClass(cp) ===
+    // 'R'` silently misses every unassigned code point that falls through to one of these
+    // defaults — which, via the base `0000..10FFFF -> Left_To_Right` default, is *every*
+    // unassigned code point in Unicode (task 8 fix round 1, review finding; `bidi.ts`'s
+    // `classOf` workaround is removed now that the table itself is canonical — see
+    // `ucd.generated.test.ts`'s `@missing`-default guard cases).
+    const normalizedMissing = missing.map((m) => ({ ...m, value: BIDI_CLASS_LONG_ALIAS[m.value] ?? m.value }));
+    const encoded = encodeProperty(entries, normalizedMissing, 'L');
     writeCategoryProperty('bidi-class', 'DerivedBidiClass.txt', sourceSha['DerivedBidiClass.txt']!, 'BIDI_CLASS', 'BidiClass', encoded);
     console.log(`Bidi_Class: ${encoded.starts.length} ranges, ${encoded.names.length} values`);
   }
@@ -426,7 +447,7 @@ async function main(): Promise<void> {
     `}\n\n` +
     `/** Unicode 16.0 Bidi_Class, derived (spec 02 §6.3). */\n` +
     `export function bidiClass(cp: number): BidiClass {\n` +
-    `  return BIDI_CLASS_NAMES[lookupRangeValue(BIDI_CLASS_STARTS, BIDI_CLASS_VALUES, cp)] ?? 'Left_To_Right';\n` +
+    `  return BIDI_CLASS_NAMES[lookupRangeValue(BIDI_CLASS_STARTS, BIDI_CLASS_VALUES, cp)] ?? 'L';\n` +
     `}\n\n` +
     `/** Unicode 16.0 Script. */\n` +
     `export function script(cp: number): ScriptCode {\n` +

@@ -32,6 +32,18 @@ describe('UCD property getters (spec 02 §6)', () => {
     expect(bidiClass(0x31)).toBe('EN'); // DIGIT ONE
   });
 
+  it('bidiClass returns the canonical short alias for @missing-default code points, not the long alias DerivedBidiClass.txt spells its defaults with (task 8 fix round 1)', () => {
+    // U+0590 is unassigned (General_Category Cn) inside the Hebrew block's own narrower
+    // @missing default (0590..05FF -> Right_To_Left) — before the fix this returned the
+    // literal string 'Right_To_Left', a value `BidiClass` distinguishes from 'R' even
+    // though they are the same abstract Bidi_Class value.
+    expect(bidiClass(0x590)).toBe('R');
+    // U+0378 is unassigned and outside every one of DerivedBidiClass.txt's 24 narrower
+    // @missing ranges, so it falls all the way to the base `0000..10FFFF -> Left_To_Right`
+    // default — before the fix this returned 'Left_To_Right', not 'L'.
+    expect(bidiClass(0x378)).toBe('L');
+  });
+
   it('script', () => {
     expect(script(0x41)).toBe('Latin');
     expect(script(0x5d0)).toBe('Hebrew');
