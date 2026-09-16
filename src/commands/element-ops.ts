@@ -9,7 +9,7 @@ import type { YDeltaOp } from '../model/ytext.js';
 import type { ElementOverrides } from '../schema/template.js';
 import { FORMAT_MARKS, type TextJSON } from '../schema/text.js';
 import { type ResolvedStyle, resolveStyle } from '../template/resolve.js';
-import { writePolicy } from './marks-policy.js';
+import { touchElement, writePolicy } from './marks-policy.js';
 import { type ResolvedPos, type WireRange, orderRange, resolveWirePos } from './positions.js';
 import type { CommandContext } from './types.js';
 
@@ -137,17 +137,29 @@ export function mergeElements(ctx: CommandContext, survivorId: ElementId, laterI
   // Read everything that references the later text before its items are deleted.
   const delta = lText.toDelta() as YDeltaOp[];
   repointAnchors(ctx, laterId, survivorId, shift, lText, sText);
+  const policy = writePolicy(ctx);
+  // Under revision mode the text arriving in the survivor is part of this revision and has to
+  // carry `rev`; everything else the moved runs already carry (including `ins`/`del`/`fmt` from an
+  // earlier tracked session) is preserved, because merging moves text, it does not author it.
+  // `mergeElements` is only reached with Track Changes off — under it, text.ts leaves both elements
+  // in place with a `tc.mergeInto` record instead.
+  const merged = (attrs: Record<string, unknown> | undefined): Record<string, never> => {
+    const out: Record<string, unknown> = { ...(attrs ?? {}) };
+    if (policy.revisionSetId) out.rev = policy.revisionSetId;
+    return out as Record<string, never>;
+  };
   let index = shift;
   for (const op of delta) {
     if (typeof op.insert === 'string') {
-      sText.insert(index, op.insert, (op.attributes ?? {}) as Record<string, never>);
+      sText.insert(index, op.insert, merged(op.attributes));
       index += op.insert.length;
     } else {
-      sText.insertEmbed(index, op.insert, (op.attributes ?? {}) as Record<string, never>);
+      sText.insertEmbed(index, op.insert, merged(op.attributes));
       index += 1;
     }
   }
   container.delete(laterId);
+  touchElement(survivor, policy);
 }
 
 export function inheritedAttributes(text: Y.Text, index: number): Record<string, unknown> {

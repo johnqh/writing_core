@@ -205,8 +205,12 @@ export const TEXT_COMMANDS: CommandSpec<never>[] = [
         pos += op.insert.length;
       }
       for (const e of edits.reverse()) {
-        text.delete(e.index, e.length);
-        policyInsert(policy, text, e.index, e.replacement, e.attrs);
+        // A case transform replaces text, so it goes through the write policy on BOTH halves —
+        // the raw `text.delete` here threw away the original under Track Changes, leaving an
+        // insertion with nothing recorded as deleted. Same shape as text.replaceRange: delete
+        // first, then insert after any revision marker the delete left behind.
+        const outcome = policyDelete(policy, text, e.index, e.length);
+        policyInsert(policy, text, e.index + (outcome.revDelInserted ? 1 : 0), e.replacement, e.attrs);
       }
       if (edits.length > 0) touchElement(el, policy);
     }

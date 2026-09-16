@@ -288,3 +288,45 @@ describe('replace and transform', () => {
     expect(h.textMap(a!).toString()).toBe(' Maya\n Waits');
   });
 });
+
+// Spec 08 §3.3: every write goes through the write policy. These three did not.
+describe('write-policy coverage', () => {
+  it('element.split marks the head’s tail deleted under Track Changes instead of dropping it', () => {
+    const h = commandHarness();
+    const [a] = h.replaceBody([['st_action', 'She runs. He waits.']]);
+    h.doc.getMap('trackChanges').set('enabled', true);
+    h.run('element.split', { at: at(a!, 10) });
+    const head = h.delta(a!) as { insert: string; attributes?: Record<string, unknown> }[];
+    // The tail is still there, struck through, so the split is reviewable and reject can undo it.
+    expect(head.map((op) => op.insert).join('')).toBe('She runs. He waits.');
+    const struck = head.filter((op) => op.attributes?.del !== undefined);
+    expect(struck.map((op) => op.insert).join('')).toBe('He waits.');
+    // The new element is the tracked insertion half of the same edit.
+    const tailId = h.body()[1]!.id;
+    expect((h.doc.getMap('elements').get(tailId) as Y.Map<unknown>).get('tc')).toMatchObject({ kind: 'insert', by: 'u1' });
+  });
+
+  it('merging two elements stamps the moved text with the active revision set', () => {
+    const h = commandHarness();
+    const [a] = h.replaceBody([['st_action', 'She runs.'], ['st_action', ' He waits.']]);
+    const setId = h.model.revisionState().sets[1]!.id;
+    h.doc.getMap('revisions').set('mode', true);
+    h.doc.getMap('revisions').set('activeSetId', setId);
+    expect(h.run('text.deleteForward', { at: at(a!, 9), unit: 'char' })).toMatchObject({ ok: true });
+    const ops = h.delta(a!) as { insert: string; attributes?: Record<string, unknown> }[];
+    expect(ops.map((op) => op.insert).join('')).toBe('She runs. He waits.');
+    const revved = ops.filter((op) => op.attributes?.rev === setId).map((op) => op.insert).join('');
+    expect(revved).toBe(' He waits.');
+  });
+
+  it('text.transformCase records the original as deleted under Track Changes, not just the new text as inserted', () => {
+    const h = commandHarness();
+    const [a] = h.replaceBody([['st_action', 'maya waits']]);
+    h.doc.getMap('trackChanges').set('enabled', true);
+    h.run('text.transformCase', { range: range(a!, 0, a!, 4), to: 'upper' });
+    const ops = h.delta(a!) as { insert: string; attributes?: Record<string, unknown> }[];
+    expect(ops.map((op) => op.insert).join('')).toBe('MAYAmaya waits');
+    expect(ops.find((op) => op.insert === 'MAYA')!.attributes!.ins).toMatchObject({ by: 'u1' });
+    expect(ops.find((op) => op.insert === 'maya')!.attributes!.del).toMatchObject({ by: 'u1' });
+  });
+});

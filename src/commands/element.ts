@@ -11,7 +11,7 @@ import { SPEAKER_ROLES, SPEECH_MEMBER_ROLES } from '../schema/vocab.js';
 import { enterAction, shiftTabAction, tabAction } from '../template/flow.js';
 import { resolveStyle } from '../template/resolve.js';
 import { bodyElements, createElement, dualGroupOf, repairDualRuns } from './element-ops.js';
-import { insertAttributes, touchElement, writePolicy } from './marks-policy.js';
+import { insertAttributes, policyDelete, touchElement, writePolicy } from './marks-policy.js';
 import { WireDocPos, resolveWirePos } from './positions.js';
 import { defineCommand } from './registry.js';
 import type { CommandContext, CommandResult, CommandSpec } from './types.js';
@@ -180,7 +180,11 @@ export const ELEMENT_COMMANDS: CommandSpec<never>[] = [
         if (dualRecord) newRecord.set('dual', { ...dualRecord });
         const newText = newRecord.get('text') as Y.Text;
         newText.applyDelta(tail);
-        r.text.delete(r.index, r.text.length - r.index);
+        // Truncating the head is a deletion like any other: under Track Changes it must leave the
+        // tail in place marked `del` (the new element carries `tc.kind = 'insert'`, so accept keeps
+        // the split and reject restores the original paragraph), and under revision mode it must
+        // leave the revision marker. A raw `r.text.delete` did neither.
+        policyDelete(writePolicy(ctx), r.text, r.index, r.text.length - r.index);
         for (const v of ctx.doc.getMap('tags').values()) {
           const tag = v as YMap;
           if (tag.get('elementId') === r.elementId && movesToTail(`t:${String(tag.get('id'))}`)) tag.set('elementId', id);
