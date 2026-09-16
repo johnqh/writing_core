@@ -102,6 +102,15 @@ export * from './layout/types.js';
 export { nullShaper } from './text/shaper.js';
 export { HARFBUZZ_CORE_VERSION, createHarfBuzzShaper, type HarfBuzzDeps, type HbModule } from './text/harfbuzz.js';
 
+// ─── Text (segmentation — UCD tables, UAX #29 grapheme clusters) ────────────
+export {
+  UNICODE_VERSION,
+  graphemeBreakProperty, lineBreakClass, bidiClass, script, generalCategory, wordBreakProperty, sentenceBreakProperty,
+  type GraphemeBreakClass, type LineBreakClass, type BidiClass, type ScriptCode, type GeneralCategory,
+  type WordBreakClass, type SentenceBreakClass,
+} from './text/ucd.generated.js';
+export { graphemeClusters, nextCluster, previousCluster } from './text/grapheme.js';
+
 // ─── Fonts ──────────────────────────────────────────────────────────────────
 // (`FaceId`/`FontFaceMetrics` are already exported above from `./layout/types.js`; this
 // module implements them rather than redeclaring them, so they are not re-exported here.)

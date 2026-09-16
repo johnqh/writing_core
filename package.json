@@ -28,6 +28,7 @@
     "templates:generate": "bun scripts/generate-builtin-templates.ts",
     "hash:vectors": "bun scripts/generate-hash-vectors.ts",
     "fonts:generate": "bun scripts/build-font-metrics.ts",
+    "ucd:generate": "bun scripts/build-ucd.ts",
     "verify": "bun run typecheck && bun run lint && bun run test && bun run build",
     "prepublishOnly": "bun run clean && bun run verify"
   },
