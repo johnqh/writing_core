@@ -11,7 +11,25 @@ layout and pagination that produce identical pages on every platform.
 
 ## Usage
 
-    import { WRITING_CORE_VERSION } from '@sudobility/writing_core';
+```ts
+import {
+  cryptoIdSource, createDocument, createSessionOrigins, executeCommand, getBuiltinTemplate, openDocument, registerBuiltinCommands,
+} from '@sudobility/writing_core';
+
+registerBuiltinCommands();
+const ids = cryptoIdSource;
+const doc = createDocument({ template: getBuiltinTemplate('screenplay-standard')!, uid: 'firebase-uid', ids });
+const model = openDocument(doc, { ids, clock: Date.now, locale: 'en' });
+const actor = { userId: 'firebase-uid', displayName: 'Writer', color: '#224466', kind: 'human' as const };
+const origins = createSessionOrigins(actor);
+const [heading] = model.elements();
+
+executeCommand({
+  doc, model, ids, actor, origin: origins.make('local-typing'), capabilities: new Set(['write']),
+  command: { id: 'text.insert', params: { at: { elementId: heading!.id, offset: 0 }, text: 'INT. DINER - NIGHT' } },
+});
+console.log(model.scenes()[0]!.heading.location); // "DINER"
+```
 
 ## Development
 
