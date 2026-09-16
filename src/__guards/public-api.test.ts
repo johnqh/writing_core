@@ -12,7 +12,7 @@ import * as internalApi from '../internal.js';
 const ROOT_EXPORTS = [
   'ABBREVIATIONS', 'ALIGNMENTS', 'ANCHOR_MARK_PREFIXES', 'ATTRIBUTE_KEY_RE', 'AltJSON', 'AnimalFields', 'BUILTIN_SLOT_ROLES',
   'BUILTIN_STYLE_RE', 'BUILTIN_TEMPLATES', 'BackgroundActorFields', 'Bcp47', 'BeatJSON', 'BeatLinkJSON',
-  'BinItemJSON', 'BookmarkJSON', 'CAPABILITIES', 'CHANGE_MARKS', 'COMMAND_ID_RE', 'CharacterFields',
+  'BinItemJSON', 'BookmarkJSON', 'CAPABILITIES', 'CATEGORY_RULES', 'CHANGE_MARKS', 'COMMAND_ID_RE', 'CharacterFields',
   'ContinuedTexts', 'DEFAULT_PAGE_NUMBERING', 'DEFAULT_SETTINGS', 'DEFAULT_TABLE_READ', 'DEFAULT_TEMPLATE_KEY',
   'DIAGNOSTIC_CODES', 'DOCUMENT_KINDS', 'DOC_SCHEMA_VERSION', 'DOC_TOP_LEVEL_KEYS', 'DocumentImportMetaJSON', 'DocumentJSON',
   'DocumentMeta', 'DualDialogueGeometry', 'ELEMENT_COMMANDS', 'EMPTY_SMARTTYPE', 'EMU_PER_CM',
@@ -27,7 +27,7 @@ const ROOT_EXPORTS = [
   'COLUMNS', 'MARK_COMMANDS', 'MAX_POSITION_LENGTH', 'MAY_END_ABBREVIATIONS', 'MIGRATION_STEPS', 'MacroAlias', 'MacroRecord', 'MacroSeed',
   'NON_PRINTING_ROLES', 'NOTE_TYPE_SEEDS', 'NUMBER_MODES', 'NUMBER_POSITIONS', 'NoteAnchor', 'NoteJSON',
   'NoteReplyJSON', 'NoteTypeJSON', 'NoteTypeSeed', 'NumberGapExhaustedError', 'NumberLabel', 'NumberingSpec', 'ORIGIN_KINDS', 'OmitRecord',
-  'PAPER_SIZES', 'POSITION_DIGITS', 'PageLockJSON', 'PageNumberingRule', 'PageSpec', 'PaginationRules',
+  'PAGINATION_CATEGORIES', 'PAPER_SIZES', 'POSITION_DIGITS', 'PageLockJSON', 'PageNumberingRule', 'PageSpec', 'PaginationRules',
   'PlotColumnJSON', 'ProductionItemFields', 'ProductionJSON', 'REASON_CODES', 'REASON_LABEL_KEYS',
   'REMAPPED_PREFIXES', 'REVISION_COLOR_SEEDS', 'REVISION_DISPLAYS', 'ROLE_DEFAULT_SPLIT', 'ROOT_REQUIRED_KEYS',
   'ROOT_STYLE_DEFAULTS', 'RevisionColorSeed', 'RevisionSetJSON', 'RevisionsJSON', 'SCENE_BOUNDARY_ROLES',
@@ -44,7 +44,7 @@ const ROOT_EXPORTS = [
   'TransactionOrigin', 'UNDERLINE_KINDS', 'UNDO_CLEAR_REASONS', 'UNICODE_VERSION', 'VehicleFields', 'VoiceJSON',
   'WRITING_CORE_VERSION', 'WardrobeFields', 'WireDocPos', 'WireRange', 'WriterJSON', 'addBuiltinCommands',
   'applyTemplate', 'assignNumbers', 'authoredTemplate', 'bidiClass', 'bidiLevels', 'breakOpportunities', 'builtinStyleId', 'builtinStyleSlug', 'canonicalElementText',
-  'canonicalJSON', 'compareLabels', 'comparePositions', 'computeHashVector', 'createDocument', 'createSeededIdSource',
+  'canonicalJSON', 'categoryOf', 'compareLabels', 'comparePositions', 'computeHashVector', 'createDocument', 'createSeededIdSource',
   'advanceTableFor', 'aliasFor', 'alphabetFor', 'cjkRegion', 'createFontRegistry', 'createHarfBuzzShaper', 'createSessionOrigins', 'createSessionUndo', 'cryptoIdSource', 'decodeFwm', 'decodeRelativePosition', 'defaultLocaleData', 'defaultPagination',
   'defineCommand', 'deltaToTextJSON', 'deterministicId', 'disabledFooter', 'documentFromJSON', 'documentToJSON',
   'eastAsianWidth', 'elementContentHash', 'emptyTextJSON', 'emuFromFontUnits', 'emuToInches', 'encodeFwm', 'encodeRelativePosition', 'enterAction',
@@ -100,6 +100,7 @@ describe('public API', () => {
     expect(api.DOC_TOP_LEVEL_KEYS).toHaveLength(30);
     expect(api.NUMBER_MODES).toEqual(['1AB', '1A2', 'AB2', 'BA2', 'romanUpper', 'romanLower']);
     expect(api.TOKEN_NAMES).toHaveLength(24);
+    expect(api.PAGINATION_CATEGORIES).toHaveLength(11);
   });
 
   it('pins the root package surface exactly — any addition or removal must be deliberate', () => {

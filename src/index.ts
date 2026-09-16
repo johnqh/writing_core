@@ -103,6 +103,7 @@ export * from './undo/undo-manager.js';
 // ─── Layout ─────────────────────────────────────────────────────────────────
 export { LAYOUT_ENGINE_VERSION, roundHalfEven, emuFromFontUnits, sizeEmuFromPoints } from './layout/round.js';
 export * from './layout/types.js';
+export { type CategoryRule, CATEGORY_RULES, categoryOf } from './layout/category.js';
 
 // ─── Text (shaping) ─────────────────────────────────────────────────────────
 export { nullShaper } from './text/shaper.js';

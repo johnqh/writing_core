@@ -9,6 +9,21 @@ export interface ResolvedStyle {
   name: string;
   nameKey: string | null;
   role: StyleRole;
+  /**
+   * Spec 02 §9.2 / spec 01 §3.4.2 rule 5: the role of the style that governs pagination — the
+   * `paginateAs` target's role, followed cycle-safely, or `role` when `paginateAs` is unset. This
+   * is the M1 punch-list item: computed here, inside `resolveStyle`, because the resolution is
+   * memoized and frozen, so nothing downstream can add it after the fact.
+   */
+  paginationRole: StyleRole;
+  /**
+   * Set when the `paginateAs` walk that produced `paginationRole` revisited a style it had already
+   * followed (a cycle spec 01's validator repairs but which can still reach the engine, e.g. mid
+   * edit before validation runs). `paginationRole` keeps the last value resolved before the cycle
+   * closed. `categoryOf` (spec 02 §9.1) reads this flag to emit the `styleCycle` diagnostic — this
+   * value has nowhere else to report it, since `resolveStyle` is memoized with no per-call sink.
+   */
+  paginationRoleCycle: boolean;
   basedOn: StyleId | null;
   shortcut: number | null;
   font: FontSpec;
@@ -113,7 +128,9 @@ function resolveStyleCore(template: StyleSource, styleId: StyleId): ResolvedStyl
     (roleSplit === 'sentencesIfBreakOnSentences' ? (template.pagination.breakOnSentences ? 'sentences' : 'lines') : roleSplit);
 
   return {
-    id: leaf.id, name: leaf.name, nameKey: leaf.nameKey, role: leaf.role, basedOn: leaf.basedOn, shortcut: leaf.shortcut,
+    id: leaf.id, name: leaf.name, nameKey: leaf.nameKey, role: leaf.role,
+    paginationRole: leaf.role, paginationRoleCycle: false,
+    basedOn: leaf.basedOn, shortcut: leaf.shortcut,
     font, flow, splitRule,
     allCaps: get('allCaps'), align: get('align'), indentLeft: get('indentLeft'), indentRight: get('indentRight'),
     indentFirstLine: get('indentFirstLine'), spaceBefore: get('spaceBefore'), lineSpacing: get('lineSpacing'),
@@ -127,21 +144,30 @@ function resolveStyleCore(template: StyleSource, styleId: StyleId): ResolvedStyl
 }
 
 /**
- * Walks the paginateAs chain iteratively, borrowing keepWithNext/keepTogether/splitRule from the
- * furthest reachable target. `validateTemplate` rejects a paginateAs ring as `paginateAsCycle`; this
- * loop is the runtime backstop so a template that slips past validation (or a keystroke resolved
- * before validation runs) still terminates instead of recursing without bound. On revisiting an id
- * it stops and keeps the last values it borrowed rather than throwing.
+ * Walks the paginateAs chain iteratively, borrowing keepWithNext/keepTogether/splitRule and role
+ * pagination behaviour (`paginationRole`, spec 01 §3.4.2 rule 5) from the furthest reachable target.
+ * `validateTemplate` rejects a paginateAs ring as `paginateAsCycle`; this loop is the runtime
+ * backstop so a template that slips past validation (or a keystroke resolved before validation
+ * runs) still terminates instead of recursing without bound. On revisiting an id it stops, keeps
+ * the last values it borrowed, and sets `paginationRoleCycle` so `categoryOf` can report it —
+ * distinct from simply running out of chain (`paginateAs` unset or pointing at an unknown style),
+ * which is normal termination, not a cycle.
  */
 function applyPaginateAs(template: StyleSource, startId: StyleId, resolved: ResolvedStyle): void {
   const visited = new Set<StyleId>([startId]);
   let currentId = resolved.paginateAs;
-  while (currentId && !visited.has(currentId) && template.styles.some((s) => s.id === currentId)) {
+  while (currentId) {
+    if (visited.has(currentId)) {
+      resolved.paginationRoleCycle = true;
+      break;
+    }
+    if (!template.styles.some((s) => s.id === currentId)) break;
     visited.add(currentId);
     const target = resolveStyleCore(template, currentId);
     resolved.keepWithNext = target.keepWithNext;
     resolved.keepTogether = target.keepTogether;
     resolved.splitRule = target.splitRule;
+    resolved.paginationRole = target.role;
     currentId = target.paginateAs;
   }
 }

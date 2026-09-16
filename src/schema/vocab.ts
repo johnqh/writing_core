@@ -128,3 +128,15 @@ export const DIAGNOSTIC_CODES = [
   'approximateShaping', 'unknownToken',
 ] as const;
 export type DiagnosticCode = (typeof DIAGNOSTIC_CODES)[number];
+
+/**
+ * Spec 02 §9.2: the closed vocabulary of pagination categories. Every element maps to exactly one,
+ * taken from the role of the style that governs pagination (`ResolvedStyle.paginationRole`, spec 02
+ * §9.2 / spec 01 §3.4.2 rule 5) — the `paginateAs` target's role when set, otherwise the element's
+ * own role. Re-exported from `layout/category.ts` alongside `categoryOf`/`CATEGORY_RULES`.
+ */
+export const PAGINATION_CATEGORIES = [
+  'general', 'sceneHeading', 'action', 'character', 'parenthetical', 'dialogue',
+  'transition', 'shot', 'actBreak', 'pageHeading', 'panelHeading',
+] as const;
+export type PaginationCategory = (typeof PAGINATION_CATEGORIES)[number];
