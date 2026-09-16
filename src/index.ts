@@ -38,6 +38,7 @@ export * from './commands/types.js';
 export * from './commands/registry.js';
 export * from './commands/positions.js';
 export * from './commands/execute.js';
+export * from './commands/marks-policy.js';
 
 // ─── Schema ─────────────────────────────────────────────────────────────────
 export * from './schema/vocab.js';
