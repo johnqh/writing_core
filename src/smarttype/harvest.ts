@@ -6,7 +6,7 @@ import { writeEntity } from '../model/json.js';
 import { positionBetween } from '../model/positions.js';
 import { lastPosition } from '../model/ymap.js';
 import type { StoredSmartTypeList } from '../schema/vocab.js';
-import { normalizeKey, stripExtension } from './normalize.js';
+import { entityNameKey, normalizeKey, stripExtension } from './normalize.js';
 
 export type HarvestKind = 'character' | 'location';
 
@@ -51,7 +51,7 @@ export function harvest(ctx: CommandContext, options: HarvestOptions = {}): Harv
     if (!clean) return null;
     const resolved = model.resolveEntity(kind, clean);
     if (resolved) return resolved.id;
-    const key = normalizeKey(clean, { language, speaker: kind === 'character' });
+    const key = entityNameKey(kind, clean, doc);
     for (const v of doc.getMap('entities').values()) {
       const e = v as YMap;
       if (e.get('kind') === kind && e.get('nameKey') === key) return e.get('id') as EntityId;

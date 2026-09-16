@@ -1,3 +1,5 @@
+import type * as Y from 'yjs';
+import { documentLanguage } from '../commands/element-ops.js';
 import { LOCALE_SCRIPT_WORDS } from '../templates/script-words.js';
 
 const EXTENSION_RE = /\s*(\([^()]*\))\s*$/;
@@ -31,4 +33,21 @@ export function normalizeKey(
   const folded = s.toLocaleLowerCase(options.language ?? 'en');
   // Turkish dotted capital I lower-cases to i + U+0307; drop the combining dot for keys.
   return folded.replace(/i̇/g, 'i');
+}
+
+/**
+ * The single rule for `entities.nameKey` (spec 01 §7.1), used by every producer and consumer of
+ * that key: `entity.create`/`update`/`merge`/`addAlias`/`removeAlias`, harvesting (§7.2) and the
+ * read model's `resolveEntity`.
+ *
+ * Two things it fixes by being one function rather than three near-copies:
+ * - **Speaker normalization applies to characters and only to characters.** A cue reads
+ *   `MAYA (V.O.)` or `MAYA (CONT'D)`; both key to `maya`. A prop called `GUN (PROP)` keeps its
+ *   parenthetical, which is part of its name.
+ * - **The language is the document's `meta.language`**, never the host locale the read model
+ *   happened to be opened with: case folding is locale-sensitive (Turkish dotted/dotless I), so
+ *   keying a lookup on a different language than the write used makes the entity unreachable.
+ */
+export function entityNameKey(kind: string, name: string, doc: Y.Doc): string {
+  return normalizeKey(name, { language: documentLanguage(doc), speaker: kind === 'character' });
 }

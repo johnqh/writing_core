@@ -8,8 +8,7 @@ import { HexColor, idSchema } from '../schema/primitives.js';
 import { textJSONFromPlain } from '../schema/text.js';
 import { ENTITY_KINDS } from '../schema/vocab.js';
 import { harvest } from '../smarttype/harvest.js';
-import { normalizeKey } from '../smarttype/normalize.js';
-import { lang } from './element-ops.js';
+import { entityNameKey } from '../smarttype/normalize.js';
 import { touchElement, writePolicy } from './marks-policy.js';
 import { defineCommand } from './registry.js';
 import type { CommandContext, CommandResult, CommandSpec } from './types.js';
@@ -47,7 +46,7 @@ export const ENTITY_COMMANDS: CommandSpec<never>[] = [
     const r = ENTITY_FIELD_SCHEMAS[p.kind].safeParse(p.fields ?? {});
     if (!r.success) c.addIssue({ code: 'custom', message: 'invalid fields', path: ['fields'] });
   }), (ctx, p) => {
-    const key = normalizeKey(p.name, { language: lang(ctx) });
+    const key = entityNameKey(p.kind, p.name, ctx.doc);
     const existingId = findByKey(ctx, p.kind, key);
     if (existingId) return { ok: false, reason: 'notApplicable', detail: { existingId } };
     // Explicitly (re-)creating this name clears any tombstone left by a previous entity.delete
@@ -90,7 +89,7 @@ export const ENTITY_COMMANDS: CommandSpec<never>[] = [
       if (!EntityAttributes.safeParse(next).success) return { ok: false, reason: 'invalidParams' };
     }
     if (p.patch.name !== undefined) {
-      const key = normalizeKey(p.patch.name, { language: lang(ctx) });
+      const key = entityNameKey(kind, p.patch.name, ctx.doc);
       const clash = findByKey(ctx, kind, key);
       if (clash && clash !== p.entityId) return { ok: false, reason: 'notApplicable', detail: { existingId: clash } };
       const oldName = String(e.get('name'));
@@ -99,7 +98,7 @@ export const ENTITY_COMMANDS: CommandSpec<never>[] = [
         // Keep the old name resolving to this entity (mirrors what entity.merge does for the
         // merged-away name), so cues and occurrences written under the old name still resolve.
         const aliases = e.get('aliases') as Y.Array<string>;
-        const existing = new Set(aliases.toArray().map((a) => normalizeKey(a, { language: lang(ctx) })));
+        const existing = new Set(aliases.toArray().map((a) => entityNameKey(kind, a, ctx.doc)));
         if (!existing.has(oldKey)) aliases.push([oldName]);
       }
       e.set('name', p.patch.name);
@@ -139,9 +138,10 @@ export const ENTITY_COMMANDS: CommandSpec<never>[] = [
     if (p.from === p.into || from.get('kind') !== into.get('kind') || into.get('mergedInto') !== null) return { ok: false, reason: 'notApplicable' };
     from.set('mergedInto', p.into);
     const aliases = into.get('aliases') as Y.Array<string>;
-    const existing = new Set(aliases.toArray().map((a) => normalizeKey(a, { language: lang(ctx) })));
+    const kind = String(from.get('kind'));
+    const existing = new Set(aliases.toArray().map((a) => entityNameKey(kind, a, ctx.doc)));
     for (const name of [String(from.get('name')), ...(from.get('aliases') as Y.Array<string>).toArray()]) {
-      const key = normalizeKey(name, { language: lang(ctx) });
+      const key = entityNameKey(kind, name, ctx.doc);
       if (!existing.has(key) && key !== into.get('nameKey')) {
         aliases.push([name]);
         existing.add(key);
@@ -205,8 +205,9 @@ export const ENTITY_COMMANDS: CommandSpec<never>[] = [
     const e = entityMap(ctx, p.entityId);
     if (!e) return { ok: false, reason: 'notFound' };
     const aliases = e.get('aliases') as Y.Array<string>;
-    const key = normalizeKey(p.alias, { language: lang(ctx) });
-    if (key === e.get('nameKey') || aliases.toArray().some((a) => normalizeKey(a, { language: lang(ctx) }) === key)) return { ok: true };
+    const kind = String(e.get('kind'));
+    const key = entityNameKey(kind, p.alias, ctx.doc);
+    if (key === e.get('nameKey') || aliases.toArray().some((a) => entityNameKey(kind, a, ctx.doc) === key)) return { ok: true };
     aliases.push([p.alias]);
     return { ok: true };
   }),
@@ -215,9 +216,10 @@ export const ENTITY_COMMANDS: CommandSpec<never>[] = [
     const e = entityMap(ctx, p.entityId);
     if (!e) return { ok: false, reason: 'notFound' };
     const aliases = e.get('aliases') as Y.Array<string>;
-    const key = normalizeKey(p.alias, { language: lang(ctx) });
+    const kind = String(e.get('kind'));
+    const key = entityNameKey(kind, p.alias, ctx.doc);
     const list = aliases.toArray();
-    for (let i = list.length - 1; i >= 0; i--) if (normalizeKey(list[i]!, { language: lang(ctx) }) === key) aliases.delete(i, 1);
+    for (let i = list.length - 1; i >= 0; i--) if (entityNameKey(kind, list[i]!, ctx.doc) === key) aliases.delete(i, 1);
     return { ok: true };
   }),
 

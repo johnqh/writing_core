@@ -11,7 +11,7 @@ import type {
 import type { EntityJSON } from '../schema/entities.js';
 import type { MacroRecord, StyleDef } from '../schema/template.js';
 import type { EntityKind, SmartTypeList, StyleRole } from '../schema/vocab.js';
-import { normalizeKey, stripExtension } from '../smarttype/normalize.js';
+import { entityNameKey } from '../smarttype/normalize.js';
 import { type ResolvedStyle, resolveStyle } from '../template/resolve.js';
 import { readCollection } from './collections.js';
 import { OrderIndex } from './order-index.js';
@@ -103,13 +103,16 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
   };
 
   const entityLookup = (kind: EntityKind, name: string): EntityId | null => {
-    const key = normalizeKey(kind === 'character' ? stripExtension(name).name : name, { language: deps.locale });
+    // One rule for every producer and consumer of `nameKey` (spec 01 §7.1) — in particular the
+    // document's own `meta.language`, not `deps.locale`, and full speaker normalization (extension
+    // AND CONT'D) for characters.
+    const key = entityNameKey(kind, name, doc);
     let found: Y.Map<unknown> | undefined;
     for (const v of doc.getMap('entities').values()) {
       const e = v as Y.Map<unknown>;
       if (e.get('kind') !== kind) continue;
       const aliases = (e.get('aliases') as Y.Array<string> | undefined)?.toArray() ?? [];
-      if (e.get('nameKey') === key || aliases.some((a) => normalizeKey(a, { language: deps.locale }) === key)) {
+      if (e.get('nameKey') === key || aliases.some((a) => entityNameKey(kind, a, doc) === key)) {
         found = e;
         break;
       }

@@ -48,7 +48,7 @@ const ROOT_EXPORTS = [
   'createSessionOrigins', 'createSessionUndo', 'cryptoIdSource', 'decodeRelativePosition', 'defaultPagination',
   'defineCommand', 'deltaToTextJSON', 'deterministicId', 'disabledFooter', 'documentFromJSON', 'documentToJSON',
   'elementContentHash', 'emptyTextJSON', 'emuToInches', 'encodeRelativePosition', 'enterAction',
-  'entityContentHash', 'executeBatch', 'executeCommand', 'exportTemplate', 'flowTo', 'formatNumberLabel',
+  'entityContentHash', 'entityNameKey', 'executeBatch', 'executeCommand', 'exportTemplate', 'flowTo', 'formatNumberLabel',
   'fromPortablePos', 'getBuiltinTemplate', 'getCommand', 'harvest', 'idKind', 'idSchema', 'inchesToEmu', 'isId',
   'isMarkKey', 'isNewerThanCode', 'isPortablePos', 'isStyleId', 'letterPage', 'letters', 'listBuiltinTemplates',
   'listCommands', 'localizeTemplate', 'materializeDocument', 'migrateDocument', 'mirrorTemplate',

@@ -151,6 +151,71 @@ describe('entity commands', () => {
   });
 });
 
+// Spec 01 §7.1: a character's name key strips the speaker extension and CONT'D. Every producer and
+// consumer of `entities.nameKey` has to agree on that, or an entity becomes unreachable by name,
+// I16 cannot see the duplicate, and entity.delete tombstones a key harvest will never match.
+describe('entity name keys are one rule everywhere (spec 01 §7.1)', () => {
+  it('entity.create keys a character by its speaker-normalized name, so MAYA (V.O.) is MAYA', () => {
+    const h = commandHarness();
+    expect(h.run('entity.create', { kind: 'character', name: 'MAYA (V.O.)' })).toMatchObject({ ok: true });
+    const created = h.model.entities({ kind: 'character', includeHidden: true })[0]!;
+    expect(created.nameKey).toBe('maya');
+    // Reachable by name through the read model...
+    expect(h.model.resolveEntity('character', 'MAYA (V.O.)')?.id).toBe(created.id);
+    expect(h.model.resolveEntity('character', 'MAYA')?.id).toBe(created.id);
+    // ...and the same key, so a second create is refused as the duplicate it is.
+    expect(h.run('entity.create', { kind: 'character', name: "MAYA (CONT'D)" }))
+      .toMatchObject({ ok: false, reason: 'notApplicable', detail: { existingId: created.id } });
+  });
+
+  it('a non-character keeps its parenthetical, which is part of the name', () => {
+    const h = commandHarness();
+    h.run('entity.create', { kind: 'prop', name: 'GUN (PROP)' });
+    expect(h.model.entities({ kind: 'prop', includeHidden: true })[0]!.nameKey).toBe('gun (prop)');
+  });
+
+  it('entity.delete tombstones the key harvest computes, so harvest cannot recreate it', () => {
+    const h = commandHarness();
+    h.replaceBody([['st_character', 'MAYA (V.O.)'], ['st_dialogue', 'Hello?']]);
+    h.run('entity.create', { kind: 'character', name: 'MAYA (V.O.)' });
+    const maya = h.model.entities({ kind: 'character', includeHidden: true })[0]!.id;
+    expect(h.run('entity.delete', { entityId: maya, force: true })).toMatchObject({ ok: true });
+    expect(h.run('entity.rebuild', {})).toMatchObject({ ok: true });
+    expect(h.model.entities({ kind: 'character', includeHidden: true })).toEqual([]);
+  });
+
+  it('the read model keys by meta.language, not by the host locale it was opened with', () => {
+    const h = commandHarness();
+    // A Turkish document: 'I' lower-cases to a dotless ı under tr, to 'i' under en. The harness
+    // opens the model with locale 'en', so a lookup keyed on deps.locale cannot match what
+    // harvest/entity.create stored.
+    h.doc.getMap('meta').set('language', 'tr');
+    h.run('entity.create', { kind: 'character', name: 'IRMAK' });
+    const irmak = h.model.entities({ kind: 'character', includeHidden: true })[0]!;
+    expect(irmak.nameKey).toBe('ırmak');
+    expect(h.model.resolveEntity('character', 'IRMAK')?.id).toBe(irmak.id);
+  });
+
+  it('keeps I16 able to see duplicates: the two spellings never get two different stored keys', () => {
+    const h = commandHarness();
+    h.run('entity.create', { kind: 'character', name: 'MAYA' });
+    h.run('entity.create', { kind: 'character', name: 'JONAH' });
+    const maya = h.model.resolveEntity('character', 'MAYA')!.id;
+    const jonah = h.model.resolveEntity('character', 'JONAH')!.id;
+    // Renaming JONAH to another spelling of MAYA is the same name key, so it is refused rather
+    // than stored under a second key that I16 (which compares stored keys) could never pair up.
+    expect(h.run('entity.update', { entityId: jonah, patch: { name: "MAYA (CONT'D)" } }))
+      .toMatchObject({ ok: false, reason: 'notApplicable', detail: { existingId: maya } });
+    expect(validateDocument(h.doc, { only: ['I16'] }).issues).toEqual([]);
+    // And when two records really do share a key, I16 still reports it.
+    const entities = h.doc.getMap<unknown>('entities');
+    const id = newId('ent', h.ids);
+    const e = entities.set(id, new Y.Map<unknown>());
+    for (const [k, v] of Object.entries({ id, kind: 'character', name: 'MAYA', nameKey: 'maya', mergedInto: null })) e.set(k, v);
+    expect(validateDocument(h.doc, { only: ['I16'] }).issues).toHaveLength(1);
+  });
+});
+
 describe('SmartType list commands', () => {
   it('adds, dismisses, reorders and alphabetizes entries', () => {
     const h = commandHarness();
