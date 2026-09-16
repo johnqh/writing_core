@@ -21,7 +21,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.esm.json",
     "clean": "rimraf dist",
-    "test": "vitest run",
+    "test:unit": "vitest run",
     "test:watch": "vitest",
     "lint": "eslint src scripts",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
@@ -30,7 +30,7 @@
     "fonts:generate": "bun scripts/build-font-metrics.ts",
     "ucd:generate": "bun scripts/build-ucd.ts",
     "dict:generate": "bun scripts/build-dictionaries.ts",
-    "verify": "bun run typecheck && bun run lint && bun run test && bun run build",
+    "verify": "bun run typecheck && bun run lint && bun run test:unit && bun run build",
     "prepublishOnly": "bun run clean && bun run verify"
   },
   "files": ["dist/**/*", "CLAUDE.md"],
