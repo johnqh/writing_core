@@ -97,3 +97,11 @@ export * from './undo/undo-manager.js';
 // ─── Layout ─────────────────────────────────────────────────────────────────
 export { LAYOUT_ENGINE_VERSION, roundHalfEven, emuFromFontUnits, sizeEmuFromPoints } from './layout/round.js';
 export * from './layout/types.js';
+
+// ─── Fonts ──────────────────────────────────────────────────────────────────
+// (`FaceId`/`FontFaceMetrics` are already exported above from `./layout/types.js`; this
+// module implements them rather than redeclaring them, so they are not re-exported here.)
+export {
+  FWM_MAGIC, FWM_FORMAT_VERSION, encodeFwm, decodeFwm, advanceTableFor,
+  type FwmInput, type FwmRange, type AdvanceTable,
+} from './fonts/fwm.js';
