@@ -76,8 +76,9 @@ export * from './read-model/open.js';
 export * from './read-model/scene-heading.js';
 export * from './read-model/number-label.js';
 
-// ─── Numbering (insertion-mode generation, spec 02 §22.3) ──────────────────
+// ─── Numbering (insertion-mode generation, spec 02 §22.3; assignment, §21) ──
 export * from './numbering/modes.js';
+export * from './numbering/assign.js';
 
 // ─── Templates (seeds) ──────────────────────────────────────────────────────
 // (camelKey, a string-casing helper for role-table generation, is in ./internal.js)
