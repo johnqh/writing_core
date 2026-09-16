@@ -55,21 +55,52 @@ function lastSegmentKind(segs: readonly LabelSegment[]): 'none' | 'letters' | 'd
 }
 
 /**
- * Spec 02 §22.3 step 4's corrected AB2/BA2 rule: the lexicographic predecessor of `flat`, found by
- * scanning from the end for the last position that isn't already the alphabet's first letter (`1`),
- * decrementing it and truncating everything after — the standard "borrow" construction for finding
- * what sorts immediately before a sequence when it can be freely extended with more elements
- * (`[1,2]` → `[1,1]`; `[2,1,1]` → `[1]`, borrowing across two trailing `1`s). Returns `null` when
- * every element is already `1` (`flat` is a chain of "first child of first child of …" down to the
- * base) — there is no shorter or lexicographically-earlier sequence at this base, which is exactly
- * §22.3's "only a *minimally* prefixed R … leaves no room" (generalized: not just `[1]` itself, but
- * any all-`1`s chain, since each level is itself a minimal-child case one level up).
+ * Spec 02 §22.3 step 4's corrected AB2/BA2 rule: every `NumberLabel` that sorts strictly below
+ * `flat` (a comparison-space prefix array — see `preSeqAB2Prefixed`), enumerated in increasing
+ * order. Two kinds of candidate, concatenated in the order that keeps the whole sequence
+ * increasing:
+ *
+ * 1. **Every proper, non-empty prefix of `flat`** — `flat.slice(0, 1), flat.slice(0, 2), …` up to
+ *    (but excluding) `flat` itself — each strictly less than the next by §22.2's "a shorter
+ *    matching prefix sorts before a longer one" rule, *regardless of what element follows it in
+ *    `flat`*. This is what fix round 1 missed: `[1,1]`'s predecessor is `[1]`, the same array
+ *    truncated by one, not something computed from whether `[1,1]` is "all ones". A prefix `flat`
+ *    of length `L` has `L − 1` of these — `[1,1,1]` (length 3) has exactly two, `[1]` and `[1,1]`,
+ *    both real candidates a sufficiently-far-back `P` can land above.
+ * 2. **Infinitely many candidates past the last one**, but only when `flat` has a decrementable
+ *    position (some element `> 1`): find the last such position, decrement it, and freely extend
+ *    further (safe because diverging strictly below `flat`'s own value at a shared position means
+ *    every later-appended continuation still compares less than `flat`, regardless of what it is —
+ *    this is round 1's `decrementLastPosition` construction, kept, just no longer treated as the
+ *    *only* source of candidates). An all-`1`s `flat` has no decrementable position, so this half
+ *    contributes nothing and the family is exactly the finite prefix ladder from (1) — which is
+ *    correct: there is genuinely nothing between `[1,1]` and `[1,1,1]` (they're parent and
+ *    immediate first child), so no amount of cleverness manufactures a third candidate there.
+ *
+ * Whether this family is finite or infinite is a property of `flat` alone, but whether it contains
+ * anything *usable for a given P* is not — `generateBetween`'s own `> P` filter (already correct,
+ * unchanged) is what decides that, by scanning this family and taking what clears `P`. Refusal is
+ * the caller-visible result of that filter finding nothing, never something this function decides
+ * on `flat`'s shape alone: `predecessorFamily([1])` yields nothing (the one truly childless case —
+ * length 1, so no proper non-empty prefix exists, and length 1 is never decrementable-then-safe in
+ * a way that helps, since `[1]`'s single element is already the minimum), but every longer `flat`
+ * yields real candidates regardless of how "minimal" it looks (`[1,1]`, `[1,1,1]`, … all included).
  */
-function decrementLastPosition(flat: readonly number[]): number[] | null {
+function* predecessorFamily(flat: readonly number[], n: number): Generator<number[]> {
+  let lastDecrementable = -1;
   for (let i = flat.length - 1; i >= 0; i -= 1) {
-    if (flat[i]! > 1) return [...flat.slice(0, i), flat[i]! - 1];
+    if (flat[i]! > 1) {
+      lastDecrementable = i;
+      break;
+    }
   }
-  return null;
+  const ladderLength = lastDecrementable === -1 ? flat.length - 1 : lastDecrementable;
+  for (let len = 1; len <= ladderLength; len += 1) yield flat.slice(0, len);
+  if (lastDecrementable === -1) return; // all-ones — the ladder above is the entire family
+
+  const decremented = [...flat.slice(0, lastDecrementable), flat[lastDecrementable]! - 1];
+  yield decremented;
+  for (let j = 1; ; j += 1) yield [...decremented, ...letterIndexRun(j, n)];
 }
 
 // ─── childSeq ───────────────────────────────────────────────────────────────────────────────────
@@ -149,41 +180,102 @@ export function* childSeq(label: NumberLabel, mode: NumberMode, skipIO: boolean)
 // ─── preSeq ─────────────────────────────────────────────────────────────────────────────────────
 
 /**
- * `1AB`/`1A2`/`romanUpper`/`romanLower`: prepend a brand-new `letters` segment as the new
- * outermost prefix entry, keeping `label`'s own base/prefix/suffix untouched underneath it
- * (1→A1,B1…). This is also, unfiltered, exactly §22.3 step 4's "prefix fallback … prefixed to
- * R's full label" — `generateBetween` reuses this same generator for both steps 3 and 4, only the
- * `> P` filter differs.
+ * `1AB`/`1A2`/`romanUpper`/`romanLower`'s prefix comparison (`compareLabels`' non-`AB2`/`BA2`
+ * branch) compares `label.prefix` — a *list* of `letters` segments — element by element, "missing
+ * < present" on the list's own length. This is `predecessorFamily`'s exact structure one level up:
+ * a segment *list* has the same "proper prefix always sorts less, regardless of what follows" and
+ * "decrement the last position that has room, then anything after stays less" properties that a
+ * flat number array does — `predecessorFamily` already handles the flat case (a single segment's
+ * `value`); this handles the list-of-segments case by using `predecessorFamily` *inside* itself,
+ * on each segment's own `value`, once a segment position needs to diverge.
+ *
+ * Enumerates, in increasing order: for each position `i` from `0` to `segs.length - 1` — first the
+ * proper prefix `segs.slice(0, i)` (skipped at `i = 0`, since that's the empty list, not a valid
+ * *prefixed* candidate — see `preSeqPrependPrefixed`'s caller, which only reaches this function
+ * when `label.prefix` is already non-empty), then every candidate `segs.slice(0, i)` followed by a
+ * `predecessorFamily` predecessor of `segs[i]`'s own value (possibly none, if that value is itself
+ * unpredecessable, e.g. `[1]`). A segment whose value has no predecessor contributes nothing at
+ * that position and the loop moves to `i + 1`; if *no* position ever contributes anything, the
+ * whole list is a chain of "first child of first child of …" at every level and this yields
+ * nothing at all — matching `predecessorFamily`'s own "all-`1`s has no predecessor" base case, one
+ * level up.
  */
-function* preSeqPrependSegment(label: NumberLabel, n: number): Generator<NumberLabel> {
-  for (let j = 1; ; j += 1) {
-    yield { base: label.base, prefix: [lettersSeg(j, n), ...label.prefix], suffix: label.suffix };
+function* segmentListPredecessorFamily(segs: readonly LabelSegment[], n: number): Generator<LabelSegment[]> {
+  for (let i = 0; i < segs.length; i += 1) {
+    if (i >= 1) yield segs.slice(0, i);
+    const seg = segs[i]!;
+    if (seg.kind !== 'letters') {
+      throw new RangeError('1AB/1A2/romanUpper/romanLower prefix segment must be a letters segment — got a digits segment');
+    }
+    for (const predValue of predecessorFamily(seg.value, n)) {
+      yield [...segs.slice(0, i), { kind: 'letters', value: predValue }];
+    }
   }
 }
 
 /**
- * `AB2`/`BA2`, generalized per spec 02 §22.3's corrected step 4: the refusal condition is
- * "steps 2 and 3 produced no candidate", *computed*, never inferred from whether `R` has a
- * prefix. Two cases:
+ * `1AB`/`1A2`/`romanUpper`/`romanLower`, `label.prefix` empty: prepend a brand-new `letters`
+ * segment as the new outermost prefix entry, keeping `label`'s own base/suffix untouched
+ * underneath it (1→A1,B1…). Always safe regardless of the new segment's value: a *present* prefix
+ * always sorts before a *missing* one at the same base (`compareLabels`' hasPrefix-first check),
+ * so there's no analogue of `preSeqPrependPrefixed`'s divergence problem here.
+ */
+function* preSeqPrependPlain(label: NumberLabel, n: number): Generator<NumberLabel> {
+  for (let j = 1; ; j += 1) {
+    yield { base: label.base, prefix: [lettersSeg(j, n)], suffix: label.suffix };
+  }
+}
+
+/**
+ * `label.prefix` non-empty: **not** a brand-new prepended segment. Fix round 2's Critical
+ * (discovered testing round 2's own fix at a deeper derivation than round 1 reached — see
+ * `assertGenerateBetweenInvariant` in the test file): prepending a fresh segment *in front of*
+ * `label`'s own existing prefix, as this function used to do unconditionally, compares that new
+ * segment against `label.prefix`'s own outermost segment at the same list position — if they
+ * happen to share the same value (a real, reachable case once a gap-exhausted label has itself
+ * been locked and becomes a later call's `R`; spec 23.1's Relock does exactly this), the list
+ * lengths differ and `compareSegmentArrays`' "missing < present" rule then says the *longer* one
+ * (the newly-prepended one, being one segment deeper) sorts *after* `label`, not before it —
+ * `generateBetween` would silently hand back something that fails even the `< R` guarantee §22.3
+ * promises for gap-exhausted output. `segmentListPredecessorFamily` is the correct construction:
+ * real predecessors of `label.prefix` itself, not a decoration prepended in front of it.
+ */
+function* preSeqPrependPrefixed(label: NumberLabel, n: number): Generator<NumberLabel> {
+  for (const prefix of segmentListPredecessorFamily(label.prefix, n)) {
+    yield { base: label.base, prefix, suffix: label.suffix };
+  }
+}
+
+function* preSeqPrependSegment(label: NumberLabel, n: number): Generator<NumberLabel> {
+  if (label.prefix.length === 0) yield* preSeqPrependPlain(label, n);
+  else yield* preSeqPrependPrefixed(label, n);
+}
+
+/**
+ * `AB2`/`BA2`, per spec 02 §22.3's corrected step 4: the refusal condition is "steps 2 and 3
+ * produced no candidate", *computed* from **both** endpoints, never inferred from a property of
+ * `R` alone — fix round 1's `label.prefix.length > 0 → ∅` and fix round 2's own first attempt
+ * (`decrementLastPosition` returning `null` for *any* all-`1`s chain) both made exactly that
+ * mistake at a different depth. Two cases:
  *
  * - `label` plain (§22.2: "for a plain base: prefix a new letters segment: 2→A2,B2,…"):
  *   unchanged — any new single-letter prefix sorts before a plain label of the same base
  *   regardless of its value (`compareLabels`' hasPrefix-first rule), so `j=1,2,3,…` all qualify.
- * - `label` prefixed: find `label`'s lexicographic predecessor at this base via
- *   `decrementLastPosition` (run in *comparison space* — `label`'s flat prefix as-is for `AB2`,
- *   reversed for `BA2`, matching `orientedRun`'s convention) and yield it as the first candidate,
- *   then keep extending it further (still in comparison space, so the extension is monotonic
- *   under the mode's own comparator) for every candidate after that. `null` (every comparison-space
- *   element is already `1` — `label` is a chain of first-children down to the base) means no
- *   predecessor exists at all: yields nothing, `∅`, which is the only case these two modes
- *   genuinely have no step 4 for (see `generateBetween`'s doc comment on the resulting throw).
+ * - `label` prefixed: `predecessorFamily` (comparison space — `label`'s flat prefix as-is for
+ *   `AB2`, reversed for `BA2`, matching `orientedRun`'s convention) enumerates *every* candidate
+ *   that sorts below `label`, not just one. Whether that family is finite (an all-`1`s prefix) or
+ *   infinite is a fact about `label` alone; whether it's *sufficient for a given P* is not this
+ *   function's call — `generateBetween`'s `> P` filter decides that by scanning it. This
+ *   generator's only refusal is the mathematically forced one: `label`'s prefix exactly `[1]`
+ *   (comparison space) yields nothing, because a length-1 array has no proper non-empty prefix and
+ *   its single element is already the alphabet minimum.
  *
- * Spec 02 §22.3's own examples: between plain `1` and `AB2` (comparison-space flat `[1,2]`), the
- * predecessor is `[1,1]` = `AA2` (spec illustrates `A2`, a *different* valid candidate — both sort
- * strictly between; this generator doesn't need to match spec's illustration verbatim, only to
- * produce *a* correct one). Between plain `1` and `BA2` (stored `[2,1]`, comparison-space
- * `reverse([2,1]) = [1,2]`), the predecessor in comparison space is also `[1,1]`, converted back to
- * storage space (`reverse` again, self-inverse here) as `[1,1]` = `AA2` — matching spec exactly.
+ * Spec 02 §22.3's own examples, reproduced by `predecessorFamily`: between plain `1` and `AB2`
+ * (comparison-space flat `[1,2]`), the first (and spec's own illustrated) candidate is `[1]` =
+ * `A2`. Between plain `1` and `AA2` (`[1,1]`), the only candidate is `[1]` = `A2`. Between plain
+ * `1` and `AAA2` (`[1,1,1]`), both `[1]` = `A2` and `[1,1]` = `AA2` are candidates, in that order —
+ * so a `P` sitting between them (e.g. `P = A2` itself) correctly finds only `AA2` usable, while a
+ * `P` further back (e.g. plain `1`) finds both.
  */
 function* preSeqAB2Plain(label: NumberLabel, n: number, direction: 'forward' | 'reversed'): Generator<NumberLabel> {
   for (let j = 1; ; j += 1) {
@@ -197,14 +289,9 @@ function* preSeqAB2Prefixed(label: NumberLabel, n: number, direction: 'forward' 
     throw new RangeError('AB2/BA2 prefix segment must be a letters segment — got a digits segment');
   }
   const flatCmp = direction === 'forward' ? seg0.value : [...seg0.value].reverse();
-  const predCmp = decrementLastPosition(flatCmp);
-  if (predCmp === null) return; // label is an all-minimal chain — genuinely no predecessor at this base
-
   const toStorage = (cmp: readonly number[]): number[] => (direction === 'forward' ? [...cmp] : [...cmp].reverse());
-  yield { base: label.base, prefix: [{ kind: 'letters', value: toStorage(predCmp) }], suffix: label.suffix };
-  for (let j = 1; ; j += 1) {
-    const grown = [...predCmp, ...letterIndexRun(j, n)];
-    yield { base: label.base, prefix: [{ kind: 'letters', value: toStorage(grown) }], suffix: label.suffix };
+  for (const cmp of predecessorFamily(flatCmp, n)) {
+    yield { base: label.base, prefix: [{ kind: 'letters', value: toStorage(cmp) }], suffix: label.suffix };
   }
 }
 
@@ -285,16 +372,36 @@ function collect(
  * guaranteed position: spec 02 §22.4's own worked example (`1AB | 10 | 10A | 1 → A10A`) sorts
  * *before* `P` under `compareLabels` (a prefixed label sorts before a same-base plain one), so
  * gap-exhausted output is diagnosed via the returned `gapExhausted` flag, not guaranteed ordering
- * against `P`.
+ * against `P`. The `< R` guarantee, unlike the `> P` one, is *not* relaxed — and the one case found
+ * (fix round 2, testing this fix at a deeper derivation than round 1 reached) where the *old*
+ * unconditional-prepend construction could have violated it is exactly why `preSeqPrependSegment`
+ * now branches on whether `R` already has a prefix (see `preSeqPrependPrefixed`'s doc comment).
  *
- * `AB2`/`BA2` have no step 4 in the `1AB`-style sense (§22.3: "the prose above … does not
- * generalise"), but the refusal is *narrow* and *computed*, never inferred from whether `R` has a
- * prefix: `preSeqAB2` (see its doc comment) generates real candidates for any `R` whose prefix
- * isn't an all-first-child chain (`[1]`, `[1,1]`, …) at every level — only that specific case has
- * provably no `NumberLabel` under these two modes' single-run, flattened-comparison scheme that
- * sorts before it while sharing `R`'s base, with no other base available between two consecutive
- * locked integers. Rather than silently return fewer than `k` labels or labels with no defined
- * relationship to `R`, that specific case throws.
+ * `1AB`-family's step 4 below (the `fallback.length < k` check) is not dead code: it throws for
+ * real, and correctly, when `R`'s own prefix is itself unpredecessable (`segmentListPredecessorFamily`
+ * yields nothing — the `1AB`-family structural analogue of `AB2`/`BA2`'s `[1]` case, one list level
+ * up: `R.prefix` reduced to exactly one segment of value `[1]`, i.e. `R` = literal `"A<base>"` with
+ * no deeper structure). Spec 02 §22.3 does not currently document this for `1AB`-family — only for
+ * `AB2`/`BA2` — since no example in §22.4 or the original step-4 prose reaches it; flagged for the
+ * spec owner rather than silently handled, since the code's behaviour (throw, matching `AB2`/`BA2`'s
+ * own documented refusal shape and message) is what's provably correct here, independent of whether
+ * the prose catches up.
+ *
+ * `AB2`/`BA2` have no step 4 at all (§22.3: "the prose above … does not generalise") — for these
+ * two modes, refusal is exactly "step 2 and the `> P`-*filtered* step 3 produced no candidate",
+ * checked below by throwing immediately after step 3 rather than falling through to the unfiltered
+ * scan the other modes get. This is *computed from both `P` and `R`*, never inferred from a
+ * property of `R` alone: "`R` has a prefix" (fix round 1) and "`R`'s prefix is all `1`s" (fix round
+ * 2's first attempt) were each, in turn, a wrong over-generalisation of the one case that's
+ * actually unconditional on `R` alone — `R`'s prefix exactly `[1]` (comparison space), the only
+ * shape `predecessorFamily` ever yields nothing for. Every longer prefixed `R` has *some* real
+ * candidates from `predecessorFamily`, but whether they're *enough for this call* depends on `P`
+ * too — e.g. when `P` is `R`'s own immediate parent, `predecessorFamily(R)`'s one candidate at
+ * that ladder rung equals `P` itself, so the `> P` filter (correctly) rejects it, and the same `R`
+ * against a `P` further back finds it usable. Rather than silently return fewer than `k` labels or
+ * a label with no defined relationship to `R` (which falling through to the unfiltered scan below
+ * would risk — see the comment at that `if` for the concrete case it would get wrong), that
+ * insufficiency throws.
  */
 export function generateBetween(
   P: NumberLabel | null,
@@ -323,6 +430,22 @@ export function generateBetween(
   const step3 = collect(preSeq(R, mode, skipIO), above, k, 'keep-scanning');
   if (step3.length >= k) return { labels: step3.slice(0, k), gapExhausted: false };
 
+  // `AB2`/`BA2` have no step 4 at all (§22.3: "the prose above … does not generalise") — refusal
+  // there is exactly "steps 2 and 3 [the `> P`-FILTERED step 3] produced no candidate", full stop.
+  // Falling through to the unfiltered scan below for these two modes would be wrong even when
+  // `preSeq(R)` (the underlying, unfiltered generator) is non-empty: `predecessorFamily` can yield
+  // real candidates that step 3's filter rightly rejected — e.g. `P` = `R`'s own immediate parent,
+  // where `preSeq(R)`'s one ladder candidate *equals* `P` itself (§22.2's "nothing sorts between a
+  // label and its own immediate first child") — and taking them anyway, unfiltered, would silently
+  // hand back a duplicate of `P` instead of refusing. Only `1AB`-family modes get the unfiltered
+  // fallback below.
+  if (mode === 'AB2' || mode === 'BA2') {
+    throw new RangeError(
+      `generateBetween: ${mode} numbering has no structural room between the given P and R — the caller must ` +
+        'Renumber before inserting here (spec 02 §22.3: AB2/BA2 have no step-4 fallback).',
+    );
+  }
+
   // Step 4: gap exhausted — preSeq(R) unfiltered, first k.
   const fallback: NumberLabel[] = [];
   for (const l of preSeq(R, mode, skipIO)) {
@@ -331,8 +454,9 @@ export function generateBetween(
   }
   if (fallback.length < k) {
     throw new RangeError(
-      `generateBetween: ${mode} numbering has no structural room between the given P and R (R is already ` +
-        'prefixed, so no label can be generated that sorts before it) — the caller must Renumber before inserting here.',
+      `generateBetween: ${mode} numbering has no structural room between the given P and R (only ` +
+        `${fallback.length} of ${k} requested labels could be generated) — the caller must Renumber before ` +
+        'inserting here.',
     );
   }
   return { labels: fallback, gapExhausted: true };

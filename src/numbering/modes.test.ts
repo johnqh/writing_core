@@ -119,24 +119,15 @@ describe('generateBetween — gap-exhausted diagnostics beyond the §22.4 table'
     expect(compareLabels(labels[0]!, R, '1AB')).toBeLessThan(0); // still < R
   });
 
-  // Fix round 1 (Critical): §22.3 was corrected — the refusal condition is "steps 2 and 3 produced
-  // no candidate", computed, never inferred from `R.prefix.length > 0`. Only a *minimally* prefixed
-  // R (prefix exactly `[1]`, or — generalizing to a deeper chain — every position `1`) leaves no
-  // room; the previous `if (label.prefix.length > 0) return` guard refused far more than that.
-  // These three tests pin the boundary from both sides: the two review counterexamples that must
-  // now generate real candidates, and the minimal case that must still refuse.
-  it('AB2: minimally-prefixed R (prefix exactly [1]) — no structural room, throws rather than returning misleading data', () => {
-    const P = plain(1);
-    const R = label(2, [letterSeg(1)]); // A2 — already minimally prefixed
-    expect(() => generateBetween(P, R, 1, 'AB2', false)).toThrow(RangeError);
-  });
-
-  it('BA2: same minimal-prefix dead end as AB2', () => {
-    const P = plain(1);
-    const R = label(2, [letterSeg(1)]); // A2
-    expect(() => generateBetween(P, R, 1, 'BA2', false)).toThrow(RangeError);
-  });
-
+  // Fix round 1 (Critical, partially addressed): §22.3 was corrected — the refusal condition is
+  // "steps 2 and 3 produced no candidate", computed, never inferred from a property of R alone.
+  // Round 1's fix (`decrementLastPosition` returning `null` for *any* all-`1`s chain) was itself
+  // still a predicate on R alone, just a narrower wrong one — `[1,1]`, `[1,1,1]`, … all *do* have
+  // predecessors (`[1]`, `[1,1]`, … — the same array truncated by one; see `predecessorFamily`'s
+  // doc comment in modes.ts), it's just that whether a given `P` can reach one depends on how far
+  // back `P` sits. Fix round 2 replaces the single-predecessor guess with the *full* predecessor
+  // family and lets the real `> P` filter decide sufficiency. These two tests are the exact review
+  // counterexamples (round 2); the full depth-1/2/3, both-sides-of-the-boundary matrix follows.
   it('AB2 counterexample: plain P=1, R=AB2 (prefix [1,2], not minimal) — A2 sorts strictly between, does not throw', () => {
     const P = plain(1);
     const R = label(2, [letterSeg(1, 2)]); // AB2
@@ -144,20 +135,20 @@ describe('generateBetween — gap-exhausted diagnostics beyond the §22.4 table'
     expect(gapExhausted).toBe(false);
     expect(compareLabels(labels[0]!, P, 'AB2')).toBeGreaterThan(0);
     expect(compareLabels(labels[0]!, R, 'AB2')).toBeLessThan(0);
-    // Spec 02 §22.3 illustrates "A2" for this exact pair; this generator's own predecessor
-    // construction produces "AA2" instead — a *different*, also-valid candidate (both sort
-    // strictly between P and R), not a mismatch with the spec's illustration.
-    expect(render(labels[0]!, 'AB2')).toBe('AA2');
+    expect(render(labels[0]!, 'AB2')).toBe('A2'); // matches spec 02 §22.3's own illustration exactly
   });
 
-  it('BA2 counterexample: plain P=1, R=BA2 (prefix [2,1], not minimal) — AA2 sorts strictly between, does not throw', () => {
+  it('BA2 counterexample: plain P=1, R=BA2 (prefix [2,1], not minimal) — A2 sorts strictly between, does not throw', () => {
     const P = plain(1);
     const R = label(2, [letterSeg(2, 1)]); // BA2
     const { labels, gapExhausted } = generateBetween(P, R, 1, 'BA2', false);
     expect(gapExhausted).toBe(false);
     expect(compareLabels(labels[0]!, P, 'BA2')).toBeGreaterThan(0);
     expect(compareLabels(labels[0]!, R, 'BA2')).toBeLessThan(0);
-    expect(render(labels[0]!, 'BA2')).toBe('AA2'); // matches spec 02 §22.3's own illustration exactly
+    // "AA2" was the pre-fix-round-2 spec's illustration for this exact pair (superseded — that
+    // text predates the depth rule); "A2" is what predecessorFamily's ladder finds first, and is
+    // itself the same shape as the AB2 case above (both reduce to the length-1 ladder entry).
+    expect(render(labels[0]!, 'BA2')).toBe('A2');
   });
 
   it('AB2 childSeq(plain) and preSeq(minimally-prefixed) are both ∅, per §22.2 / corrected §22.3', () => {
@@ -227,6 +218,69 @@ describe('generateBetween — gap-exhausted diagnostics beyond the §22.4 table'
   });
 });
 
+// ─── Fix round 2: the depth rule, tested from both sides at depths 1/2/3 ───────────────────────
+//
+// Round 1's fix over-generalised: it proved `[1]` (depth 1) has no predecessor and shipped code
+// that refused for *any* all-`1`s chain, at any depth. But `[1,1]` (depth 2) and `[1,1,1]`
+// (depth 3) both have real predecessors (`[1]` and `[1,1]` respectively — the same array
+// truncated by one, §22.2's "shorter matching prefix sorts before a longer one"). The bug only
+// showed up with a `P` further back than the chain's own immediate parent — round 1's own
+// verification used `P = A2, R = AA2` (where refusal genuinely is correct) and never tried
+// `P` further back, which is exactly where "no property of R alone" bites: the same `R` must
+// refuse against one `P` and generate against another.
+//
+// `buildAllOnesChain` constructs the depth-N all-`1`s prefix directly (not by composing
+// generateBetween calls) so each test pins an exact, known structure — for an all-`1`s comparison-
+// space array, `AB2`'s (forward) and `BA2`'s (reversed) storage encodings coincide (reversing
+// `[1,1,…,1]` doesn't change it), so one builder serves both modes.
+describe('generateBetween — AB2/BA2 depth rule (fix round 2): refusal depends on BOTH endpoints', () => {
+  function buildAllOnesChain(depth: number): NumberLabel {
+    return label(2, [letterSeg(...Array<number>(depth).fill(1))]);
+  }
+
+  const MODES_AND_SKIPIO = [
+    ['AB2', false], ['AB2', true], ['BA2', false], ['BA2', true],
+  ] as const;
+
+  it.each(MODES_AND_SKIPIO)('%s skipIO=%s — depth 1 (R=A2): refuses for every P, since [1] has no predecessor at all', (mode, skipIO) => {
+    const R = buildAllOnesChain(1); // A2
+    expect(() => generateBetween(plain(1), R, 1, mode, skipIO)).toThrow(RangeError);
+    expect(() => generateBetween(null, R, 1, mode, skipIO)).toThrow(RangeError);
+  });
+
+  it.each(MODES_AND_SKIPIO)('%s skipIO=%s — depth 2 (R=AA2): P=A2 (immediate parent) refuses, P=1 (further back) generates A2', (mode, skipIO) => {
+    const R = buildAllOnesChain(2); // AA2
+    const immediateParent = buildAllOnesChain(1); // A2
+
+    expect(() => generateBetween(immediateParent, R, 1, mode, skipIO)).toThrow(RangeError);
+
+    const { labels, gapExhausted } = generateBetween(plain(1), R, 1, mode, skipIO);
+    expect(gapExhausted).toBe(false);
+    expect(compareLabels(labels[0]!, plain(1), mode)).toBeGreaterThan(0);
+    expect(compareLabels(labels[0]!, R, mode)).toBeLessThan(0);
+    expect(render(labels[0]!, mode, skipIO)).toBe('A2');
+  });
+
+  it.each(MODES_AND_SKIPIO)('%s skipIO=%s — depth 3 (R=AAA2): P=AA2 (immediate parent) refuses; P=A2 and P=1 (further back) generate', (mode, skipIO) => {
+    const R = buildAllOnesChain(3); // AAA2
+    const immediateParent = buildAllOnesChain(2); // AA2
+    const oneLevelFurtherBack = buildAllOnesChain(1); // A2
+
+    expect(() => generateBetween(immediateParent, R, 1, mode, skipIO)).toThrow(RangeError);
+
+    const fromOneBack = generateBetween(oneLevelFurtherBack, R, 1, mode, skipIO);
+    expect(fromOneBack.gapExhausted).toBe(false);
+    expect(compareLabels(fromOneBack.labels[0]!, oneLevelFurtherBack, mode)).toBeGreaterThan(0);
+    expect(compareLabels(fromOneBack.labels[0]!, R, mode)).toBeLessThan(0);
+    expect(render(fromOneBack.labels[0]!, mode, skipIO)).toBe('AA2');
+
+    // Further back still (plain 1): BOTH ladder candidates ([1]="A2", [1,1]="AA2") are usable.
+    const fromPlain = generateBetween(plain(1), R, 2, mode, skipIO);
+    expect(fromPlain.gapExhausted).toBe(false);
+    expect(fromPlain.labels.map((l) => render(l, mode, skipIO))).toEqual(['A2', 'AA2']);
+  });
+});
+
 // ─── Property test: the point of this task ──────────────────────────────────────────────────────
 //
 // Table vectors prove the cases someone thought of. This proves the general rule holds for cases
@@ -280,68 +334,98 @@ describe('generateBetween — property (fast-check)', () => {
   });
 });
 
-// ─── Property test 2: P and R sharing a base, with prefixes/suffixes of varying depth ─────────────
+// ─── Property test 2: P and R derived from a random DEPTH of generateBetween's own output ─────────
 //
-// Fix round 1 (Important). Built by generating ONE level via generateBetween itself (locking,
-// inserting, "relocking" by treating the results as the new neighbours, exactly spec 02 §23.1's
-// real workflow) rather than hand-picked structures: pick a random adjacent pair from
-// `[P0, ...generateBetween(P0, P0+1, k1, mode, skipIO).labels, R0]` as the new P2/R2. Because P2
-// and R2 routinely share P0's base (differing only in suffix/prefix depth), `below`/`above` are no
-// longer vacuous — childSeq(P2) filtered `< R2` genuinely runs dry for several of these pairs
-// (e.g. P2=P0, R2=P0's own first generated child, the exact `1AB | 10 | 10A` shape from §22.4),
-// forcing reliance on preSeq(R2)/the gap-exhausted fallback, and for AB2/BA2 this also reaches the
-// narrowed-refusal path fixed above (a RangeError is an accepted outcome only for those two
-// modes). `< R2` holds even for gap-exhausted output here (R2 always has an empty prefix in this
-// construction, so the hasPrefix-first rule always puts a gap-exhausted candidate below it); `> P2`
-// is asserted only when NOT gap-exhausted, per generateBetween's documented relaxation.
+// Fix round 1 (Important, addressed then): a single level of derivation
+// (`[P0, ...generateBetween(P0, P0+1, k1, ...).labels, R0]`, picking a random adjacent pair as the
+// new P/R) was enough to make `below`/`above` non-vacuous and to fail the reviewer's
+// disable-both-filters mutation — see the "fix round 1" note kept below for that result.
 //
-// Disabling both filters (`below`/`above` both hard-coded `true`, matching the review's mutation)
-// against this property, run for real: **"Property failed after 4 tests"** (fast-check's own
-// count, `numRuns: 300`, seed below), shrunk 6 times to counterexample
-// `[base=0, k1=1, idxSeed=0, k2=1, mode="1AB", skipIO=false]` — i.e. P0=0, R0=1, the one-item
-// first-level insertion gives mid=[0A], so P2=0, R2=0A (exactly `1AB`'s `10/10A` shape from
-// §22.4). With `below` disabled, step 2 (childSeq(P2), now unfiltered) hands back its very first
-// candidate, `0A`, for k2=1 — `compareLabels(0A, R2=0A, '1AB')` is `0`, not negative, which is
-// exactly what the disabled `below` filter existed to reject (`AssertionError: expected 0 to be
-// less than 0`, at the `< R2` line below). This is the placement-half counterexample the first
-// property's generator could never reach (mutation restored before committing; do not
-// re-introduce it).
+// Fix round 2 (Critical): one level was NOT enough to reach the bug that round. `generateBetween`
+// only ever recurses to depth 1 from a single derivation step (children of a depth-0 P are
+// depth-1), so a one-level property can only ever construct P/R pairs where at least one side is
+// plain or depth-1 — it structurally cannot build a depth-2 `R` like `AA2`, and so could never
+// have exercised "`P` = `R`'s immediate parent" vs. "`P` further back than that" for a depth-2+
+// `R`, which is exactly where fix round 2's Critical (`decrementLastPosition` over-refusing any
+// all-`1`s chain) lived. Iterating the derivation to a random DEPTH (2 or 3 levels, each level
+// feeding the previous level's own output back in as the next P/R — the real lock/insert/relock
+// cycle, repeated) reaches those deeper shapes, because a pair drawn from a depth-N level's own
+// `mid` sequence is itself depth-(N+1) once childSeq/preSeq has grown it further.
+//
+// Every level's own `generateBetween` call is asserted (not just the deepest), so a single trial
+// exercises the invariant at every depth it derives through, not only at the end.
+//
+// Running this deeper property (with fix round 2's `predecessorFamily`/`segmentListPredecessorFamily`
+// fix in place) surfaced a THIRD, previously undiscovered bug, of the same shape as the Critical
+// this round fixes but on the `1AB`-family side: `preSeqPrependSegment` unconditionally prepended a
+// brand-new segment in front of `R`'s own existing prefix, which is unsafe once `R` already has a
+// prefix (a real, reachable case — a gap-exhausted label, once locked, becomes a later call's real
+// `R`, spec 23.1's Relock). If the new segment's value happened to equal `R.prefix`'s own outermost
+// segment, `compareSegmentArrays`' "missing < present" rule made the *deeper* (newly-prepended) one
+// sort *after* `R`, silently violating the `< R` guarantee §22.3 promises even for gap-exhausted
+// output. Fixed the same way as the Critical: `segmentListPredecessorFamily` finds real predecessors
+// of `R.prefix` itself (see modes.ts) instead of decorating it. One consequence, confirmed
+// mathematically and with a standalone check before relying on it here: `1AB`-family now *can*
+// legitimately throw too — not only `AB2`/`BA2` — in the exact structural analogue of their minimal
+// case (`R.prefix` reduced to a single segment of value `[1]`, i.e. `R` = literal `"A<base>"` with no
+// deeper structure). `isRefusable` below accepts a `RangeError` from `generateBetween` for *any*
+// mode now, matched by message rather than blanket-caught, so an unrelated thrown `RangeError`
+// elsewhere would still fail the test rather than being silently absorbed.
 const PROPERTY_SEED_2 = 20260917;
+const PROPERTY_2_LEVELS = 3; // matches the `ks`/`idxSeeds` array lengths below — see fc.array
 
-describe('generateBetween — property 2 (fast-check): same-base P/R with varying prefix/suffix depth', () => {
-  it('every generated label still sorts correctly against R (and against P when not gap-exhausted), even when childSeq(P) alone cannot supply it', () => {
+function isRefusal(e: unknown): boolean {
+  return e instanceof RangeError && e.message.includes('has no structural room between the given P and R');
+}
+
+function assertGenerateBetweenInvariant(
+  P: NumberLabel, R: NumberLabel, k: number, mode: NumberMode, skipIO: boolean,
+): NumberLabel[] | undefined {
+  let result: { labels: NumberLabel[]; gapExhausted: boolean };
+  try {
+    result = generateBetween(P, R, k, mode, skipIO);
+  } catch (e) {
+    if (isRefusal(e)) return undefined; // a genuine, expected refusal — see the comment above
+    throw e;
+  }
+  expect(result.labels).toHaveLength(k);
+  for (let j = 0; j < result.labels.length; j += 1) {
+    expect(compareLabels(result.labels[j]!, R, mode)).toBeLessThan(0);
+    if (!result.gapExhausted) expect(compareLabels(result.labels[j]!, P, mode)).toBeGreaterThan(0);
+    if (j > 0) expect(compareLabels(result.labels[j]!, result.labels[j - 1]!, mode)).toBeGreaterThan(0);
+  }
+  return result.labels;
+}
+
+describe('generateBetween — property 2 (fast-check): P/R derived from a random depth of the system\'s own output', () => {
+  it('every generated label sorts correctly against R (and against P when not gap-exhausted), at every derived depth', () => {
     fc.assert(
       fc.property(
         fc.integer({ min: 0, max: 200 }),
-        fc.integer({ min: 1, max: 6 }),
-        fc.nat(),
-        fc.integer({ min: 1, max: 10 }),
+        fc.integer({ min: 2, max: 3 }), // depth: iterate 2 or 3 levels deep
+        fc.array(fc.integer({ min: 1, max: 5 }), { minLength: PROPERTY_2_LEVELS, maxLength: PROPERTY_2_LEVELS }),
+        fc.array(fc.nat(), { minLength: PROPERTY_2_LEVELS, maxLength: PROPERTY_2_LEVELS }),
+        fc.integer({ min: 1, max: 5 }),
         fc.constantFrom(...NUMBER_MODES),
         fc.boolean(),
-        (base, k1, idxSeed, k2, mode, skipIO) => {
-          const P0 = plain(base);
-          const R0 = plain(base + 1);
-          const { labels: mid } = generateBetween(P0, R0, k1, mode, skipIO); // always satisfiable — property 1
+        (base, depth, ks, idxSeeds, kFinal, mode, skipIO) => {
+          let P = plain(base);
+          let R = plain(base + 1);
 
-          const seq = [P0, ...mid, R0];
-          const i = idxSeed % (seq.length - 1);
-          const P2 = seq[i]!;
-          const R2 = seq[i + 1]!;
-
-          let result: { labels: NumberLabel[]; gapExhausted: boolean };
-          try {
-            result = generateBetween(P2, R2, k2, mode, skipIO);
-          } catch (e) {
-            if ((mode === 'AB2' || mode === 'BA2') && e instanceof RangeError) return;
-            throw e;
+          for (let level = 0; level < depth; level += 1) {
+            const mid = assertGenerateBetweenInvariant(P, R, ks[level]!, mode, skipIO);
+            if (mid === undefined) return; // this level's own call refused (AB2/BA2) — nothing deeper to derive
+            const seq = [P, ...mid, R];
+            const i = idxSeeds[level]! % (seq.length - 1);
+            P = seq[i]!;
+            R = seq[i + 1]!;
           }
 
-          expect(result.labels).toHaveLength(k2);
-          for (let j = 0; j < result.labels.length; j += 1) {
-            expect(compareLabels(result.labels[j]!, R2, mode)).toBeLessThan(0);
-            if (!result.gapExhausted) expect(compareLabels(result.labels[j]!, P2, mode)).toBeGreaterThan(0);
-            if (j > 0) expect(compareLabels(result.labels[j]!, result.labels[j - 1]!, mode)).toBeGreaterThan(0);
-          }
+          // The final probe: the deepest pair this trial derived, tested directly. This is what
+          // reaches fix round 2's Critical shape — an "immediate parent" boundary pair can be
+          // picked at any level above, making P and R here exactly that relationship at whatever
+          // depth this trial happened to reach.
+          assertGenerateBetweenInvariant(P, R, kFinal, mode, skipIO);
         },
       ),
       { seed: PROPERTY_SEED_2, numRuns: 300 },
