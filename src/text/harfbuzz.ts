@@ -58,60 +58,136 @@ interface FaceEntry {
   unitsPerEm: number;
 }
 
-// The shape-cache key joins an input's fields with a separator character guaranteed not to
-// appear in any field (a face id, script tag, BCP 47 tag or shaped text could in principle
-// contain almost any other printable character). Built at runtime with `fromCharCode`
-// rather than written as an escape sequence in this file's own source text: a file-writing
-// tool can turn a source-level control-character escape into a literal control byte on
-// disk, which the repo's own guard tooling then flags.
-const CACHE_KEY_SEP = String.fromCharCode(0);
+/**
+ * Spec 02 §5.2 (amended, review finding A): the shaping cache key must be genuinely
+ * injective. Joining an input's fields with a single fixed separator and no escaping is
+ * not injective — whenever the separator (or, for a naive choice like a plain space,
+ * ordinary field content) can occur inside a field, two different inputs can concatenate
+ * to the same string. Concretely, for fields joined as `language SEP text`:
+ * `('a' + SEP + 'b', 'c')` and `('a', 'b' + SEP + 'c')` both produce `a SEP b SEP c` —
+ * one run would silently receive another run's cached glyphs. `harfbuzz.test.ts`
+ * ("shape cache key injectivity") proves this collision against the join-based
+ * construction this replaces and proves the replacement does not collide on the same
+ * inputs.
+ *
+ * The fix is netstring-style length-prefixing: each field is written as
+ * `<UTF-16 length>:<field>`, back to back, with nothing between records. Field
+ * boundaries are then determined purely by position (read the digits up to `:`, then
+ * read exactly that many characters), never by scanning for a delimiter character — so
+ * no possible field content, including a colon, a digit run, or the character used as
+ * the old separator, can ever be mistaken for a boundary. This is provably injective for
+ * any string content, which is why it is used here rather than `JSON.stringify` on the
+ * tuple (encoding is simple, well-understood, and — unlike JSON — doesn't collapse
+ * distinct numeric edge cases such as `NaN`/`Infinity`/`-0` to the same output).
+ */
+function encodeCacheField(value: string): string {
+  return `${value.length}:${value}`;
+}
 
-function shapeCacheKey(input: ShapeInput): string {
-  return [input.faceId, input.sizeEmu, input.script, input.direction, input.language, input.text].join(CACHE_KEY_SEP);
+export function shapeCacheKey(input: ShapeInput): string {
+  return [input.faceId, String(input.sizeEmu), input.script, input.direction, input.language, input.text]
+    .map(encodeCacheField)
+    .join('');
 }
 
 export async function createHarfBuzzShaper(deps: HarfBuzzDeps): Promise<Shaper> {
   const hb = await deps.load();
   const disabledLigatures = DISABLED_LIGATURE_TAGS.map((tag) => new hb.Feature(tag, 0));
 
+  // Per-face `hb.Face`/`hb.Font` cache (review finding C). Deliberately left unbounded:
+  // `requireFaceRow` below only ever admits a `faceId` present in the generated, closed
+  // `FACES` registry (spec 02 §3.1/§4.1's bundled set — a fixed, build-time-generated
+  // list, 83 faces as of this build), so this cache's key space — and therefore its
+  // maximum possible size — is fixed at build time, not by anything a caller controls or
+  // by user input. An LRU here would add eviction machinery to bound a collection that
+  // provably cannot grow past a compile-time constant. Custom/user fonts (spec §3.5,
+  // `FontRegistry.registerCustom`) are not wired into this shaper at all yet — `shape`/
+  // `prepareFace` only resolve `faceId`s against `FACES` — so they cannot inflate this
+  // cache either; when custom-font shaping is added, this invariant (and this comment)
+  // will need revisiting, e.g. an LRU or a separate bounded cache for the custom subset.
   const faceCache = new Map<FaceId, FaceEntry>();
+  // Concurrent/repeated `prepareFace(faceId)` calls for a face not yet cached share one
+  // in-flight promise (spec 02 §5.2 amendment: "concurrent calls ... resolve once").
+  const pendingFaces = new Map<FaceId, Promise<void>>();
   // Insertion-ordered Map used as an LRU: a hit is deleted and re-inserted so the oldest
   // entry is always the first key; bounded at SHAPE_CACHE_LIMIT (spec 02 §5.2).
   const shapeCache = new Map<string, ShapeOutput>();
 
-  /**
-   * Builds (or returns the cached) `hb.Face`/`hb.Font` pair for `faceId`, verifying the
-   * face binary's SHA-256 against its `FACES` row first (spec 02 §4.5's renderer
-   * obligation, checkable here because the shaper draws from the same injected bytes).
-   * `deps.faceBytes` may return a `Promise`, but `Shaper.shape` is synchronous (spec 02
-   * §5.2's contract, transcribed in `src/layout/types.ts`), so an async source must already
-   * be resolved (a plain `Uint8Array`) by the time a given `faceId` is first shaped — an
-   * async host pre-warms a face before routing text to it.
-   */
-  function faceFor(faceId: FaceId): FaceEntry {
-    const cached = faceCache.get(faceId);
-    if (cached) return cached;
-
+  function requireFaceRow(faceId: FaceId): (typeof FACES)[number] {
     const row = FACES.find((f) => f.faceId === faceId);
     if (!row) throw new Error(`harfbuzz: unknown faceId ${faceId}`);
+    return row;
+  }
 
-    const bytes = deps.faceBytes(faceId);
-    if (!(bytes instanceof Uint8Array)) {
-      throw new TypeError(
-        `harfbuzz: faceBytes(${faceId}) returned a Promise, but Shaper.shape is synchronous ` +
-          '(spec 02 §5.2) — pre-warm this face (call and await faceBytes for it once) before shaping it.',
-      );
-    }
-
+  /**
+   * Verifies `bytes`' SHA-256 against `row` (spec 02 §4.5's renderer obligation,
+   * checkable here because the shaper draws from the same injected bytes the `FACES`
+   * table was generated from) and builds the `hb.Face`/`hb.Font` pair. Never touches
+   * `faceCache`/`pendingFaces` itself — callers decide when/whether to cache.
+   */
+  function buildFaceEntry(faceId: FaceId, row: (typeof FACES)[number], bytes: Uint8Array): FaceEntry {
     const digest = sha256Hex(bytes);
     if (digest !== row.sha256) throw new Error(`fwm: face binary does not match metrics (faceId ${faceId})`);
 
     const blob = new hb.Blob(bytes);
     const face = new hb.Face(blob, 0);
     const font = new hb.Font(face);
-    const entry: FaceEntry = { font, unitsPerEm: face.upem };
+    return { font, unitsPerEm: face.upem };
+  }
+
+  /**
+   * Builds (or returns the cached) `hb.Face`/`hb.Font` pair for `faceId` for the
+   * synchronous `shape()` path. `deps.faceBytes` may return a `Promise`, but
+   * `Shaper.shape` is synchronous (spec 02 §5.2's contract, transcribed in
+   * `src/layout/types.ts`), so a face whose source is asynchronous must already have
+   * been resolved — by `prepareFace`, spec 02 §5.2's sanctioned way to warm a face —
+   * before it is first shaped; `shape` on an unprepared face throws a clear error naming
+   * the face rather than substituting a face or returning wrong metrics.
+   */
+  function faceFor(faceId: FaceId): FaceEntry {
+    const cached = faceCache.get(faceId);
+    if (cached) return cached;
+
+    const row = requireFaceRow(faceId);
+
+    const bytes = deps.faceBytes(faceId);
+    if (!(bytes instanceof Uint8Array)) {
+      throw new TypeError(
+        `harfbuzz: face ${faceId} is not prepared — Shaper.shape is synchronous (spec 02 §5.2). ` +
+          `Call and await shaper.prepareFace(${JSON.stringify(faceId)}) before shaping this face.`,
+      );
+    }
+
+    const entry = buildFaceEntry(faceId, row, bytes);
     faceCache.set(faceId, entry);
     return entry;
+  }
+
+  /**
+   * Spec 02 §5.2 (amendment): resolves `faceId`'s bytes (awaiting `deps.faceBytes` when
+   * it is asynchronous) and builds its `hb.Face`/`hb.Font` ahead of a later synchronous
+   * `shape()` call. Idempotent — a face already cached resolves immediately without
+   * re-fetching or re-verifying its bytes — and concurrent calls for the same
+   * not-yet-cached face share one in-flight build rather than racing to build it twice.
+   */
+  async function prepareFace(faceId: FaceId): Promise<void> {
+    if (faceCache.has(faceId)) return;
+
+    const existing = pendingFaces.get(faceId);
+    if (existing) return existing;
+
+    const row = requireFaceRow(faceId);
+    const promise = (async () => {
+      try {
+        const bytes = await deps.faceBytes(faceId);
+        const entry = buildFaceEntry(faceId, row, bytes);
+        faceCache.set(faceId, entry);
+      } finally {
+        pendingFaces.delete(faceId);
+      }
+    })();
+    pendingFaces.set(faceId, promise);
+    return promise;
   }
 
   function runShape(input: ShapeInput): ShapeOutput {
@@ -169,5 +245,6 @@ export async function createHarfBuzzShaper(deps: HarfBuzzDeps): Promise<Shaper> 
       }
       return result;
     },
+    prepareFace,
   };
 }

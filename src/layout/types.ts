@@ -70,7 +70,13 @@ export interface FontRegistry {
   registerCustom(familyId: FontFamilyId, faces: FontFaceMetrics[]): void;
 }
 
-/** Spec 02 §5.2, given in full. */
+/**
+ * Spec 02 §5.2, given in full (amended to add `prepareFace`: `shape` is synchronous, so
+ * a host whose font source is asynchronous — a service-worker cache on the web, a
+ * bundle read on a phone — must resolve a face's bytes ahead of time. `prepareFace` is
+ * the sanctioned way to do that; `shape` on a face that was never prepared throws
+ * rather than substituting a face or returning wrong metrics.
+ */
 export interface Shaper {
   readonly version: string;
   shape(input: { faceId: FaceId; text: string; script: string; direction: 'ltr' | 'rtl'; language: string; sizeEmu: number }): {
@@ -79,6 +85,8 @@ export interface Shaper {
     advancesEmu: Int32Array;
     offsetsEmu: Int32Array;
   };
+  /** Resolve the face's bytes before shaping with it (spec 02 §5.2). */
+  prepareFace(faceId: FaceId): Promise<void>;
 }
 
 /** Placeholder: §6 owns the full shape ("UCD tables + lazily loaded dictionaries"). */

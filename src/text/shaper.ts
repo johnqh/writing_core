@@ -22,4 +22,10 @@ export const nullShaper: Shaper = {
         'layout engine\'s responsibility, not this placeholder\'s.',
     );
   },
+  prepareFace(): never {
+    throw new Error(
+      'nullShaper: no Shaper configured. Production code must supply a real shaper ' +
+        '(createHarfBuzzShaper, spec 02 §5.2) before preparing a face.',
+    );
+  },
 };
