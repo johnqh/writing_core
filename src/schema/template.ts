@@ -242,7 +242,7 @@ export const SmartTypeSeed = z.object({
 export type SmartTypeSeed = z.infer<typeof SmartTypeSeed>;
 
 export const RevisionColorSeed = z.object({
-  key: z.string(), nameKey: I18nKey, color: HexColor, pageColor: HexColor, mark: z.string().max(2),
+  key: z.string().min(1), nameKey: I18nKey, color: HexColor, pageColor: HexColor, mark: z.string().max(2),
 });
 export type RevisionColorSeed = z.infer<typeof RevisionColorSeed>;
 
@@ -250,7 +250,7 @@ export const TagTextStyle = z.object({ bold: z.boolean(), underline: z.boolean()
 export type TagTextStyle = z.infer<typeof TagTextStyle>;
 
 export const TagCategorySeed = z.object({
-  key: z.string(),
+  key: z.string().min(1),
   nameKey: I18nKey,
   color: HexColor,
   entityKind: z.enum(ENTITY_KINDS),
@@ -261,11 +261,11 @@ export const TagCategorySeed = z.object({
 });
 export type TagCategorySeed = z.infer<typeof TagCategorySeed>;
 
-export const NoteTypeSeed = z.object({ key: z.string(), nameKey: I18nKey, color: HexColor, marker: z.string().max(2) });
+export const NoteTypeSeed = z.object({ key: z.string().min(1), nameKey: I18nKey, color: HexColor, marker: z.string().max(2) });
 export type NoteTypeSeed = z.infer<typeof NoteTypeSeed>;
 
 export const TraitDefSeed = z.object({
-  key: z.string(), nameKey: I18nKey, type: z.enum(['text', 'choice', 'number']), options: z.array(z.string()),
+  key: z.string().min(1), nameKey: I18nKey, type: z.enum(['text', 'choice', 'number']), options: z.array(z.string()),
 });
 export type TraitDefSeed = z.infer<typeof TraitDefSeed>;
 

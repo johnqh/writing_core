@@ -40,9 +40,15 @@ export const DEFAULT_TABLE_READ: TableReadJSON = {
   defaultVoice: { platformVoiceId: null, rate: 1, pitch: 1, volume: 1 },
 };
 
+/**
+ * `revisionColors[].key`, `tagCategories[].key`, `noteTypes[].key` and `traitDefs[].key` are all
+ * `.min(1)` in the schema, so an empty key cannot reach here from a validated template — but this
+ * is also called on hand-built seeds in tests and importers, where `spaced[0]!.toUpperCase()` on
+ * an empty string threw.
+ */
 export function titleFromKey(key: string): string {
   const spaced = key.replace(/([a-z0-9])([A-Z])/g, '$1 $2');
-  return spaced[0]!.toUpperCase() + spaced.slice(1);
+  return spaced.length === 0 ? '' : spaced[0]!.toUpperCase() + spaced.slice(1);
 }
 
 const KIND_BY_CATEGORY: Partial<Record<TemplateJSON['category'], DocumentKind>> = { treatment: 'treatment', outline: 'outline', prose: 'other', letter: 'other' };

@@ -58,6 +58,20 @@ describe('openDocument elements', () => {
     expect(model.element(a.get('id') as never)!.role).toBe('shot');
   });
 
+  it('hashes an element whose `dual` record is malformed instead of crashing on a partner lookup', () => {
+    const { doc, h, a } = setup();
+    const model = openDocument(doc, deps);
+    // I7's own subject: a `dual` with no group. The partner search used to treat every element
+    // WITHOUT a dual as a member of the group and then dereference `e.dual.side` on null.
+    a.set('dual', { side: 'left' });
+    expect(() => model.elementContentHash(a.get('id') as never)).not.toThrow();
+    // A well-formed pair still hashes with its partner.
+    h.set('dual', { group: 'dd_01ARYZ6S410000000000000000', side: 'left' });
+    const other = doc.getMap('elements');
+    expect(other.size).toBeGreaterThan(0);
+    expect(() => model.elementContentHash(h.get('id') as never)).not.toThrow();
+  });
+
   it('bumps textVersion when the whole `text` key is replaced, not only when the Y.Text is edited', () => {
     const { doc, a } = setup();
     const model = openDocument(doc, deps);

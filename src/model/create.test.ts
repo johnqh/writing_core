@@ -3,9 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { createSeededIdSource } from '../ids/id-source.js';
 import { isId } from '../ids/ids.js';
 import { DOC_TOP_LEVEL_KEYS } from '../schema/document.js';
+import { NoteTypeSeed, RevisionColorSeed, TagCategorySeed, TraitDefSeed } from '../schema/template.js';
 import { screenplayStandard } from '../templates/builtin/screenplay-standard.js';
 import { verticalDrama } from '../templates/builtin/vertical-drama.js';
-import { createDocument } from './create.js';
+import { createDocument, titleFromKey } from './create.js';
 import { readEmbeddedTemplate } from './embed-template.js';
 
 describe('createDocument', () => {
@@ -57,5 +58,20 @@ describe('createDocument', () => {
     const vd = createDocument({ template: verticalDrama, uid: 'u', ids: createSeededIdSource(6) });
     expect(vd.getMap('settings').get('targetEpisodeSeconds')).toBe(90);
     expect(doc.getMap('settings').get('targetEpisodeSeconds')).toBeNull();
+  });
+});
+
+describe('titleFromKey', () => {
+  it('title-cases a camelCase key and survives an empty one', () => {
+    expect(titleFromKey('productionDraft')).toBe('Production Draft');
+    expect(titleFromKey('blue')).toBe('Blue');
+    // Used to throw on `spaced[0]!.toUpperCase()`.
+    expect(titleFromKey('')).toBe('');
+  });
+  it('is protected upstream too: every seed key a template can carry is non-empty', () => {
+    for (const seed of [RevisionColorSeed, TagCategorySeed, NoteTypeSeed, TraitDefSeed]) {
+      expect(seed.shape.key.safeParse('').success).toBe(false);
+      expect(seed.shape.key.safeParse('blue').success).toBe(true);
+    }
   });
 });

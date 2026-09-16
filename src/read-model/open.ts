@@ -447,10 +447,14 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
     const view = model.element(id);
     if (!view) throw new Error(`unknown element ${id}`);
     let dual: { side: 'left' | 'right'; partnerHash: string } | null = null;
-    if (withDual && view.dual) {
-      const members = model.elements().filter((e) => e.dual?.group === view.dual!.group);
-      const partnerFirst = members.find((e) => e.dual!.side !== view.dual!.side);
-      if (partnerFirst) dual = { side: view.dual.side, partnerHash: elementHash(partnerFirst.id, false) };
+    const own = view.dual;
+    // A malformed `dual` (I7's own subject: the group missing, or the record not an object at all)
+    // must not crash the hash. Comparing `e.dual?.group === own.group` made every element WITHOUT a
+    // dual a "member" as soon as `own.group` was undefined, and the very next line dereferenced
+    // `e.dual.side` on null.
+    if (withDual && own && typeof own.group === 'string' && (own.side === 'left' || own.side === 'right')) {
+      const partnerFirst = model.elements().find((e) => e.dual !== null && e.dual.group === own.group && e.dual.side !== own.side);
+      if (partnerFirst) dual = { side: own.side, partnerHash: elementHash(partnerFirst.id, false) };
     }
     return elementContentHash({ role: view.role ?? 'normal', style: view.style, text: view.text, dual });
   }

@@ -9,7 +9,7 @@ import { writeEntity } from '../model/json.js';
 import type { StyleRole } from '../schema/vocab.js';
 import { screenplayStandard } from '../templates/builtin/screenplay-standard.js';
 import { textOutline } from '../templates/builtin/text-outline.js';
-import { formatNumberLabel } from './number-label.js';
+import { formatNumberLabel, letters } from './number-label.js';
 import { computeOutlineTree, computeScenes, type StructureInput } from './structure.js';
 import { openDocument } from './open.js';
 import type { ElementView } from './views.js';
@@ -298,6 +298,13 @@ describe('dialogue blocks and outline', () => {
     expect(formatNumberLabel({ base: 2, prefix: [{ kind: 'letters', value: [2] }], suffix: [] })).toBe('B2');
     expect(formatNumberLabel({ base: 10, prefix: [], suffix: [{ kind: 'letters', value: [1] }, { kind: 'digits', value: 3 }] })).toBe('10A3');
     expect(formatNumberLabel({ base: 1, prefix: [], suffix: [], custom: '1-X' })).toBe('1-X');
+  });
+
+  it('drops out-of-range letter indices instead of throwing on ALPHABET[-1]', () => {
+    expect(letters([0])).toBe('');
+    expect(letters([-3, 2])).toBe('B');
+    expect(letters([27])).toBe('AA');
+    expect(formatNumberLabel({ base: 4, prefix: [], suffix: [{ kind: 'letters', value: [0] }] })).toBe('4');
   });
 });
 
