@@ -258,63 +258,60 @@ describe('bidiLevels/reorderVisual — UAX #9 official conformance (BidiTest.txt
     expect(expanded.length).toBe(770241);
   });
 
-  // Explicit, generous timeout (perf round, 2026-09-16 — perf-suite-brief.md item 4): this one
-  // assertion walks all 770 241 cases through the full algorithm. Idle on this repo it measures
-  // ~2-3s; under heavy synthetic CPU contention (dozens of competing processes oversubscribing
-  // an 8-core machine, see perf-suite-report.md for the exact setup) the same run measured up
-  // to ~11.5s, and it is exactly this test that timed out at Vitest's plain 5000ms default under
-  // the load this round exists to fix. 60000ms is over 5x the worst contended measurement taken
-  // for this round — sized with headroom over a measured worst case, not tuned to just clear an
-  // idle run.
-  it(
-    'runs every expanded case with zero mismatches',
-    () => {
-      interface Mismatch {
-        line: number;
-        override: string;
-        kind: 'levels' | 'reorder';
-        expected: unknown;
-        actual: unknown;
+  // This one assertion walks all 770 241 cases through the full algorithm. Idle on this repo it
+  // measures ~2-3s; under heavy synthetic CPU contention (dozens of competing processes
+  // oversubscribing an 8-core machine, repeated across five separate runs) it measured up to
+  // ~23s, and it is exactly this test that timed out at Vitest's plain 5000ms default under the
+  // load perf round 1 existed to fix. Perf round 2 (2026-09-16 — perf-suite-report.md "Round 2")
+  // raised `testTimeout` globally to 90000ms in vitest.config.ts (~3.9x headroom over that same
+  // worst-measured case) once this file's own per-test override turned out to be one of
+  // three-then-four instances of the same suite-wide problem — no per-test override here any
+  // more, the global default covers it.
+  it('runs every expanded case with zero mismatches', () => {
+    interface Mismatch {
+      line: number;
+      override: string;
+      kind: 'levels' | 'reorder';
+      expected: unknown;
+      actual: unknown;
+    }
+    const mismatches: Mismatch[] = [];
+    let checked = 0;
+    for (const c of expanded) {
+      checked++;
+      const paragraphLevel = resolveParagraphLevel(c.text, c.override, 0);
+      const levels = bidiLevels(c.text, paragraphLevel);
+      if (!levelsMatch(c.levels, levels)) {
+        mismatches.push({ line: c.line, override: c.override, kind: 'levels', expected: c.levels, actual: materializeLevels(c.levels, levels) });
+        continue;
       }
-      const mismatches: Mismatch[] = [];
-      let checked = 0;
-      for (const c of expanded) {
-        checked++;
-        const paragraphLevel = resolveParagraphLevel(c.text, c.override, 0);
-        const levels = bidiLevels(c.text, paragraphLevel);
-        if (!levelsMatch(c.levels, levels)) {
-          mismatches.push({ line: c.line, override: c.override, kind: 'levels', expected: c.levels, actual: materializeLevels(c.levels, levels) });
-          continue;
-        }
-        // Reorder: 'x'-level (X9-removed) positions are *omitted* from the reordering
-        // computation entirely (BidiTest.txt's own "Usage" note: "these are omitted from the
-        // reordered output" — not merely filtered out of an already-computed full-array
-        // result, which can scramble neighbouring runs; see the task 8 report). Compact the
-        // included positions into their own array, run L2 over that, then map the resulting
-        // compacted-array indices back to original indices for comparison.
-        const includedIndices: number[] = [];
-        for (let k = 0; k < c.levels.length; k++) if (c.levels[k] !== 'x') includedIndices.push(k);
-        const compactedLevels = new Uint8Array(includedIndices.length);
-        for (let k = 0; k < includedIndices.length; k++) compactedLevels[k] = levels[includedIndices[k] as number] ?? 0;
-        const compactedOrder = reorderVisual(compactedLevels, 0, compactedLevels.length);
-        const actualOrder: number[] = new Array(compactedOrder.length);
-        for (let k = 0; k < compactedOrder.length; k++) actualOrder[k] = includedIndices[compactedOrder[k] as number] as number;
-        if (!orderMatch(actualOrder, c.reorder)) {
-          mismatches.push({ line: c.line, override: c.override, kind: 'reorder', expected: c.reorder, actual: actualOrder });
-        }
+      // Reorder: 'x'-level (X9-removed) positions are *omitted* from the reordering
+      // computation entirely (BidiTest.txt's own "Usage" note: "these are omitted from the
+      // reordered output" — not merely filtered out of an already-computed full-array
+      // result, which can scramble neighbouring runs; see the task 8 report). Compact the
+      // included positions into their own array, run L2 over that, then map the resulting
+      // compacted-array indices back to original indices for comparison.
+      const includedIndices: number[] = [];
+      for (let k = 0; k < c.levels.length; k++) if (c.levels[k] !== 'x') includedIndices.push(k);
+      const compactedLevels = new Uint8Array(includedIndices.length);
+      for (let k = 0; k < includedIndices.length; k++) compactedLevels[k] = levels[includedIndices[k] as number] ?? 0;
+      const compactedOrder = reorderVisual(compactedLevels, 0, compactedLevels.length);
+      const actualOrder: number[] = new Array(compactedOrder.length);
+      for (let k = 0; k < compactedOrder.length; k++) actualOrder[k] = includedIndices[compactedOrder[k] as number] as number;
+      if (!orderMatch(actualOrder, c.reorder)) {
+        mismatches.push({ line: c.line, override: c.override, kind: 'reorder', expected: c.reorder, actual: actualOrder });
       }
-      expect(checked).toBe(expanded.length);
-      if (mismatches.length > 0) {
-        const preview = mismatches
-          .slice(0, 10)
-          .map((m) => `line ${m.line} (${m.override}, ${m.kind}): expected ${JSON.stringify(m.expected)}, got ${JSON.stringify(m.actual)}`)
-          .join('\n');
-        throw new Error(`${mismatches.length}/${expanded.length} BidiTest.txt cases failed. First 10:\n${preview}`);
-      }
-      expect(mismatches).toEqual([]);
-    },
-    60000,
-  );
+    }
+    expect(checked).toBe(expanded.length);
+    if (mismatches.length > 0) {
+      const preview = mismatches
+        .slice(0, 10)
+        .map((m) => `line ${m.line} (${m.override}, ${m.kind}): expected ${JSON.stringify(m.expected)}, got ${JSON.stringify(m.actual)}`)
+        .join('\n');
+      throw new Error(`${mismatches.length}/${expanded.length} BidiTest.txt cases failed. First 10:\n${preview}`);
+    }
+    expect(mismatches).toEqual([]);
+  });
 });
 
 // ─── BidiCharacterTest.txt (literal code-point form) ───────────────────────────────────────

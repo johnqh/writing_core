@@ -28,27 +28,22 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 // describe below (deliberately placed here, before the laziness describe's `vi.resetModules()`
 // calls, so it shares this same module instance and its warm cache instead of forcing a second
 // from-scratch decode of the real Thai DAWG — see that describe's own comment), gets a cache
-// hit. What *is* real and irreducible is the first-touch cost itself, which is why those two
-// tests (not the others) carry an explicit, generous timeout — see each test.
+// hit. What *is* real and irreducible is the first-touch cost itself: measured up to ~0.8s
+// ("segments...") and ~1.7s ("loads Lao, Khmer and Myanmar too") locally under heavy synthetic
+// CPU contention — well inside `vitest.config.ts`'s global 90000ms `testTimeout` (perf round 2,
+// 2026-09-16 — see perf-suite-report.md "Round 2"), which is why these two no longer carry
+// their own per-test override: one obvious mechanism, not two.
 describe('loadDictionary — real Thai dictionary (spec 02 §6.4)', () => {
-  it(
-    "segments a known two-word Thai string at the dictionary's own boundary",
-    async () => {
-      const { loadDictionary } = await import('./dict.js');
-      const dict = await loadDictionary('th');
-      expect(dict).not.toBeNull();
-      // "กงกอน" and "กงพัด" are each their own entries in ICU's thaidict.txt; their
-      // concatenation is not itself a longer entry, so longest-match must split exactly
-      // between them — verified against the real, generated dict-th.ts payload, not invented.
-      const combined = 'กงกอน' + 'กงพัด';
-      expect(dict!.segment(combined)).toEqual([5]);
-    },
-    // This is the FIRST test in the file to touch a dictionary payload module at all, so it pays
-    // the one-time cost of transforming + decoding dict-th.ts (measured up to ~0.8s locally
-    // under heavy synthetic CPU contention — see perf-suite-report.md). 20000ms is a wide
-    // margin over that, not a value tuned to just clear an idle run.
-    20000,
-  );
+  it("segments a known two-word Thai string at the dictionary's own boundary", async () => {
+    const { loadDictionary } = await import('./dict.js');
+    const dict = await loadDictionary('th');
+    expect(dict).not.toBeNull();
+    // "กงกอน" and "กงพัด" are each their own entries in ICU's thaidict.txt; their
+    // concatenation is not itself a longer entry, so longest-match must split exactly
+    // between them — verified against the real, generated dict-th.ts payload, not invented.
+    const combined = 'กงกอน' + 'กงพัด';
+    expect(dict!.segment(combined)).toEqual([5]);
+  });
 
   it('falls back to grapheme-cluster boundaries for a sequence outside the alphabet (spec 02 §6.4)', async () => {
     const { loadDictionary } = await import('./dict.js');
@@ -67,25 +62,15 @@ describe('loadDictionary — real Thai dictionary (spec 02 §6.4)', () => {
     expect(a).toBe(b);
   });
 
-  it(
-    'loads Lao, Khmer and Myanmar too (sanity — not just Thai)',
-    async () => {
-      const { loadDictionary } = await import('./dict.js');
-      for (const lang of ['lo', 'km', 'my']) {
-        const dict = await loadDictionary(lang);
-        expect(dict, lang).not.toBeNull();
-        // Any dictionary can at least fall back to grapheme clusters on unknown input.
-        expect(dict!.segment('xyz')).toEqual([1, 2]);
-      }
-    },
-    // Three first-touch loads (Lao, Khmer, Myanmar) in one test — the heaviest test in this
-    // file. Measured up to ~1.7s locally under heavy synthetic CPU contention (dozens of
-    // competing processes oversubscribing an 8-core machine — see perf-suite-report.md for the
-    // exact setup); this is the test the brief's dict.test.ts timeout was actually observed on.
-    // 20000ms is well over 10x that worst measurement, sized with headroom rather than tuned to
-    // an idle run.
-    20000,
-  );
+  it('loads Lao, Khmer and Myanmar too (sanity — not just Thai)', async () => {
+    const { loadDictionary } = await import('./dict.js');
+    for (const lang of ['lo', 'km', 'my']) {
+      const dict = await loadDictionary(lang);
+      expect(dict, lang).not.toBeNull();
+      // Any dictionary can at least fall back to grapheme clusters on unknown input.
+      expect(dict!.segment('xyz')).toEqual([1, 2]);
+    }
+  });
 });
 
 // ─── Regression proof: emptying the Thai DAWG falls back to per-cluster breaks ─────────
