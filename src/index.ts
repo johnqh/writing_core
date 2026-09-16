@@ -87,3 +87,6 @@ export { queryLetter } from './templates/builtin/query-letter.js';
 export { verticalDrama } from './templates/builtin/vertical-drama.js';
 export * from './templates/locale.js';
 export * from './templates/catalogue.js';
+
+// ─── Undo ───────────────────────────────────────────────────────────────────
+export * from './undo/undo-manager.js';
