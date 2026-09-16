@@ -135,6 +135,20 @@ describe('entity commands', () => {
     const meta = (h.doc.getMap('elements').get(a!) as Y.Map<unknown>).get('meta') as { editedAt: number; editedBy: string };
     expect(meta.editedAt).toBe(h.now());
   });
+
+  // Fix round 2 (M1 Task 28 re-review), item 2: a document created before entityTombstones
+  // existed (or by an older build) has no such key. entity.create and entity.delete both write
+  // to it, so — unlike harvest.ts's read-only defensiveness — they must lazily create the map
+  // rather than throw on a plain `.set`/`.delete` against `undefined`.
+  it('entity.create and entity.delete lazily create smartType.entityTombstones when it is missing entirely', () => {
+    const h = commandHarness();
+    h.doc.getMap('smartType').delete('entityTombstones');
+    expect(h.run('entity.create', { kind: 'character', name: 'MAYA' })).toMatchObject({ ok: true });
+    const maya = h.model.resolveEntity('character', 'MAYA')!.id;
+    expect(h.doc.getMap('smartType').has('entityTombstones')).toBe(true);
+    expect(h.run('entity.delete', { entityId: maya })).toMatchObject({ ok: true });
+    expect((h.doc.getMap('smartType').get('entityTombstones') as Y.Map<unknown>).has('character:maya')).toBe(true);
+  });
 });
 
 describe('SmartType list commands', () => {

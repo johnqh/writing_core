@@ -18,8 +18,17 @@ type YMap = Y.Map<unknown>;
 const spec = <P>(id: string, params: z.ZodType<P>, run: (ctx: CommandContext, p: P) => CommandResult) => defineCommand(id, params, run, { scope: 'entities' });
 const entityMap = (ctx: CommandContext, id: string) => ctx.doc.getMap<unknown>('entities').get(id) as YMap | undefined;
 const TEXT_FIELDS = new Set(['bio', 'physicalDescription', 'personality', 'arc', 'setDescription']);
-/** Entity-kind tombstones (spec 01 §5.20): `kind:nameKey` pairs the user explicitly deleted. */
-const tombstones = (ctx: CommandContext) => ctx.doc.getMap<unknown>('smartType').get('entityTombstones') as Y.Map<true>;
+/**
+ * Entity-kind tombstones (spec 01 §5.20): `kind:nameKey` pairs the user explicitly deleted.
+ * A document written before this map existed (older build, or one restored from a DocumentJSON
+ * that predates it being mirrored there) has no `entityTombstones` key yet — create it lazily
+ * instead of throwing, exactly like a missing collection is created on first touch elsewhere
+ * (see src/model/create.ts's "Empty collections" comment).
+ */
+const tombstones = (ctx: CommandContext): Y.Map<true> => {
+  const st = ctx.doc.getMap<unknown>('smartType');
+  return (st.get('entityTombstones') as Y.Map<true> | undefined) ?? (st.set('entityTombstones', new Y.Map<true>()) as Y.Map<true>);
+};
 const tombstoneKey = (kind: string, nameKey: string) => `${kind}:${nameKey}`;
 
 function findByKey(ctx: CommandContext, kind: string, key: string): string | null {

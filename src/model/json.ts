@@ -292,6 +292,7 @@ export function documentToJSON(doc: Y.Doc): DocumentJSON {
       ...(smartType as Pick<DocumentJSON['smartType'], (typeof STORED_SMARTTYPE_LISTS)[number]>),
       introSeparator: (st.get('introSeparator') as string) ?? ' ', timeSeparator: (st.get('timeSeparator') as string) ?? ' - ',
       sortMode: (st.get('sortMode') as never) ?? 'alphabetical', dismissed: keysOf(st.get('dismissed') as YMap),
+      entityTombstones: keysOf(st.get('entityTombstones') as YMap),
     },
     spelling: { language: (spelling.get('language') as string) ?? 'en', words: keysOf(spelling.get('words') as YMap), ignored: keysOf(spelling.get('ignored') as YMap) },
     tableRead: {
@@ -383,6 +384,7 @@ export function materializeDocument(input: DocumentJSON, options: { preserveIds:
     st.set('timeSeparator', json.smartType.timeSeparator);
     st.set('sortMode', json.smartType.sortMode);
     setKeyMap(st, 'dismissed', json.smartType.dismissed);
+    setKeyMap(st, 'entityTombstones', json.smartType.entityTombstones);
 
     const spelling = g('spelling');
     spelling.set('language', json.spelling.language);

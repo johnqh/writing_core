@@ -245,6 +245,8 @@ export const SmartTypeJSON = z.object({
   sceneIntros: z.array(SmartTypeEntryJSON), times: z.array(SmartTypeEntryJSON), extensions: z.array(SmartTypeEntryJSON),
   transitions: z.array(SmartTypeEntryJSON), soundCues: z.array(SmartTypeEntryJSON),
   introSeparator: z.string(), timeSeparator: z.string(), sortMode: z.enum(['alphabetical', 'custom', 'frequency']), dismissed: z.array(z.string()),
+  /** `kind:nameKey` pairs an explicit entity.delete tombstoned, so harvesting never recreates them (spec 01 §5.20/§7.2). */
+  entityTombstones: z.array(z.string()),
 });
 export type SmartTypeJSON = z.infer<typeof SmartTypeJSON>;
 

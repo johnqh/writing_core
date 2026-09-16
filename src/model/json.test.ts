@@ -58,4 +58,15 @@ describe('documentFromJSON', () => {
     Y.applyUpdate(other, update);
     expect(documentToJSON(other).elements.map((e) => e.text.plain)).toEqual(['INT. DINER - NIGHT', 'MAYA waits.']);
   });
+
+  // Fix round 2 (M1 Task 28 re-review): smartType.entityTombstones was document state that never
+  // made it into DocumentJSON, so a document that went through documentToJSON -> materializeDocument
+  // lost its tombstones and the map key came back `undefined` instead of empty.
+  it('round-trips smartType.entityTombstones like dismissed', () => {
+    const json = minimalDocumentJSON();
+    json.smartType.entityTombstones = ['character:maya'];
+    const doc = materializeDocument(json, { preserveIds: true, ids: ids() });
+    expect((doc.getMap('smartType').get('entityTombstones') as Y.Map<unknown>).has('character:maya')).toBe(true);
+    expect(documentToJSON(doc).smartType.entityTombstones).toEqual(['character:maya']);
+  });
 });

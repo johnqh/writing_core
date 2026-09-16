@@ -379,7 +379,7 @@ export function richDocumentJSON(): DocumentJSON {
         { key: 'sfx door', text: 'SFX: DOOR', pos: stPos1, origin: 'harvested', count: 3 },
         { key: 'sfx phone', text: 'SFX: PHONE', pos: stPos2, origin: 'manual', count: 1 },
       ],
-      introSeparator: ' ', timeSeparator: ' - ', sortMode: 'alphabetical', dismissed: ['fade in.'],
+      introSeparator: ' ', timeSeparator: ' - ', sortMode: 'alphabetical', dismissed: ['fade in.'], entityTombstones: ['character:old name'],
     },
     spelling: { language: 'en', words: ['maya'], ignored: ['diner'] },
     tableRead: {

@@ -30,7 +30,10 @@ export function harvest(ctx: CommandContext, options: HarvestOptions = {}): Harv
   const language = documentLanguage(doc);
   const st = doc.getMap<unknown>('smartType');
   const dismissed = st.get('dismissed') as YMap;
-  const tombstones = st.get('entityTombstones') as YMap;
+  // A document written before entityTombstones existed (an older build, or one that round-tripped
+  // through documentToJSON before that map was mirrored into DocumentJSON) has no such key here —
+  // treat a missing map as "nothing tombstoned" rather than throwing.
+  const tombstones = st.get('entityTombstones') as YMap | undefined;
   const report: HarvestReport = { createdEntities: [], listCounts: {} };
   const counts: Record<StoredSmartTypeList, Map<string, { text: string; count: number }>> = {
     sceneIntros: new Map(), times: new Map(), extensions: new Map(), transitions: new Map(), soundCues: new Map(),
@@ -56,7 +59,7 @@ export function harvest(ctx: CommandContext, options: HarvestOptions = {}): Harv
     if (!kinds.includes(kind)) return null;
     // The user explicitly deleted this (kind, nameKey) — don't let a later debounced harvest
     // silently mint it back (spec 01 §5.20 entityTombstones); entity.create clears the tombstone.
-    if (tombstones.has(`${kind}:${key}`)) return null;
+    if (tombstones?.has(`${kind}:${key}`)) return null;
     const id = newId('ent', ctx.ids);
     const displayName = kind === 'character' ? stripExtension(clean).name.replace(/[.,:;]+$/, '').toLocaleUpperCase(language) : clean;
     writeEntity(doc.getMap('entities'), {

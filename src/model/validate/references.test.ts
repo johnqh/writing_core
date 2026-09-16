@@ -190,4 +190,17 @@ describe('reference invariants', () => {
     expect((doc.getMap('entities').get(b) as Y.Map<unknown>).get('mergedInto')).toBeNull();
     expect(codes(doc)).toEqual([]);
   });
+
+  // Fix round 2 (M1 Task 28 re-review), item 5: validateDocument had no check for a stale
+  // entityTombstones entry. Reported only, never auto-repaired — see the fix-round-2 report for why.
+  it('I21 flags an entityTombstones key with an unrecognized kind, without repairing it', () => {
+    const { doc } = docWith(['st_action']);
+    const st = doc.getMap<unknown>('smartType').get('entityTombstones') as Y.Map<true>;
+    st.set('character:maya', true);
+    st.set('notAnEntityKind:whatever', true);
+    const v = validateDocument(doc, { only: ['I21'] });
+    expect(v.issues).toMatchObject([{ code: 'I21', severity: 'warning', autoRepair: false, ids: ['notAnEntityKind:whatever'] }]);
+    expect(v.repair()).toBe(0);
+    expect(st.has('notAnEntityKind:whatever')).toBe(true);
+  });
 });

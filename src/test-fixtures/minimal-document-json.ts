@@ -45,7 +45,7 @@ export function minimalDocumentJSON(): DocumentJSON {
     writers: [],
     production: { scenesLocked: false, scenesLockedAt: null, lockedStyles: [], pagesLocked: false, pagesLockedAt: null, pageLocks: [] },
     beats: [], beatLinks: [], plotColumns: [], storylines: [], lanes: [], bin: [], shots: [], bookmarks: [], macros: [],
-    smartType: { sceneIntros: [], times: [], extensions: [], transitions: [], soundCues: [], introSeparator: ' ', timeSeparator: ' - ', sortMode: 'alphabetical', dismissed: [] },
+    smartType: { sceneIntros: [], times: [], extensions: [], transitions: [], soundCues: [], introSeparator: ' ', timeSeparator: ' - ', sortMode: 'alphabetical', dismissed: [], entityTombstones: [] },
     spelling: { language: 'en', words: [], ignored: [] },
     tableRead: { narrator: { platformVoiceId: null, rate: 1, pitch: 1, volume: 1 }, narratorStyleIds: [], dialogueOnly: false, speakCharacterNames: true, defaultVoice: { platformVoiceId: null, rate: 1, pitch: 1, volume: 1 } },
     settings: {

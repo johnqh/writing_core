@@ -1,7 +1,7 @@
 // src/model/validate/references.ts
 import * as Y from 'yjs';
 import type { StyleId } from '../../ids/ids.js';
-import { SCENE_ROLES, SPEAKER_ROLES, SPEECH_MEMBER_ROLES } from '../../schema/vocab.js';
+import { ENTITY_KINDS, SCENE_ROLES, SPEAKER_ROLES, SPEECH_MEMBER_ROLES } from '../../schema/vocab.js';
 import { resolveStyle } from '../../template/resolve.js';
 import { decodeRelativePosition, encodeRelativePosition } from '../portable-pos.js';
 import { type YMap, has, records } from './helpers.js';
@@ -276,4 +276,19 @@ const I17: Invariant = {
   },
 };
 
-export const REFERENCE_INVARIANTS: readonly Invariant[] = [I7, I8, I9, I10, I11, I12, I13, I15, I16, I17];
+const I21: Invariant = {
+  code: 'I21', severity: 'warning', autoRepair: false,
+  check(ctx) {
+    const tombstones = ctx.doc.getMap<unknown>('smartType').get('entityTombstones');
+    if (!(tombstones instanceof Y.Map)) return [];
+    const out: Issue[] = [];
+    for (const key of tombstones.keys()) {
+      const sep = key.indexOf(':');
+      const kind = sep < 0 ? key : key.slice(0, sep);
+      if (!(ENTITY_KINDS as readonly string[]).includes(kind)) out.push(issue(I21, `entityTombstones key ${key} has unknown kind ${kind}`, [key]));
+    }
+    return out;
+  },
+};
+
+export const REFERENCE_INVARIANTS: readonly Invariant[] = [I7, I8, I9, I10, I11, I12, I13, I15, I16, I17, I21];
