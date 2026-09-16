@@ -1,5 +1,6 @@
 import * as Y from 'yjs';
 import type { DocId, ElementId, EntityId, StyleId } from '../ids/ids.js';
+import { type ContentHash, elementContentHash, entityContentHash, sceneContentHash } from '../hash/content.js';
 import { readEmbeddedTemplate } from '../model/embed-template.js';
 import { documentToJSON, readEntity, readNote, readTextKeyed } from '../model/json.js';
 import { comparePositions } from '../model/positions.js';
@@ -54,6 +55,9 @@ export interface DocumentModel {
   entities(filter?: { kind?: EntityKind; includeHidden?: boolean }): readonly EntityView[];
   entity(id: EntityId): EntityView | undefined;
   resolveEntity(kind: EntityKind, name: string): EntityView | undefined;
+  elementContentHash(elementId: ElementId): ContentHash;
+  sceneContentHash(sceneId: ElementId): ContentHash;
+  entityContentHash(entityId: EntityId): ContentHash;
   occurrences(entityId: EntityId): readonly OccurrenceView[];
   tags(filter?: { elementId?: ElementId; categoryId?: string; entityId?: EntityId }): readonly TagView[];
   tagCategories(): readonly TagCategoryView[];
@@ -403,6 +407,26 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
     return target ? toView(target) : undefined;
   };
 
+  const hashMemo = new Map<string, { key: string; hash: ContentHash }>();
+  function memoHash(id: string, key: string, compute: () => ContentHash): ContentHash {
+    const hit = hashMemo.get(id);
+    if (hit && hit.key === key) return hit.hash;
+    const hash = compute();
+    hashMemo.set(id, { key, hash });
+    return hash;
+  }
+  function elementHash(id: ElementId, withDual: boolean): ContentHash {
+    const view = model.element(id);
+    if (!view) throw new Error(`unknown element ${id}`);
+    let dual: { side: 'left' | 'right'; partnerHash: string } | null = null;
+    if (withDual && view.dual) {
+      const members = model.elements().filter((e) => e.dual?.group === view.dual!.group);
+      const partnerFirst = members.find((e) => e.dual!.side !== view.dual!.side);
+      if (partnerFirst) dual = { side: view.dual.side, partnerHash: elementHash(partnerFirst.id, false) };
+    }
+    return elementContentHash({ role: view.role ?? 'normal', style: view.style, text: view.text, dual });
+  }
+
   const model: DocumentModel = {
     doc,
     docId,
@@ -499,6 +523,21 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
     resolveEntity(kind, name) {
       const found = entityLookup(kind, name);
       return found ? model.entity(found) : undefined;
+    },
+    elementContentHash: (id) => memoHash(id, `${model.textVersion(id)}:${model.attrsVersion(id)}:${model.template().revision}:${model.element(id)?.dual ? model.elements().map((e) => `${e.id}.${model.textVersion(e.id)}.${model.attrsVersion(e.id)}`).join(',') : ''}`, () => elementHash(id, true)),
+    sceneContentHash(sceneId) {
+      const scene = model.scene(sceneId);
+      if (!scene) throw new Error(`unknown scene ${sceneId}`);
+      const key = `${scene.omitted}:${scene.elementIds.map((id) => `${id}.${model.textVersion(id)}.${model.attrsVersion(id)}`).join(',')}:${model.template().revision}`;
+      return memoHash(`scene:${sceneId}`, key, () => sceneContentHash({
+        omitted: scene.omitted,
+        elements: scene.elementIds.map((id) => ({ hash: model.elementContentHash(id), role: model.element(id)!.role, printable: model.resolveStyle(id).printable })),
+      }));
+    },
+    entityContentHash(entityId) {
+      const target = model.entity(entityId);
+      if (!target) throw new Error(`unknown entity ${entityId}`);
+      return entityContentHash(target);
     },
     occurrences: (entityId) => occurrenceMap().get(entityId) ?? [],
     tags(filter = {}) {

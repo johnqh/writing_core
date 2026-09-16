@@ -1,0 +1,272 @@
+[
+  {
+    "name": "plain action",
+    "fn": "element",
+    "input": {
+      "role": "action",
+      "style": "st_action",
+      "text": {
+        "plain": "Maya waits.",
+        "runs": [
+          {
+            "text": "Maya waits.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "dual": null
+    },
+    "hash": "v1:818c1ea4fe9e192dd75e566057453a5df62221836d0df70c0b259349c4bb76f2"
+  },
+  {
+    "name": "caps not applied",
+    "fn": "element",
+    "input": {
+      "role": "sceneHeading",
+      "style": "st_scene_heading",
+      "text": {
+        "plain": "int. diner - night",
+        "runs": [
+          {
+            "text": "int. diner - night",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "dual": null
+    },
+    "hash": "v1:6697d53998c381807111953bff2650b2386f0fd9bcb9630c85edad5cfc97f2a9"
+  },
+  {
+    "name": "bold run",
+    "fn": "element",
+    "input": {
+      "role": "action",
+      "style": "st_action",
+      "text": {
+        "plain": "A big deal",
+        "runs": [
+          {
+            "text": "A ",
+            "attrs": {}
+          },
+          {
+            "text": "big",
+            "attrs": {
+              "b": true
+            }
+          },
+          {
+            "text": " deal",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "dual": null
+    },
+    "hash": "v1:cf4ab35d3e11b09ef6cf6c6b74ded947d44ce4950f90a70c6d14e1fd1f7d7418"
+  },
+  {
+    "name": "tracked deletion excluded",
+    "fn": "element",
+    "input": {
+      "role": "dialogue",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "No way",
+        "runs": [
+          {
+            "text": "No ",
+            "attrs": {}
+          },
+          {
+            "text": "way",
+            "attrs": {
+              "del": {
+                "changeId": "chg_1",
+                "by": "u",
+                "at": 1
+              }
+            }
+          }
+        ],
+        "embeds": []
+      },
+      "dual": null
+    },
+    "hash": "v1:18d5af7313693258b9f709e726dae0934c64300f134642decf436b4be82ff53f"
+  },
+  {
+    "name": "custom style id",
+    "fn": "element",
+    "input": {
+      "role": "action",
+      "style": "st_01ARYZ6S410000000000000000",
+      "text": {
+        "plain": "x",
+        "runs": [
+          {
+            "text": "x",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "dual": null
+    },
+    "hash": "v1:26ea7ac9250cf044375605cb66e034ad8ae1d19a9d0999a28b146d6a49014d5a"
+  },
+  {
+    "name": "dual left",
+    "fn": "element",
+    "input": {
+      "role": "character",
+      "style": "st_character",
+      "text": {
+        "plain": "MAYA",
+        "runs": [
+          {
+            "text": "MAYA",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "dual": {
+        "side": "left",
+        "partnerHash": "v1:0000000000000000000000000000000000000000000000000000000000000000"
+      }
+    },
+    "hash": "v1:0ee58f49998aab37cf595b25aadf8e4e24cd9d835ce726d458dc4488f5231b02"
+  },
+  {
+    "name": "unicode NFC",
+    "fn": "element",
+    "input": {
+      "role": "action",
+      "style": "st_action",
+      "text": {
+        "plain": "Café 😀",
+        "runs": [
+          {
+            "text": "Café 😀",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "dual": null
+    },
+    "hash": "v1:ebf663408926bb1c1564261d5792162b9fe71cda59f1c32bc5e3dcc42d9400ee"
+  },
+  {
+    "name": "omitted scene excludes non-printing",
+    "fn": "scene",
+    "input": {
+      "omitted": true,
+      "elements": [
+        {
+          "input": {
+            "role": "sceneHeading",
+            "style": "st_scene_heading",
+            "text": {
+              "plain": "INT. DINER - NIGHT",
+              "runs": [
+                {
+                  "text": "INT. DINER - NIGHT",
+                  "attrs": {}
+                }
+              ],
+              "embeds": []
+            },
+            "dual": null
+          },
+          "printable": true
+        },
+        {
+          "input": {
+            "role": "note",
+            "style": "st_note",
+            "text": {
+              "plain": "cut this?",
+              "runs": [
+                {
+                  "text": "cut this?",
+                  "attrs": {}
+                }
+              ],
+              "embeds": []
+            },
+            "dual": null
+          },
+          "printable": false
+        },
+        {
+          "input": {
+            "role": "action",
+            "style": "st_action",
+            "text": {
+              "plain": "Maya waits.",
+              "runs": [
+                {
+                  "text": "Maya waits.",
+                  "attrs": {}
+                }
+              ],
+              "embeds": []
+            },
+            "dual": null
+          },
+          "printable": true
+        }
+      ]
+    },
+    "hash": "v1:d0693198684cb17ec652d08781fdbb3b31d311f6dde7d9fde63a6c8981e095c0"
+  },
+  {
+    "name": "partial shot range",
+    "fn": "shot",
+    "input": {
+      "elements": [
+        {
+          "role": "action",
+          "style": "st_action",
+          "text": {
+            "plain": "She runs. He waits.",
+            "runs": [
+              {
+                "text": "She runs. He waits.",
+                "attrs": {}
+              }
+            ],
+            "embeds": []
+          },
+          "dual": null
+        },
+        {
+          "role": "dialogue",
+          "style": "st_dialogue",
+          "text": {
+            "plain": "Stop.",
+            "runs": [
+              {
+                "text": "Stop.",
+                "attrs": {}
+              }
+            ],
+            "embeds": []
+          },
+          "dual": null
+        }
+      ],
+      "first": {
+        "from": 10,
+        "to": 19
+      }
+    },
+    "hash": "v1:eda98839f1b5a4f33334adfd4fc367469181b4b0facfdff91c9cc83f22240507"
+  }
+]

@@ -299,3 +299,15 @@ describe('dialogue blocks and outline', () => {
     expect(formatNumberLabel({ base: 1, prefix: [], suffix: [], custom: '1-X' })).toBe('1-X');
   });
 });
+
+describe('content hashes on the model', () => {
+  it('changes when text changes and is stable otherwise', () => {
+    const { model, made, idOf } = script([['st_scene_heading', 'INT. A - DAY'], ['st_action', 'Go.']]);
+    const before = model.sceneContentHash(idOf(0) as never);
+    expect(model.sceneContentHash(idOf(0) as never)).toBe(before);
+    (made[1]!.get('text') as Y.Text).format(0, 3, { hl: '#FFFF00' });
+    expect(model.sceneContentHash(idOf(0) as never)).toBe(before);
+    (made[1]!.get('text') as Y.Text).insert(3, ' Now.');
+    expect(model.sceneContentHash(idOf(0) as never)).not.toBe(before);
+  });
+});

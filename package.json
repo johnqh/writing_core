@@ -21,6 +21,7 @@
     "lint": "eslint src scripts",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.test.json",
     "templates:generate": "bun scripts/generate-builtin-templates.ts",
+    "hash:vectors": "bun scripts/generate-hash-vectors.ts",
     "verify": "bun run typecheck && bun run lint && bun run test && bun run build",
     "prepublishOnly": "bun run clean && bun run verify"
   },
