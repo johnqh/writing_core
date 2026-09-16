@@ -15,8 +15,8 @@
  * (lines 82–90) spells out exactly this: "For each of the paragraph levels in the bitset:
  * find the levels... compare... reorder... compare." Expanded fully (every bit in every
  * line's bitset, not one direction sampled per line) this is **770 241** individual
- * (sequence, direction) cases — computed from the file itself in `expandCases()` below, not
- * hand-counted, and asserted as a sanity floor so a parsing regression can't silently narrow
+ * (sequence, direction) cases — computed from the file itself in `parseAndExpandBidiTest()`
+ * below, not hand-counted, and asserted as a sanity floor so a parsing regression can't silently narrow
  * the suite. At that scale, one `it()` per case (Task 6/7's own per-case granularity) would
  * be ~46x Task 7's 16 672 `it()`s; instead this suite runs every single case inside one `it`,
  * collecting every mismatch (not stopping at the first) and asserting zero — still "every
@@ -69,42 +69,52 @@ const CLASS_SAMPLE: Readonly<Record<string, number>> = {
   PDI: 0x2069,
 };
 
-interface RawCase {
-  line: number;
-  classes: string[];
-  bitset: number;
-  levels: (number | 'x')[]; // last @Levels
-  reorder: number[]; // last @Reorder
+// ─── Fast, allocation-light parsing (perf round, 2026-09-16 — perf-suite-brief.md) ─────────
+//
+// `BidiTest.txt` is 7.9 MB / 490 846 data lines; `BidiCharacterTest.txt` is 6.8 MB / 91 707
+// data lines. The original two-pass implementation (`text.split('\n')`, then `String#split(
+// /\s+/)` per token, then — for BidiTest.txt — a wholly separate `expandCases()` pass building
+// a *second* array of case objects from the first) measured ~3.0s of this file's "import" time
+// even idle (BidiTest.txt parse 865ms + expand 1109ms, BidiCharacterTest.txt parse 1019ms —
+// see perf-suite-report.md), and that cost is paid once per file but scales with CPU
+// contention like everything else, which is what made a loaded machine's import balloon.
+// `parseAndExpandBidiTest` below does the equivalent work in one fused pass with manual
+// line/whitespace scanning (`indexOf('\n')` instead of a whole-file `split('\n')` array;
+// hand-rolled whitespace tokenizing instead of a regex per token) and never builds the
+// intermediate per-line "raw case" array at all. Measured locally this cuts BidiTest.txt's
+// parse+expand from ~2.0s to ~0.29s and BidiCharacterTest.txt's parse from ~1.0s to ~0.16s
+// (~85% reduction each) — same `rawCount`, same `expanded.length`, byte-identical per-case
+// `text`/`levels`/`reorder` output.
+
+const SPACE = 0x20;
+const TAB = 0x09;
+const CR = 0x0d;
+
+function isAsciiSpaceOrTab(code: number): boolean {
+  return code === SPACE || code === TAB;
 }
 
-function parseBidiTest(text: string): RawCase[] {
-  const cases: RawCase[] = [];
-  let levels: (number | 'x')[] = [];
-  let reorder: number[] = [];
-  const lines = text.split('\n');
-  for (let i = 0; i < lines.length; i++) {
-    const raw = lines[i] as string;
-    const trimmed = raw.trim();
-    if (!trimmed) continue;
-    if (trimmed.startsWith('@Levels:')) {
-      const rest = trimmed.slice('@Levels:'.length).trim();
-      levels = rest.length === 0 ? [] : rest.split(/\s+/).map((tok) => (tok === 'x' ? 'x' : parseInt(tok, 10)));
-      continue;
-    }
-    if (trimmed.startsWith('@Reorder:')) {
-      const rest = trimmed.slice('@Reorder:'.length).trim();
-      reorder = rest.length === 0 ? [] : rest.split(/\s+/).map((tok) => parseInt(tok, 10));
-      continue;
-    }
-    if (trimmed.startsWith('@') || trimmed.startsWith('#')) continue;
-    const semi = trimmed.lastIndexOf(';');
-    if (semi < 0) continue;
-    const classes = trimmed.slice(0, semi).trim().split(/\s+/);
-    const bitset = parseInt(trimmed.slice(semi + 1).trim(), 10);
-    if (Number.isNaN(bitset) || classes.length === 0) continue;
-    cases.push({ line: i + 1, classes, bitset, levels, reorder });
+/** Splits `text[start, end)` on runs of space/tab — no regex (see perf note above). */
+function splitWhitespace(text: string, start: number, end: number): string[] {
+  const out: string[] = [];
+  let i = start;
+  while (i < end) {
+    while (i < end && isAsciiSpaceOrTab(text.charCodeAt(i))) i++;
+    if (i >= end) break;
+    const tokStart = i;
+    while (i < end && !isAsciiSpaceOrTab(text.charCodeAt(i))) i++;
+    out.push(text.slice(tokStart, i));
   }
-  return cases;
+  return out;
+}
+
+/** Trims leading/trailing space, tab and CR from `text[start, end)`, returned as `[s, e)`. */
+function trimRange(text: string, start: number, end: number): [number, number] {
+  let s = start;
+  let e = end;
+  while (s < e && (isAsciiSpaceOrTab(text.charCodeAt(s)) || text.charCodeAt(s) === CR)) s++;
+  while (e > s && (isAsciiSpaceOrTab(text.charCodeAt(e - 1)) || text.charCodeAt(e - 1) === CR)) e--;
+  return [s, e];
 }
 
 interface ExpandedCase {
@@ -115,21 +125,112 @@ interface ExpandedCase {
   reorder: number[];
 }
 
-/** Expands each data line's bitset into every requested (sequence, direction) case — see header comment. */
-function expandCases(raw: RawCase[]): ExpandedCase[] {
-  const out: ExpandedCase[] = [];
-  for (const c of raw) {
-    let text = '';
-    for (const cls of c.classes) {
-      const cp = CLASS_SAMPLE[cls];
-      if (cp === undefined) throw new Error(`BidiTest.txt line ${c.line}: no CLASS_SAMPLE for class "${cls}"`);
-      text += String.fromCodePoint(cp);
+/**
+ * Parses and expands `BidiTest.txt` in a single fused pass (see perf note above): walks lines
+ * by manual scanning rather than `split('\n')` + `split(/\s+/)`, and emits `ExpandedCase`s
+ * directly rather than building an intermediate per-line "raw case" array first. `rawCount` is
+ * the number of data lines parsed (BidiTest.txt's own "#Total Count" sanity check); `expanded`
+ * is every bitset-selected (sequence, direction) case — same shape, same values the old
+ * `parseBidiTest`+`expandCases` pair produced.
+ */
+function parseAndExpandBidiTest(text: string): { rawCount: number; expanded: ExpandedCase[] } {
+  let levels: (number | 'x')[] = [];
+  let reorder: number[] = [];
+  const expanded: ExpandedCase[] = [];
+  let rawCount = 0;
+  const len = text.length;
+  let lineStart = 0;
+  let lineNo = 0;
+  while (lineStart <= len) {
+    let lineEnd = text.indexOf('\n', lineStart);
+    if (lineEnd === -1) lineEnd = len;
+    lineNo++;
+    const [s, e] = trimRange(text, lineStart, lineEnd);
+    const atLastLine = lineEnd >= len;
+    if (s === e) {
+      if (atLastLine) break;
+      lineStart = lineEnd + 1;
+      continue;
     }
-    if ((c.bitset & 1) !== 0) out.push({ line: c.line, text, override: 'auto', levels: c.levels, reorder: c.reorder });
-    if ((c.bitset & 2) !== 0) out.push({ line: c.line, text, override: 'ltr', levels: c.levels, reorder: c.reorder });
-    if ((c.bitset & 4) !== 0) out.push({ line: c.line, text, override: 'rtl', levels: c.levels, reorder: c.reorder });
+    const c0 = text.charCodeAt(s);
+    if (c0 === 0x40 /* '@' */) {
+      if (text.startsWith('@Levels:', s)) {
+        const rest = splitWhitespace(text, s + 8, e);
+        levels = rest.map((tok) => (tok === 'x' ? 'x' : parseInt(tok, 10)));
+      } else if (text.startsWith('@Reorder:', s)) {
+        const rest = splitWhitespace(text, s + 9, e);
+        reorder = rest.map((tok) => parseInt(tok, 10));
+      }
+      if (atLastLine) break;
+      lineStart = lineEnd + 1;
+      continue;
+    }
+    if (c0 === 0x23 /* '#' */) {
+      if (atLastLine) break;
+      lineStart = lineEnd + 1;
+      continue;
+    }
+    let semi = -1;
+    for (let i = e - 1; i >= s; i--) {
+      if (text.charCodeAt(i) === 0x3b /* ';' */) {
+        semi = i;
+        break;
+      }
+    }
+    if (semi < 0) {
+      if (atLastLine) break;
+      lineStart = lineEnd + 1;
+      continue;
+    }
+    const classes = splitWhitespace(text, s, semi);
+    const [bs, be] = trimRange(text, semi + 1, e);
+    const bitset = parseInt(text.slice(bs, be), 10);
+    if (Number.isNaN(bitset) || classes.length === 0) {
+      if (atLastLine) break;
+      lineStart = lineEnd + 1;
+      continue;
+    }
+    rawCount++;
+    let caseText = '';
+    for (const cls of classes) {
+      const cp = CLASS_SAMPLE[cls];
+      if (cp === undefined) throw new Error(`BidiTest.txt line ${lineNo}: no CLASS_SAMPLE for class "${cls}"`);
+      caseText += String.fromCodePoint(cp);
+    }
+    if ((bitset & 1) !== 0) expanded.push({ line: lineNo, text: caseText, override: 'auto', levels, reorder });
+    if ((bitset & 2) !== 0) expanded.push({ line: lineNo, text: caseText, override: 'ltr', levels, reorder });
+    if ((bitset & 4) !== 0) expanded.push({ line: lineNo, text: caseText, override: 'rtl', levels, reorder });
+    if (atLastLine) break;
+    lineStart = lineEnd + 1;
   }
-  return out;
+  return { rawCount, expanded };
+}
+
+/**
+ * Compares an expected `(number|'x')[]` (`'x'` is don't-care) against `bidiLevels`' raw
+ * `Uint8Array` output directly, with no intermediate mapped array and no `JSON.stringify`
+ * (perf round: profiling this file's 770 241-case loop found the diagnostic-shaped
+ * `.map()` + `JSON.stringify` comparison it replaces cost a large share of the loop's
+ * per-case work once the JIT was warm — see perf-suite-report.md).
+ */
+function levelsMatch(expected: readonly (number | 'x')[], actual: Uint8Array): boolean {
+  for (let k = 0; k < expected.length; k++) {
+    const exp = expected[k];
+    if (exp === 'x') continue;
+    if (exp !== (actual[k] ?? 0)) return false;
+  }
+  return true;
+}
+
+/** Only called to build a mismatch's diagnostic message, never on the hot path. */
+function materializeLevels(expected: readonly (number | 'x')[], actual: Uint8Array): (number | 'x')[] {
+  return expected.map((exp, k) => (exp === 'x' ? 'x' : (actual[k] ?? 0)));
+}
+
+function orderMatch(a: readonly number[], b: readonly number[]): boolean {
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
+  return true;
 }
 
 describe('bidi — CLASS_SAMPLE is faithful to the generated Bidi_Class table', () => {
@@ -147,61 +248,73 @@ describe('bidi — CLASS_SAMPLE is faithful to the generated Bidi_Class table', 
 
 describe('bidiLevels/reorderVisual — UAX #9 official conformance (BidiTest.txt, fully expanded)', () => {
   const rawText = readFileSync(join(UCD_DIR, 'BidiTest.txt'), 'utf8');
-  const raw = parseBidiTest(rawText);
-  const expanded = expandCases(raw);
+  const { rawCount, expanded } = parseAndExpandBidiTest(rawText);
 
   it('parses every BidiTest.txt data line (sanity: matches the file\'s own "#Total Count: 490846")', () => {
-    expect(raw.length).toBe(490846);
+    expect(rawCount).toBe(490846);
   });
 
   it('expands to every bitset-selected direction (770 241 cases, computed from the file, not hand-counted)', () => {
     expect(expanded.length).toBe(770241);
   });
 
-  it('runs every expanded case with zero mismatches', () => {
-    interface Mismatch {
-      line: number;
-      override: string;
-      kind: 'levels' | 'reorder';
-      expected: unknown;
-      actual: unknown;
-    }
-    const mismatches: Mismatch[] = [];
-    let checked = 0;
-    for (const c of expanded) {
-      checked++;
-      const paragraphLevel = resolveParagraphLevel(c.text, c.override, 0);
-      const levels = bidiLevels(c.text, paragraphLevel);
-      const actualLevels: (number | 'x')[] = c.levels.map((expectedLevel, k) => (expectedLevel === 'x' ? 'x' : (levels[k] ?? 0)));
-      if (JSON.stringify(actualLevels) !== JSON.stringify(c.levels)) {
-        mismatches.push({ line: c.line, override: c.override, kind: 'levels', expected: c.levels, actual: actualLevels });
-        continue;
+  // Explicit, generous timeout (perf round, 2026-09-16 — perf-suite-brief.md item 4): this one
+  // assertion walks all 770 241 cases through the full algorithm. Idle on this repo it measures
+  // ~2-3s; under heavy synthetic CPU contention (dozens of competing processes oversubscribing
+  // an 8-core machine, see perf-suite-report.md for the exact setup) the same run measured up
+  // to ~11.5s, and it is exactly this test that timed out at Vitest's plain 5000ms default under
+  // the load this round exists to fix. 60000ms is over 5x the worst contended measurement taken
+  // for this round — sized with headroom over a measured worst case, not tuned to just clear an
+  // idle run.
+  it(
+    'runs every expanded case with zero mismatches',
+    () => {
+      interface Mismatch {
+        line: number;
+        override: string;
+        kind: 'levels' | 'reorder';
+        expected: unknown;
+        actual: unknown;
       }
-      // Reorder: 'x'-level (X9-removed) positions are *omitted* from the reordering
-      // computation entirely (BidiTest.txt's own "Usage" note: "these are omitted from the
-      // reordered output" — not merely filtered out of an already-computed full-array
-      // result, which can scramble neighbouring runs; see the task 8 report). Compact the
-      // included positions into their own array, run L2 over that, then map the resulting
-      // compacted-array indices back to original indices for comparison.
-      const includedIndices: number[] = [];
-      for (let k = 0; k < c.levels.length; k++) if (c.levels[k] !== 'x') includedIndices.push(k);
-      const compactedLevels = new Uint8Array(includedIndices.map((idx) => levels[idx] ?? 0));
-      const compactedOrder = reorderVisual(compactedLevels, 0, compactedLevels.length);
-      const actualOrder = compactedOrder.map((ci) => includedIndices[ci] as number);
-      if (JSON.stringify(actualOrder) !== JSON.stringify(c.reorder)) {
-        mismatches.push({ line: c.line, override: c.override, kind: 'reorder', expected: c.reorder, actual: actualOrder });
+      const mismatches: Mismatch[] = [];
+      let checked = 0;
+      for (const c of expanded) {
+        checked++;
+        const paragraphLevel = resolveParagraphLevel(c.text, c.override, 0);
+        const levels = bidiLevels(c.text, paragraphLevel);
+        if (!levelsMatch(c.levels, levels)) {
+          mismatches.push({ line: c.line, override: c.override, kind: 'levels', expected: c.levels, actual: materializeLevels(c.levels, levels) });
+          continue;
+        }
+        // Reorder: 'x'-level (X9-removed) positions are *omitted* from the reordering
+        // computation entirely (BidiTest.txt's own "Usage" note: "these are omitted from the
+        // reordered output" — not merely filtered out of an already-computed full-array
+        // result, which can scramble neighbouring runs; see the task 8 report). Compact the
+        // included positions into their own array, run L2 over that, then map the resulting
+        // compacted-array indices back to original indices for comparison.
+        const includedIndices: number[] = [];
+        for (let k = 0; k < c.levels.length; k++) if (c.levels[k] !== 'x') includedIndices.push(k);
+        const compactedLevels = new Uint8Array(includedIndices.length);
+        for (let k = 0; k < includedIndices.length; k++) compactedLevels[k] = levels[includedIndices[k] as number] ?? 0;
+        const compactedOrder = reorderVisual(compactedLevels, 0, compactedLevels.length);
+        const actualOrder: number[] = new Array(compactedOrder.length);
+        for (let k = 0; k < compactedOrder.length; k++) actualOrder[k] = includedIndices[compactedOrder[k] as number] as number;
+        if (!orderMatch(actualOrder, c.reorder)) {
+          mismatches.push({ line: c.line, override: c.override, kind: 'reorder', expected: c.reorder, actual: actualOrder });
+        }
       }
-    }
-    expect(checked).toBe(expanded.length);
-    if (mismatches.length > 0) {
-      const preview = mismatches
-        .slice(0, 10)
-        .map((m) => `line ${m.line} (${m.override}, ${m.kind}): expected ${JSON.stringify(m.expected)}, got ${JSON.stringify(m.actual)}`)
-        .join('\n');
-      throw new Error(`${mismatches.length}/${expanded.length} BidiTest.txt cases failed. First 10:\n${preview}`);
-    }
-    expect(mismatches).toEqual([]);
-  });
+      expect(checked).toBe(expanded.length);
+      if (mismatches.length > 0) {
+        const preview = mismatches
+          .slice(0, 10)
+          .map((m) => `line ${m.line} (${m.override}, ${m.kind}): expected ${JSON.stringify(m.expected)}, got ${JSON.stringify(m.actual)}`)
+          .join('\n');
+        throw new Error(`${mismatches.length}/${expanded.length} BidiTest.txt cases failed. First 10:\n${preview}`);
+      }
+      expect(mismatches).toEqual([]);
+    },
+    60000,
+  );
 });
 
 // ─── BidiCharacterTest.txt (literal code-point form) ───────────────────────────────────────
@@ -215,24 +328,38 @@ interface CharCase {
   order: number[];
 }
 
+/** Manual-scanning equivalent of the old `split('\n')` + `split(/\s+/)` parser (perf note above): same output, ~85% less import-phase time locally. */
 function parseBidiCharacterTest(text: string): CharCase[] {
   const cases: CharCase[] = [];
-  const lines = text.split('\n');
-  for (let i = 0; i < lines.length; i++) {
-    const raw = (lines[i] as string).trim();
-    if (!raw || raw.startsWith('#')) continue;
+  const len = text.length;
+  let lineStart = 0;
+  let lineNo = 0;
+  while (lineStart <= len) {
+    let lineEnd = text.indexOf('\n', lineStart);
+    if (lineEnd === -1) lineEnd = len;
+    lineNo++;
+    const [s, e] = trimRange(text, lineStart, lineEnd);
+    const atLastLine = lineEnd >= len;
+    if (s === e || text.charCodeAt(s) === 0x23 /* '#' */) {
+      if (atLastLine) break;
+      lineStart = lineEnd + 1;
+      continue;
+    }
+    const raw = text.slice(s, e);
     const fields = raw.split(';');
-    if (fields.length !== 5) continue;
-    const cps = (fields[0] as string).trim().split(/\s+/).map((h) => parseInt(h, 16));
-    const paragraphDir = parseInt((fields[1] as string).trim(), 10) as 0 | 1 | 2;
-    const paragraphLevel = parseInt((fields[2] as string).trim(), 10) as 0 | 1;
-    const levels = (fields[3] as string)
-      .trim()
-      .split(/\s+/)
-      .map((tok) => (tok === 'x' ? 'x' : parseInt(tok, 10)));
-    const orderField = (fields[4] as string).trim();
-    const order = orderField.length === 0 ? [] : orderField.split(/\s+/).map((tok) => parseInt(tok, 10));
-    cases.push({ line: i + 1, cps, paragraphDir, paragraphLevel, levels, order });
+    if (fields.length === 5) {
+      const f0 = fields[0] as string;
+      const cps = splitWhitespace(f0, 0, f0.length).map((h) => parseInt(h, 16));
+      const paragraphDir = parseInt((fields[1] as string).trim(), 10) as 0 | 1 | 2;
+      const paragraphLevel = parseInt((fields[2] as string).trim(), 10) as 0 | 1;
+      const f3 = fields[3] as string;
+      const levels = splitWhitespace(f3, 0, f3.length).map((tok) => (tok === 'x' ? 'x' : parseInt(tok, 10)));
+      const orderField = (fields[4] as string).trim();
+      const order = orderField.length === 0 ? [] : splitWhitespace(orderField, 0, orderField.length).map((tok) => parseInt(tok, 10));
+      cases.push({ line: lineNo, cps, paragraphDir, paragraphLevel, levels, order });
+    }
+    if (atLastLine) break;
+    lineStart = lineEnd + 1;
   }
   return cases;
 }

@@ -18,17 +18,37 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 
 // ─── #1/#2: real dictionary, no mocking ────────────────────────────────────────────────
+//
+// Perf round (2026-09-16, perf-suite-brief.md item 3): the two tests below that touch a
+// dictionary payload module for the first time — "segments a known two-word Thai string" and
+// "loads Lao, Khmer and Myanmar too" — pay real, legitimate one-time cost (transforming the
+// generated `dict-*.ts` payload module, decoding its base64+DAWG). None of it is repeated
+// needlessly within this file: `loadDictionary`'s own module-scope `CACHE` (dict.ts) already
+// means every other test in this describe, plus the GREEN sanity test in the regression-proof
+// describe below (deliberately placed here, before the laziness describe's `vi.resetModules()`
+// calls, so it shares this same module instance and its warm cache instead of forcing a second
+// from-scratch decode of the real Thai DAWG — see that describe's own comment), gets a cache
+// hit. What *is* real and irreducible is the first-touch cost itself, which is why those two
+// tests (not the others) carry an explicit, generous timeout — see each test.
 describe('loadDictionary — real Thai dictionary (spec 02 §6.4)', () => {
-  it("segments a known two-word Thai string at the dictionary's own boundary", async () => {
-    const { loadDictionary } = await import('./dict.js');
-    const dict = await loadDictionary('th');
-    expect(dict).not.toBeNull();
-    // "กงกอน" and "กงพัด" are each their own entries in ICU's thaidict.txt; their
-    // concatenation is not itself a longer entry, so longest-match must split exactly
-    // between them — verified against the real, generated dict-th.ts payload, not invented.
-    const combined = 'กงกอน' + 'กงพัด';
-    expect(dict!.segment(combined)).toEqual([5]);
-  });
+  it(
+    "segments a known two-word Thai string at the dictionary's own boundary",
+    async () => {
+      const { loadDictionary } = await import('./dict.js');
+      const dict = await loadDictionary('th');
+      expect(dict).not.toBeNull();
+      // "กงกอน" and "กงพัด" are each their own entries in ICU's thaidict.txt; their
+      // concatenation is not itself a longer entry, so longest-match must split exactly
+      // between them — verified against the real, generated dict-th.ts payload, not invented.
+      const combined = 'กงกอน' + 'กงพัด';
+      expect(dict!.segment(combined)).toEqual([5]);
+    },
+    // This is the FIRST test in the file to touch a dictionary payload module at all, so it pays
+    // the one-time cost of transforming + decoding dict-th.ts (measured up to ~0.8s locally
+    // under heavy synthetic CPU contention — see perf-suite-report.md). 20000ms is a wide
+    // margin over that, not a value tuned to just clear an idle run.
+    20000,
+  );
 
   it('falls back to grapheme-cluster boundaries for a sequence outside the alphabet (spec 02 §6.4)', async () => {
     const { loadDictionary } = await import('./dict.js');
@@ -47,45 +67,35 @@ describe('loadDictionary — real Thai dictionary (spec 02 §6.4)', () => {
     expect(a).toBe(b);
   });
 
-  it('loads Lao, Khmer and Myanmar too (sanity — not just Thai)', async () => {
-    const { loadDictionary } = await import('./dict.js');
-    for (const lang of ['lo', 'km', 'my']) {
-      const dict = await loadDictionary(lang);
-      expect(dict, lang).not.toBeNull();
-      // Any dictionary can at least fall back to grapheme clusters on unknown input.
-      expect(dict!.segment('xyz')).toEqual([1, 2]);
-    }
-  });
-});
-
-// ─── #3: laziness proof — loadDictionary('en') must never import a payload module ──────
-describe("loadDictionary('en') — laziness (spec 02 §6.4, context item 5)", () => {
-  afterEach(() => {
-    vi.doUnmock('./generated/dict-th.js');
-    vi.doUnmock('./generated/dict-lo.js');
-    vi.doUnmock('./generated/dict-km.js');
-    vi.doUnmock('./generated/dict-my.js');
-    vi.resetModules();
-  });
-
-  it('resolves to null without importing any of the four dictionary payload modules', async () => {
-    vi.resetModules();
-    const fail = (name: string) => () => {
-      throw new Error(`${name} must not be imported when loadDictionary is called with an unsupported language`);
-    };
-    vi.doMock('./generated/dict-th.js', fail('dict-th.js'));
-    vi.doMock('./generated/dict-lo.js', fail('dict-lo.js'));
-    vi.doMock('./generated/dict-km.js', fail('dict-km.js'));
-    vi.doMock('./generated/dict-my.js', fail('dict-my.js'));
-
-    const { loadDictionary } = await import('./dict.js');
-    await expect(loadDictionary('en')).resolves.toBeNull();
-    await expect(loadDictionary('fr')).resolves.toBeNull();
-    await expect(loadDictionary('')).resolves.toBeNull();
-  });
+  it(
+    'loads Lao, Khmer and Myanmar too (sanity — not just Thai)',
+    async () => {
+      const { loadDictionary } = await import('./dict.js');
+      for (const lang of ['lo', 'km', 'my']) {
+        const dict = await loadDictionary(lang);
+        expect(dict, lang).not.toBeNull();
+        // Any dictionary can at least fall back to grapheme clusters on unknown input.
+        expect(dict!.segment('xyz')).toEqual([1, 2]);
+      }
+    },
+    // Three first-touch loads (Lao, Khmer, Myanmar) in one test — the heaviest test in this
+    // file. Measured up to ~1.7s locally under heavy synthetic CPU contention (dozens of
+    // competing processes oversubscribing an 8-core machine — see perf-suite-report.md for the
+    // exact setup); this is the test the brief's dict.test.ts timeout was actually observed on.
+    // 20000ms is well over 10x that worst measurement, sized with headroom rather than tuned to
+    // an idle run.
+    20000,
+  );
 });
 
 // ─── Regression proof: emptying the Thai DAWG falls back to per-cluster breaks ─────────
+//
+// Deliberately placed here, immediately after the real-dictionary describe above and BEFORE
+// the laziness describe's `vi.resetModules()` calls (perf round, 2026-09-16): the GREEN sanity
+// test below shares the still-live module instance from the describe above, so
+// `loadDictionary('th')` is a `CACHE` hit — no second from-scratch decode of the real Thai DAWG
+// — and only the REGRESSION test's own explicit `vi.resetModules()` + mock actually forces a
+// fresh import (of the tiny, mocked empty-DAWG payload, not the real one).
 describe('loadDictionary — Thai DAWG regression proof (context item 3)', () => {
   afterEach(() => {
     vi.doUnmock('./generated/dict-th.js');
@@ -126,6 +136,33 @@ describe('loadDictionary — Thai DAWG regression proof (context item 3)', () =>
     // 7 and 8 are one cluster, a base consonant plus its combining vowel sign).
     expect(withEmptyDawg).toEqual([1, 2, 3, 4, 5, 6, 7, 9]);
     expect(withEmptyDawg).not.toEqual([5]);
+  });
+});
+
+// ─── #3: laziness proof — loadDictionary('en') must never import a payload module ──────
+describe("loadDictionary('en') — laziness (spec 02 §6.4, context item 5)", () => {
+  afterEach(() => {
+    vi.doUnmock('./generated/dict-th.js');
+    vi.doUnmock('./generated/dict-lo.js');
+    vi.doUnmock('./generated/dict-km.js');
+    vi.doUnmock('./generated/dict-my.js');
+    vi.resetModules();
+  });
+
+  it('resolves to null without importing any of the four dictionary payload modules', async () => {
+    vi.resetModules();
+    const fail = (name: string) => () => {
+      throw new Error(`${name} must not be imported when loadDictionary is called with an unsupported language`);
+    };
+    vi.doMock('./generated/dict-th.js', fail('dict-th.js'));
+    vi.doMock('./generated/dict-lo.js', fail('dict-lo.js'));
+    vi.doMock('./generated/dict-km.js', fail('dict-km.js'));
+    vi.doMock('./generated/dict-my.js', fail('dict-my.js'));
+
+    const { loadDictionary } = await import('./dict.js');
+    await expect(loadDictionary('en')).resolves.toBeNull();
+    await expect(loadDictionary('fr')).resolves.toBeNull();
+    await expect(loadDictionary('')).resolves.toBeNull();
   });
 });
 
