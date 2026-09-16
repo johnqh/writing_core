@@ -15,8 +15,7 @@ interface CryptoLike {
 
 /** Web, Bun and Hermes (with react-native-get-random-values installed by the app). */
 export const cryptoIdSource: IdSource = {
-  // platform-free-allow-clock: IdSource.now default (ULID timestamps) — an injectable seam; createSeededIdSource is the deterministic one tests/rehearsal use instead (spec 02 §1.1)
-  now: () => Date.now(),
+  now: () => Date.now(), // platform-free-allow-clock: IdSource.now default (ULID timestamps) — an injectable seam; createSeededIdSource is the deterministic one tests/rehearsal use instead (spec 02 §1.1)
   randomBytes(length) {
     const c = (globalThis as { crypto?: CryptoLike }).crypto;
     if (!c) throw new Error('globalThis.crypto.getRandomValues is unavailable; install a polyfill');
