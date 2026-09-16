@@ -1,6 +1,7 @@
 import * as Y from 'yjs';
 import { describe, expect, it } from 'vitest';
 import { newId } from '../ids/ids.js';
+import { validateDocument } from '../model/validate/index.js';
 import { commandHarness } from './test-harness.js';
 
 const at = (elementId: string, offset: number) => ({ elementId, offset });
@@ -110,6 +111,72 @@ describe('deleting', () => {
     expect(delta.map((d) => d.insert).join('')).toBe('Keep this');
     expect(delta[1]!.attributes!.del!.by).toBe('u1');
   });
+
+  it('keeps both elements under Track Changes instead of hard-merging across a paragraph boundary', () => {
+    const h = commandHarness();
+    const [a, b] = h.replaceBody([['st_action', 'She runs'], ['st_dialogue', ' fast.']]);
+    h.doc.getMap('trackChanges').set('enabled', true);
+    const backward = h.run('text.deleteBackward', { at: at(b!, 0), unit: 'char' });
+    expect(backward).toMatchObject({ ok: true });
+    // Both elements survive, untouched, so the merge can still be rejected.
+    expect(h.body()).toEqual([
+      { id: a, style: 'st_action', text: 'She runs' },
+      { id: b, style: 'st_dialogue', text: ' fast.' },
+    ]);
+    const bRecord = h.doc.getMap('elements').get(b!) as Y.Map<unknown>;
+    expect(bRecord.get('tc')).toMatchObject({ kind: 'delete', by: 'u1' });
+
+    const [c, d] = h.replaceBody([['st_action', 'One'], ['st_action', 'Two']]);
+    const forward = h.run('text.deleteForward', { at: at(c!, h.textMap(c!).length), unit: 'char' });
+    expect(forward).toMatchObject({ ok: true });
+    expect(h.body()).toEqual([
+      { id: c, style: 'st_action', text: 'One' },
+      { id: d, style: 'st_action', text: 'Two' },
+    ]);
+    const dRecord = h.doc.getMap('elements').get(d!) as Y.Map<unknown>;
+    expect(dRecord.get('tc')).toMatchObject({ kind: 'delete', by: 'u1' });
+  });
+
+  it('still hard-merges across a paragraph boundary with Track Changes off', () => {
+    const h = commandHarness();
+    const [a, b] = h.replaceBody([['st_action', 'She runs'], ['st_dialogue', ' fast.']]);
+    h.run('text.deleteBackward', { at: at(b!, 0), unit: 'char' });
+    expect(h.body()).toEqual([{ id: a, style: 'st_action', text: 'She runs fast.' }]);
+
+    const [c, d] = h.replaceBody([['st_action', 'One'], ['st_action', 'Two']]);
+    h.run('text.deleteForward', { at: at(c!, h.textMap(c!).length), unit: 'char' });
+    expect(h.body()).toEqual([{ id: c, style: 'st_action', text: 'OneTwo' }]);
+    void d;
+  });
+
+  it('refuses to merge across the left/right seam of a dual-dialogue pair, leaving validateDocument clean', () => {
+    const h = commandHarness();
+    const [charL, dialL, charR, dialR] = h.replaceBody([
+      ['st_character', 'ALEX'],
+      ['st_dialogue', 'Hi there'],
+      ['st_character', 'JO'],
+      ['st_dialogue', 'Hello'],
+    ]);
+    const group = 'dd_01ARYZ6S410000000000000000';
+    const elements = h.doc.getMap('elements');
+    (elements.get(charL!) as Y.Map<unknown>).set('dual', { group, side: 'left' });
+    (elements.get(dialL!) as Y.Map<unknown>).set('dual', { group, side: 'left' });
+    (elements.get(charR!) as Y.Map<unknown>).set('dual', { group, side: 'right' });
+    (elements.get(dialR!) as Y.Map<unknown>).set('dual', { group, side: 'right' });
+    expect(validateDocument(h.doc).issues).toEqual([]);
+
+    // Backspace at the right side's start must not merge dialL into charR.
+    const backward = h.run('text.deleteBackward', { at: at(charR!, 0), unit: 'char' });
+    expect(backward).toMatchObject({ ok: true });
+    expect(h.body().map((x) => x.text)).toEqual(['ALEX', 'Hi there', 'JO', 'Hello']);
+    expect(validateDocument(h.doc).issues).toEqual([]);
+
+    // Delete at the left side's end must not merge charR into dialL.
+    const forward = h.run('text.deleteForward', { at: at(dialL!, h.textMap(dialL!).length), unit: 'char' });
+    expect(forward).toMatchObject({ ok: true });
+    expect(h.body().map((x) => x.text)).toEqual(['ALEX', 'Hi there', 'JO', 'Hello']);
+    expect(validateDocument(h.doc).issues).toEqual([]);
+  });
 });
 
 describe('replace and transform', () => {
@@ -118,6 +185,20 @@ describe('replace and transform', () => {
     const [a] = h.replaceBody([['st_action', 'The cat sat.']]);
     h.run('text.replaceRange', { range: range(a!, 4, a!, 7), text: 'dog' });
     expect(h.textMap(a!).toString()).toBe('The dog sat.');
+  });
+  it('inserts the replacement after the revDel mark the deletion left, under revision mode', () => {
+    const h = commandHarness();
+    const [a] = h.replaceBody([['st_action', 'The cat sat.']]);
+    const setId = [...(h.doc.getMap('revisions').get('sets') as Y.Map<unknown>).keys()][1]!;
+    h.doc.getMap('revisions').set('mode', true);
+    h.doc.getMap('revisions').set('activeSetId', setId);
+    h.run('text.replaceRange', { range: range(a!, 4, a!, 7), text: 'dog' });
+    expect(h.delta(a!)).toEqual([
+      { insert: 'The ' },
+      { insert: { type: 'revDel', rev: setId, by: 'u1', at: h.now() } },
+      { insert: 'dog', attributes: { rev: setId } },
+      { insert: ' sat.' },
+    ]);
   });
   it('transforms case preserving marks', () => {
     const h = commandHarness();

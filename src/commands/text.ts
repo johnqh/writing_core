@@ -42,6 +42,9 @@ function dualOrColumnBoundary(ctx: CommandContext, a: ElementId, b: ElementId): 
   const ea = ctx.model.element(a)!;
   const eb = ctx.model.element(b)!;
   if ((ea.dual?.group ?? null) !== (eb.dual?.group ?? null)) return true;
+  // Spec 08: the left/right seam of a dual-dialogue pair is a boundary even though both
+  // sides share one `dual.group` — only compare `column` once we know neither side is dual.
+  if (ea.dual && eb.dual && ea.dual.side !== eb.dual.side) return true;
   return (ea.ov.column ?? ctx.model.resolveStyle(a).column) !== (eb.ov.column ?? ctx.model.resolveStyle(b).column);
 }
 
@@ -103,6 +106,13 @@ export const TEXT_COMMANDS: CommandSpec<never>[] = [
       return { ok: true, effects: [{ kind: 'elementRemoved', id: r.elementId }] };
     }
     if (dualOrColumnBoundary(ctx, previous.id, r.elementId)) return ok;
+    // Under Track Changes the merge itself must stay reviewable: leave both elements in
+    // place and mark the later one pending-delete (same shape as `removeElement`'s tracked
+    // branch), instead of hard-merging it into the previous element with no tc/del marker.
+    if (writePolicy(ctx).track) {
+      removeElement(ctx, r.elementId);
+      return ok;
+    }
     mergeElements(ctx, previous.id, r.elementId);
     return { ok: true, effects: [{ kind: 'elementRemoved', id: r.elementId }] };
   })),
@@ -130,6 +140,12 @@ export const TEXT_COMMANDS: CommandSpec<never>[] = [
       return { ok: true, effects: [{ kind: 'elementRemoved', id: next.id }] };
     }
     if (dualOrColumnBoundary(ctx, r.elementId, next.id)) return ok;
+    // Same reviewable-boundary rule as text.deleteBackward above: under Track Changes,
+    // mark the later element pending-delete instead of merging it away outright.
+    if (writePolicy(ctx).track) {
+      removeElement(ctx, next.id);
+      return ok;
+    }
     mergeElements(ctx, r.elementId, next.id);
     return { ok: true, effects: [{ kind: 'elementRemoved', id: next.id }] };
   })),
