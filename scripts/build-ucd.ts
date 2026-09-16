@@ -71,6 +71,11 @@ const CONFORMANCE: Record<string, string> = {
   'GraphemeBreakTest.txt': `${BASE}/auxiliary/GraphemeBreakTest.txt`,
   // Task 7 addition: UAX #14 line-breaking conformance (spec 02 §37.1, task 7 brief step 1).
   'LineBreakTest.txt': `${BASE}/auxiliary/LineBreakTest.txt`,
+  // Task 6 fix round 1: provisioning only for Task 8 (bidi, UAX #9), which is written
+  // against these already being present (task-6-fix-1.md §A). Unlike the other two
+  // conformance files, both live at the UCD root, not under auxiliary/.
+  'BidiTest.txt': `${BASE}/BidiTest.txt`,
+  'BidiCharacterTest.txt': `${BASE}/BidiCharacterTest.txt`,
 };
 
 async function fetchText(url: string): Promise<string> {
