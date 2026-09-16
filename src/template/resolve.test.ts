@@ -66,3 +66,40 @@ describe('resolveStyle', () => {
     expect(r.splitRule).toBe('never');
   });
 });
+
+describe('resolveStyle memoization (spec 01 §3.4.2)', () => {
+  it('returns the same resolution for the same (template, styleId) and a fresh one per template revision', () => {
+    const t = minimalTemplate();
+    const first = resolveStyle(t, S('st_character'));
+    expect(resolveStyle(t, S('st_character'))).toBe(first);
+    expect(resolveStyle(t, S('st_action'))).not.toBe(first);
+    // The read model rebuilds its frozen template object on every template mutation, which is what
+    // `revision` counts — a new object is a new revision and must not reuse the old resolution.
+    const bumped = { ...t, styles: t.styles.map((s) => (s.id === 'st_character' ? { ...s, allCaps: false } : s)) };
+    const after = resolveStyle(bumped, S('st_character'));
+    expect(after).not.toBe(first);
+    expect(first.allCaps).toBe(true);
+    expect(after.allCaps).toBe(false);
+  });
+
+  it('never hands out a mutable shared resolution, and overrides do not leak into the memo', () => {
+    const t = minimalTemplate();
+    const base = resolveStyle(t, S('st_action'));
+    expect(Object.isFrozen(base)).toBe(true);
+    expect(Object.isFrozen(base.font)).toBe(true);
+    const overridden = resolveStyle(t, S('st_action'), { align: 'center', spaceBefore: 3 });
+    expect(overridden).not.toBe(base);
+    expect(overridden.align).toBe('center');
+    expect(resolveStyle(t, S('st_action'))).toBe(base);
+    expect(base.align).not.toBe('center');
+  });
+
+  it('memoizes the paginateAs borrow too, not just the direct chain', () => {
+    const t = minimalTemplate();
+    const styles = t.styles.map((s) => (s.id === 'st_action' ? { ...s, paginateAs: S('st_character') } : s));
+    const src = { ...t, styles };
+    const first = resolveStyle(src, S('st_action'));
+    expect(first.keepWithNext).toBe(true);
+    expect(resolveStyle(src, S('st_action'))).toBe(first);
+  });
+});

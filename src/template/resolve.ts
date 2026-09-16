@@ -146,11 +146,45 @@ function applyPaginateAs(template: StyleSource, startId: StyleId, resolved: Reso
   }
 }
 
-export function resolveStyle(template: StyleSource, styleId: StyleId, overrides?: ElementOverrides): ResolvedStyle {
+/**
+ * Spec 01 §3.4.2: "Resolution is memoized per `(templateRevision, styleId)`". The revision counter
+ * exists precisely so that a style edit invalidates exactly the cache it affects — and the read
+ * model rebuilds its frozen template object on every template mutation (`templateCache = null` in
+ * read-model/open.ts), so keying the memo on the template object's identity in a WeakMap IS keying
+ * it on the revision, without threading the counter through a signature that does not carry it.
+ * A template that is mutated in place rather than replaced would see stale values; every template
+ * that reaches here from the read model is deep-frozen, and the memo entry is dropped with the
+ * object it belongs to.
+ *
+ * Without this, `buildView` paid a full chain walk per element just to read `role`: 37 ms to build
+ * 3000 element views.
+ */
+const resolvedCache = new WeakMap<StyleSource, Map<string, ResolvedStyle>>();
+
+function resolveBase(template: StyleSource, styleId: StyleId): ResolvedStyle {
+  let byStyle = resolvedCache.get(template);
+  if (!byStyle) {
+    byStyle = new Map();
+    resolvedCache.set(template, byStyle);
+  }
+  const hit = byStyle.get(styleId);
+  if (hit) return hit;
   const resolved = resolveStyleCore(template, styleId);
   applyPaginateAs(template, styleId, resolved);
+  // Frozen because it is shared: the no-overrides path below hands the cached instance straight
+  // back, so a caller mutating it would corrupt every later resolution of that style.
+  Object.freeze(resolved.font);
+  Object.freeze(resolved.flow);
+  Object.freeze(resolved);
+  byStyle.set(styleId, resolved);
+  return resolved;
+}
 
-  if (overrides) {
+export function resolveStyle(template: StyleSource, styleId: StyleId, overrides?: ElementOverrides): ResolvedStyle {
+  const base = resolveBase(template, styleId);
+  if (!overrides) return base;
+  const resolved: ResolvedStyle = { ...base };
+  {
     if (overrides.align !== undefined) resolved.align = overrides.align;
     if (overrides.indentLeft !== undefined) resolved.indentLeft = overrides.indentLeft;
     if (overrides.indentRight !== undefined) resolved.indentRight = overrides.indentRight;

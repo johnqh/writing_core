@@ -8,58 +8,77 @@ import { TEST_ACTOR } from './test-harness.js';
 
 /**
  * Spec 08 §15 budgets a keystroke at 24 ms on a slower device. The dominant per-invocation cost is
- * `executeBatch`'s rehearsal pass, which clones the whole document — so it is O(document size),
- * not O(edit size), and the keyboard commands (Enter → `element.split`, Tab → `element.cycleStyle`
- * and `element.setStyle`) blew that budget on a feature-length script until they joined the
- * `fastPath` allowlist.
+ * `executeBatch`'s rehearsal pass, which clones the whole document — so a command costs
+ * O(document size), not O(edit size), and the keyboard commands (Enter → `element.split`,
+ * Tab → `element.cycleStyle`, style shortcuts → `element.setStyle`) blew that budget on a
+ * feature-length script until they joined the `fastPath` allowlist: measured 46 ms, 46 ms and
+ * 36 ms respectively at 3000 elements, against 0.36 ms for the already-fast `text.insert`.
  *
- * This is a regression guard, not a benchmark. The absolute ceiling is far above any plausible
- * healthy figure so a loaded CI box cannot make it flake, and the ratio against `text.insert`
- * (always on the fast path, same document) is what actually catches a command silently falling
- * back to whole-document rehearsal — that costs an order of magnitude, not a few per cent.
+ * This is a regression guard, not a benchmark, and it has to survive a loaded CI box:
+ * - it reports the **fastest** of many invocations, which is the statistic least disturbed by the
+ *   scheduler (a mean is dominated by whatever else the machine was doing);
+ * - the ceiling is an order of magnitude above a healthy figure (~0.1-1 ms) and an order of
+ *   magnitude below both the broken figures above and the 24 ms budget it exists to defend.
+ *
+ * There is deliberately no "cost must not grow with document size" assertion: `element.split`
+ * inserts an element, and `positionAfter` scans every element to find the next `pos`, so it is
+ * legitimately O(n) at ~0.9 ms per call at 3000 — small, but the same shape as the regression this
+ * guards against. The small-document figure is reported for diagnosis only.
  */
-const SIZE = 3000;
-const REPS = 20;
+const BIG = 3000;
+const SMALL = 500;
+const REPS = 25;
 const WARMUP = 3;
-const ABSOLUTE_CEILING_MS = 12;
-const RATIO_CEILING = 8;
+const CEILING_MS = 10;
 
-/** Action elements: index % 5 === 1 in the fixture's repeating cycle. */
-const actionIndex = (i: number) => ((i * 5) % SIZE) + 1;
+/** Action elements are at index % 5 === 1 in the fixture's repeating cycle. */
+const actionIndex = (i: number, size: number) => ((i * 5) % size) + 1;
 
-function measure(commandId: string, params: (ids: readonly ElementId[], i: number) => unknown): number {
+type Params = (ids: readonly ElementId[], i: number, size: number) => unknown;
+
+/** Fastest observed milliseconds for one invocation of `commandId` on a `size`-element document. */
+function fastestCall(commandId: string, params: Params, size: number): number {
   registerBuiltinCommands();
-  const { doc, model, ids, elementIds } = scaleDocument(SIZE);
+  const { doc, model, ids, elementIds } = scaleDocument(size);
   const origins = createSessionOrigins(TEST_ACTOR);
   const run = (i: number) =>
     executeCommand({
       doc, model, ids, actor: TEST_ACTOR, origin: origins.make('local-command', { commandId }),
-      capabilities: new Set(['write'] as const), clock: () => 1_000, command: { id: commandId, params: params(elementIds, i) },
+      capabilities: new Set(['write'] as const), clock: () => 1_000, command: { id: commandId, params: params(elementIds, i, size) },
     });
   try {
     for (let i = 0; i < WARMUP; i++) expect(run(i), `${commandId} warmup ${i}`).toMatchObject({ ok: true });
-    const started = performance.now();
-    for (let i = WARMUP; i < WARMUP + REPS; i++) expect(run(i), `${commandId} rep ${i}`).toMatchObject({ ok: true });
-    return (performance.now() - started) / REPS;
+    let best = Infinity;
+    for (let i = WARMUP; i < WARMUP + REPS; i++) {
+      const started = performance.now();
+      const result = run(i);
+      const elapsed = performance.now() - started;
+      expect(result, `${commandId} rep ${i}`).toMatchObject({ ok: true });
+      if (elapsed < best) best = elapsed;
+    }
+    return best;
   } finally {
     model.dispose();
     doc.destroy();
   }
 }
 
-describe(`command cost at ${SIZE} elements (spec 08 §15)`, () => {
-  it('keeps the keyboard commands within an order of magnitude of text.insert', () => {
-    const report: Record<string, number> = {
-      'text.insert': measure('text.insert', (ids, i) => ({ at: { elementId: ids[actionIndex(i)], offset: 1 }, text: 'x' })),
-      'element.split': measure('element.split', (ids, i) => ({ at: { elementId: ids[actionIndex(i)], offset: 1 } })),
-      'element.setStyle': measure('element.setStyle', (ids, i) => ({ elements: [ids[actionIndex(i)]], style: i % 2 === 0 ? 'st_shot' : 'st_action' })),
-      'element.cycleStyle': measure('element.cycleStyle', (ids, i) => ({ element: ids[actionIndex(i)], direction: 'tabForward', caretAtEnd: true })),
-    };
-    const baseline = report['text.insert']!;
-    const summary = Object.entries(report).map(([k, v]) => `${k}=${v.toFixed(2)}ms`).join(' ');
-    for (const [id, ms] of Object.entries(report)) {
-      expect(ms, `${id} ${summary}`).toBeLessThan(ABSOLUTE_CEILING_MS);
-      expect(ms / baseline, `${id} is ${(ms / baseline).toFixed(1)}x text.insert — ${summary}`).toBeLessThan(RATIO_CEILING);
+const CASES: [id: string, params: Params][] = [
+  ['text.insert', (ids, i, size) => ({ at: { elementId: ids[actionIndex(i, size)], offset: 1 }, text: 'x' })],
+  ['element.split', (ids, i, size) => ({ at: { elementId: ids[actionIndex(i, size)], offset: 1 } })],
+  ['element.setStyle', (ids, i, size) => ({ elements: [ids[actionIndex(i, size)]], style: i % 2 === 0 ? 'st_shot' : 'st_action' })],
+  ['element.cycleStyle', (ids, i, size) => ({ element: ids[actionIndex(i, size)], direction: 'tabForward', caretAtEnd: true })],
+];
+
+describe(`keyboard command cost (spec 08 §15)`, () => {
+  it(`stays well inside the keystroke budget at ${BIG} elements`, () => {
+    const lines: string[] = [];
+    for (const [id, params] of CASES) {
+      const small = fastestCall(id, params, SMALL);
+      const big = fastestCall(id, params, BIG);
+      lines.push(`${id}: ${small.toFixed(3)}ms@${SMALL} ${big.toFixed(3)}ms@${BIG}`);
+      const detail = lines.join(' | ');
+      expect(big, `${id} costs ${big.toFixed(2)} ms at ${BIG} elements — ${detail}`).toBeLessThan(CEILING_MS);
     }
   });
 });
