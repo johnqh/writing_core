@@ -58,6 +58,59 @@ describe('openDocument elements', () => {
     expect(model.element(a.get('id') as never)!.role).toBe('shot');
   });
 
+  it('bumps textVersion when the whole `text` key is replaced, not only when the Y.Text is edited', () => {
+    const { doc, a } = setup();
+    const model = openDocument(doc, deps);
+    const id = a.get('id') as never;
+    expect(model.textVersion(id)).toBe(0);
+    doc.transact(() => {
+      const t = a.set('text', new Y.Text());
+      t.insert(0, 'Replaced.');
+    });
+    expect(model.element(id)!.text.plain).toBe('Replaced.');
+    expect(model.textVersion(id)).toBeGreaterThan(0);
+  });
+
+  it('bumps attrsVersion for element-level `omit` (a one-line placeholder is a layout change)', () => {
+    const { doc, a } = setup();
+    const model = openDocument(doc, deps);
+    const id = a.get('id') as never;
+    const before = model.attrsVersion(id);
+    a.set('omit', { at: 1, by: 'u', rev: null });
+    expect(model.attrsVersion(id)).toBe(before + 1);
+  });
+
+  it('bumps attrsVersion for scene.omit only, not for any other scene field (spec 02 §31.2)', () => {
+    const { doc, h } = setup();
+    const model = openDocument(doc, deps);
+    const id = h.get('id') as never;
+    const scene = h.set('scene', new Y.Map<unknown>());
+    const before = model.attrsVersion(id);
+    scene.set('locationId', 'ent_01ARYZ6S410000000000000000');
+    expect(model.attrsVersion(id)).toBe(before);
+    scene.set('omit', { at: 1, by: 'u', rev: null });
+    expect(model.attrsVersion(id)).toBe(before + 1);
+  });
+
+  it('never reuses the counters or the hash memo of an element that was deleted and recreated with the same id', () => {
+    const { doc, a } = setup();
+    const model = openDocument(doc, deps);
+    const id = a.get('id') as string;
+    const firstHash = model.elementContentHash(id as never);
+    const textV = model.textVersion(id as never);
+    const attrsV = model.attrsVersion(id as never);
+    const pos = String(a.get('pos'));
+    doc.transact(() => doc.getMap('elements').delete(id));
+    doc.transact(() => insertElementRecord(doc.getMap('elements'), {
+      id: id as never, pos, style: 'st_action' as never,
+      text: { plain: 'Something else entirely.', runs: [{ text: 'Something else entirely.', attrs: {} }], embeds: [] },
+    }, meta));
+    expect(model.element(id as never)!.text.plain).toBe('Something else entirely.');
+    expect(model.elementContentHash(id as never)).not.toBe(firstHash);
+    expect(model.textVersion(id as never)).toBeGreaterThan(textV);
+    expect(model.attrsVersion(id as never)).toBeGreaterThan(attrsV);
+  });
+
   it('delivers one batch per transaction with origin and locality', () => {
     const { doc, h, a, add } = setup();
     const model = openDocument(doc, deps);

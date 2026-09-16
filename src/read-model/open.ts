@@ -24,8 +24,13 @@ import type {
 
 type YMap = Y.Map<unknown>;
 
-/** Element keys whose change bumps `attrsVersion` (spec 01 §10.2). */
-const ATTRS_KEYS: ReadonlySet<string> = new Set(['style', 'ov', 'num', 'scene', 'dual', 'alts', 'tc', 'lineAdjust']);
+/**
+ * Element keys whose change bumps `attrsVersion` (spec 01 §10.2 / spec 02 §31.2). `scene` is here
+ * for the key itself being set or removed; a change *inside* the scene map only counts when it
+ * touches `omit` (see `sceneChangeCounts` below), because everything else in there — locationId,
+ * storylineIds, the scene number's own state — is not a paragraph-layout input.
+ */
+const ATTRS_KEYS: ReadonlySet<string> = new Set(['style', 'ov', 'num', 'scene', 'dual', 'alts', 'tc', 'lineAdjust', 'omit']);
 
 export interface DocumentModel {
   readonly doc: Y.Doc;
@@ -283,12 +288,25 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
       const id = String(event.path[0]);
       if (inserted.has(id)) continue;
       changed.add(id);
-      const isText = event.target instanceof Y.Text && event.path.length === 2 && event.path[1] === 'text';
-      const touchesAttrs = event.path.length === 1
-        ? [...(event as Y.YMapEvent<unknown>).keysChanged].some((k) => ATTRS_KEYS.has(k))
-        : ATTRS_KEYS.has(String(event.path[1]));
-      if (isText) textVersions.set(id, (textVersions.get(id) ?? 0) + 1);
-      else if (touchesAttrs) attrsVersions.set(id, (attrsVersions.get(id) ?? 0) + 1);
+      let bumpText = false;
+      let bumpAttrs = false;
+      if (event.target instanceof Y.Text && event.path.length === 2 && event.path[1] === 'text') {
+        bumpText = true;
+      } else if (event.path.length === 1) {
+        const keys = (event as Y.YMapEvent<unknown>).keysChanged;
+        // Replacing the whole `text` key (a fresh Y.Text swapped in, e.g. by a repair or an
+        // importer) is a text change too; only edits *inside* an existing Y.Text arrive on the
+        // branch above, so without this the counter — and every cache keyed on it — missed it.
+        bumpText = keys.has('text');
+        bumpAttrs = [...keys].some((k) => ATTRS_KEYS.has(k));
+      } else if (event.path[1] === 'scene') {
+        // Spec 02 §31.2: of the scene map, only `omit` is a paragraph-layout input.
+        bumpAttrs = event.path.length === 2 && (event as Y.YMapEvent<unknown>).keysChanged.has('omit');
+      } else {
+        bumpAttrs = ATTRS_KEYS.has(String(event.path[1]));
+      }
+      if (bumpText) textVersions.set(id, (textVersions.get(id) ?? 0) + 1);
+      if (bumpAttrs) attrsVersions.set(id, (attrsVersions.get(id) ?? 0) + 1);
       if (event.target instanceof Y.Map && event.path.length === 1 && (event as Y.YMapEvent<unknown>).keysChanged.has('pos')) reordered = true;
     }
     for (const id of inserted) {
@@ -299,8 +317,15 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
     for (const id of removed) {
       index.remove(id);
       views.delete(id);
-      textVersions.delete(id);
-      attrsVersions.delete(id);
+      // The counters are a per-id HIGH-WATER MARK, never reset: element ids are reused (undo,
+      // a rejected tracked delete, an import that re-materializes the same record), and resetting
+      // to 0 would hand a paragraph cache — or the hash memo below — the same key for different
+      // content. Bumping on removal also guarantees the recreated element gets a fresh key. The
+      // maps therefore grow with the number of distinct ids seen this session, which is bounded by
+      // the document's edit history and is in-memory only.
+      textVersions.set(id, (textVersions.get(id) ?? 0) + 1);
+      attrsVersions.set(id, (attrsVersions.get(id) ?? 0) + 1);
+      hashMemo.delete(id);
       reordered = true;
     }
     for (const id of changed) {
