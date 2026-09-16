@@ -113,6 +113,9 @@ export {
 export { graphemeClusters, nextCluster, previousCluster } from './text/grapheme.js';
 export { breakOpportunities, type DictionarySegmenter, type BreakOptions, type LineBreakProfile } from './text/linebreak.js';
 export { resolveParagraphLevel, bidiLevels, reorderVisual, mirrorChar } from './text/bidi.js';
+export { wordBoundaries } from './text/words.js';
+export { sentenceBoundaries, sentenceEnds, ABBREVIATIONS } from './text/sentences.js';
+export { loadDictionary } from './text/dict.js';
 
 // ─── Fonts ──────────────────────────────────────────────────────────────────
 // (`FaceId`/`FontFaceMetrics` are already exported above from `./layout/types.js`; this

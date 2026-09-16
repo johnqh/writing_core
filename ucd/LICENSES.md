@@ -94,6 +94,8 @@ algorithm is implemented against them yet.
 | `LineBreakTest.txt` (`auxiliary/`) | `src/text/linebreak.test.ts` (Task 7) | `910759a611a479f37df4f535d2e64d7589be3c5ac5f7491cf1fb4fa4cdb211e9` |
 | `BidiTest.txt` | not yet — Task 8 | `93e5eb9d88ca89dcf895f5576486a3363762ad2aa8f2db2fa56fe60cb82b9520` |
 | `BidiCharacterTest.txt` | not yet — Task 8 | `d04a51a90052dcd71c4e91ee5b3a9d973ee35c12406b5a99875ac8163c8f2804` |
+| `WordBreakTest.txt` (`auxiliary/`) | `src/text/words.test.ts` (Task 9) | `ad985d5721f3fa6b45495663dfe44180f2f68976100dee0ea7451ef1a8f838e8` |
+| `SentenceBreakTest.txt` (`auxiliary/`) | `src/text/sentences.test.ts` (Task 9) | `0aef84034ee1789eb71021454fac384e83080b05922272d63cf297f4bf08150e` |
 
 Every SHA-256 above is re-verified against the actually-committed
 `test/ucd/*.txt` files (and, for source files, against the corresponding

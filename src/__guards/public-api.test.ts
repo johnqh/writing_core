@@ -10,7 +10,7 @@ import * as internalApi from '../internal.js';
 // `bun -e "console.log(JSON.stringify(Object.keys(await import('./dist/index.js')).sort()))"`
 // after `bun run build`, and diff by hand before committing — this array must change on purpose.
 const ROOT_EXPORTS = [
-  'ALIGNMENTS', 'ANCHOR_MARK_PREFIXES', 'ATTRIBUTE_KEY_RE', 'AltJSON', 'AnimalFields', 'BUILTIN_SLOT_ROLES',
+  'ABBREVIATIONS', 'ALIGNMENTS', 'ANCHOR_MARK_PREFIXES', 'ATTRIBUTE_KEY_RE', 'AltJSON', 'AnimalFields', 'BUILTIN_SLOT_ROLES',
   'BUILTIN_STYLE_RE', 'BUILTIN_TEMPLATES', 'BackgroundActorFields', 'Bcp47', 'BeatJSON', 'BeatLinkJSON',
   'BinItemJSON', 'BookmarkJSON', 'CAPABILITIES', 'CHANGE_MARKS', 'COMMAND_ID_RE', 'CharacterFields',
   'ContinuedTexts', 'DEFAULT_PAGE_NUMBERING', 'DEFAULT_SETTINGS', 'DEFAULT_TABLE_READ', 'DEFAULT_TEMPLATE_KEY',
@@ -52,14 +52,14 @@ const ROOT_EXPORTS = [
   'fromPortablePos', 'generalCategory', 'getBuiltinTemplate', 'getCommand', 'graphemeBreakProperty', 'graphemeClusters',
   'harvest', 'idKind', 'idSchema', 'inchesToEmu', 'isId',
   'isMarkKey', 'isNewerThanCode', 'isPortablePos', 'isStyleId', 'letterPage', 'letters', 'lineBreakClass', 'listBuiltinTemplates',
-  'listCommands', 'localizeTemplate', 'materializeDocument', 'migrateDocument', 'mirrorChar', 'mirrorTemplate',
+  'listCommands', 'loadDictionary', 'localizeTemplate', 'materializeDocument', 'migrateDocument', 'mirrorChar', 'mirrorTemplate',
   'newDualGroupId', 'newId', 'nextCluster', 'normalizeKey', 'nullShaper', 'openDocument', 'packetHash', 'parseSceneHeading', 'pointsToEmu',
   'positionBetween', 'previousCluster', 'queryLetter', 'readTextJSON', 'registerBuiltinCommands', 'registerCommand',
   'registerInvariants', 'remapDocumentIds', 'reorderVisual', 'resolveParagraphLevel', 'resolveStyle', 'roleForImportedStyle', 'rootStyle', 'roundHalfEven', 'scanText',
-  'sceneContentHash', 'sceneHeadingNumbering', 'screenplayStandard', 'script', 'scriptOf', 'sentenceBreakProperty', 'sha256Bytes', 'sha256Hex',
+  'sceneContentHash', 'sceneHeadingNumbering', 'screenplayStandard', 'script', 'scriptOf', 'sentenceBoundaries', 'sentenceBreakProperty', 'sentenceEnds', 'sha256Bytes', 'sha256Hex',
   'shiftTabAction', 'shotContentHash', 'sizeEmuFromPoints', 'sliceTextJSON', 'standardHeader', 'standardTitlePageSeeds',
   'stripExtension', 'styleDef', 'tabAction', 'templateHash', 'textJSONFromPlain', 'textJSONToDelta', 'textOutline',
-  'titleFromKey', 'tofuFace', 'toPortablePos', 'treatment', 'validateDocument', 'validateTemplate', 'verticalDrama', 'wordBreakProperty',
+  'titleFromKey', 'tofuFace', 'toPortablePos', 'treatment', 'validateDocument', 'validateTemplate', 'verticalDrama', 'wordBoundaries', 'wordBreakProperty',
 ].sort();
 
 // Sorted, committed snapshot of every value `../internal.js` exports. Regenerate the same way,

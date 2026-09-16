@@ -76,6 +76,10 @@ const CONFORMANCE: Record<string, string> = {
   // conformance files, both live at the UCD root, not under auxiliary/.
   'BidiTest.txt': `${BASE}/BidiTest.txt`,
   'BidiCharacterTest.txt': `${BASE}/BidiCharacterTest.txt`,
+  // Task 9 (words/sentences, UAX #29 §6.5) addition: word- and sentence-boundary
+  // conformance, run in full by src/text/words.test.ts and src/text/sentences.test.ts.
+  'WordBreakTest.txt': `${BASE}/auxiliary/WordBreakTest.txt`,
+  'SentenceBreakTest.txt': `${BASE}/auxiliary/SentenceBreakTest.txt`,
 };
 
 // Task 8 fix round 1 (review finding): `DerivedBidiClass.txt`'s own `@missing:` defaults spell
