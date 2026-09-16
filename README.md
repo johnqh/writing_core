@@ -2,8 +2,9 @@
 
 Headless writing engine for screenplays, teleplays, stage plays, radio,
 AV scripts, graphic novels and manuscripts: a collaborative (Yjs) document
-model, data-driven templates, editing commands, SmartType, and deterministic
-layout and pagination that produce identical pages on every platform.
+model, data-driven templates, editing commands, SmartType, and per-session
+undo. Deterministic layout and pagination that produce identical pages on
+every platform is a later milestone, not part of this package yet.
 
 ## Installation
 

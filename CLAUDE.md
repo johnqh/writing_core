@@ -4,8 +4,9 @@
 > the user explicitly asks in that turn.
 
 Headless, platform-free writing engine for the Fadewright family: document
-model (Yjs), templates, commands, SmartType, layout and pagination. Knows
-nothing about accounts, servers or UI.
+model (Yjs), templates, commands, SmartType and per-session undo. Layout and
+pagination are a later milestone, not implemented here yet. Knows nothing
+about accounts, servers or UI.
 
 ## Tech Stack
 
@@ -38,7 +39,7 @@ nothing about accounts, servers or UI.
 ## Patterns
 
 - Every write is a command run through `executeBatch`/`executeCommand`, one `doc.transact` per invocation, carrying a `TransactionOrigin`.
-- A command's `run` makes every refusal check before its first write; multi-command batches are rehearsed on a replica first.
+- A command's `run` makes every refusal check before its first write. Every invocation — a single command or a multi-command batch — is rehearsed on a throwaway replica first, so a refusal after a partial write never reaches the live document. `fastPath: true` on a `CommandSpec` opts a *single* command out of that rehearsal (never a batch), trading the safety net for one fewer document clone; it is allowlisted to exactly `text.insert`, `text.insertSoftReturn`, `text.deleteBackward`, `text.deleteForward` (`src/commands/builtin.test.ts` pins the list) because those are the typing hot path and provably refuse — via `isEnabled` or as the first thing `run` does — before any write.
 - Element order is `pos` (fractional, base-62) then id. Never use `Y.Array` for anything people reorder.
 - Views from the read model are frozen and replaced, never mutated.
 
