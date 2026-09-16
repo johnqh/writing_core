@@ -1,7 +1,13 @@
 import * as Y from 'yjs';
 import { describe, expect, it } from 'vitest';
-import type { ChangeId, RevisionSetId } from '../ids/ids.js';
-import { policyDelete, policyInsert, touchElement, type WritePolicy } from './marks-policy.js';
+import { createSeededIdSource } from '../ids/id-source.js';
+import { newId, type ChangeId, type RevisionSetId } from '../ids/ids.js';
+import { createDocument } from '../model/create.js';
+import { openDocument } from '../read-model/open.js';
+import { screenplayStandard } from '../templates/builtin/screenplay-standard.js';
+import { createSessionOrigins } from './origin.js';
+import { policyDelete, policyInsert, touchElement, writePolicy, type WritePolicy } from './marks-policy.js';
+import type { CommandContext } from './types.js';
 
 const REV = 'rev_01ARYZ6S410000000000000000' as RevisionSetId;
 const CHG = 'chg_01ARYZ6S410000000000000000' as ChangeId;
@@ -55,6 +61,61 @@ describe('track changes', () => {
     const laterTrack = { changeId: CHG, by: 'u2', at: 200 };
     expect(policyDelete(policy({ track: laterTrack, actorId: 'u2' }), t, 3, 2)).toEqual({ removed: 0, revDelInserted: false });
     expect(t.toDelta()).toEqual([{ insert: 'Hel' }, { insert: 'lo', attributes: { del: track } }]);
+  });
+});
+
+describe('writePolicy(ctx)', () => {
+  const actor = { userId: 'u1', displayName: 'U', color: '#123456', kind: 'human' as const };
+
+  function makeCtx(overrides: Partial<CommandContext> = {}): CommandContext {
+    const ids = createSeededIdSource(70);
+    const doc = createDocument({ template: screenplayStandard, uid: 'u', ids });
+    const model = openDocument(doc, { ids, clock: () => 0, locale: 'en' });
+    const origins = createSessionOrigins(actor);
+    return {
+      doc, model, actor, origin: origins.make('local-command'), capabilities: new Set(['write']),
+      ids, clock: () => 100, changeId: newId('chg', ids), readOnly: false,
+      ...overrides,
+    };
+  }
+
+  it('yields no policy for an unmarked origin kind', () => {
+    const ctx = makeCtx({ origin: createSessionOrigins(actor).make('remote') });
+    expect(writePolicy(ctx)).toEqual({ revisionSetId: null, track: null, actorId: 'u1', now: 100 });
+  });
+
+  it('yields the active revision set id for a marked origin when revisions.mode is on', () => {
+    const ctx = makeCtx();
+    const sets = ctx.doc.getMap('revisions').get('sets') as Y.Map<unknown>;
+    const setId = [...sets.keys()][0] as string;
+    ctx.doc.getMap('revisions').set('mode', true);
+    ctx.doc.getMap('revisions').set('activeSetId', setId);
+    expect(writePolicy(ctx)).toEqual({ revisionSetId: setId, track: null, actorId: 'u1', now: 100 });
+  });
+
+  it('yields a track record when trackChanges.enabled is on', () => {
+    const ctx = makeCtx();
+    ctx.doc.getMap('trackChanges').set('enabled', true);
+    expect(writePolicy(ctx)).toEqual({ revisionSetId: null, track: { changeId: ctx.changeId, by: 'u1', at: 100 }, actorId: 'u1', now: 100 });
+  });
+
+  it('reads the real revisions/trackChanges keys, not lookalikes', () => {
+    const ctx = makeCtx();
+    // Setting anything under the wrong key names must not activate the policy —
+    // this pins the exact key names `writePolicy` is documented to read.
+    ctx.doc.getMap('revisions').set('active', true);
+    ctx.doc.getMap('revisions').set('revisionMode', true);
+    ctx.doc.getMap('trackChanges').set('on', true);
+    ctx.doc.getMap('trackChanges').set('trackChangesEnabled', true);
+    expect(writePolicy(ctx)).toEqual({ revisionSetId: null, track: null, actorId: 'u1', now: 100 });
+    // Now flip the real keys and confirm the policy does react, proving the
+    // assertion above is load-bearing rather than vacuously true.
+    ctx.doc.getMap('revisions').set('mode', true);
+    ctx.doc.getMap('revisions').set('activeSetId', 'rev_01ARYZ6S410000000000000000');
+    ctx.doc.getMap('trackChanges').set('enabled', true);
+    const policy = writePolicy(ctx);
+    expect(policy.revisionSetId).toBe('rev_01ARYZ6S410000000000000000');
+    expect(policy.track).toEqual({ changeId: ctx.changeId, by: 'u1', at: 100 });
   });
 });
 
