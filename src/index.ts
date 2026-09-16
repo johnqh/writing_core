@@ -28,6 +28,7 @@ export * from './model/remap-ids.js';
 export * from './model/json.js';
 export * from './model/validate/index.js';
 export * from './smarttype/normalize.js';
+export * from './smarttype/harvest.js';
 
 // ─── Migrations ─────────────────────────────────────────────────────────────
 export * from './migrations/index.js';
@@ -44,6 +45,8 @@ export * from './commands/element-ops.js';
 export { TEXT_COMMANDS } from './commands/text.js';
 export { MARK_COMMANDS } from './commands/mark.js';
 export { ELEMENT_COMMANDS } from './commands/element.js';
+export { ENTITY_COMMANDS } from './commands/entity.js';
+export { SMARTTYPE_COMMANDS } from './commands/smarttype.js';
 export * from './commands/builtin.js';
 
 // ─── Schema ─────────────────────────────────────────────────────────────────
