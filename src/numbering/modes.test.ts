@@ -119,19 +119,48 @@ describe('generateBetween — gap-exhausted diagnostics beyond the §22.4 table'
     expect(compareLabels(labels[0]!, R, '1AB')).toBeLessThan(0); // still < R
   });
 
-  it('AB2: no structural room between a plain P and an already-prefixed R — throws rather than returning misleading data', () => {
+  // Fix round 1 (Critical): §22.3 was corrected — the refusal condition is "steps 2 and 3 produced
+  // no candidate", computed, never inferred from `R.prefix.length > 0`. Only a *minimally* prefixed
+  // R (prefix exactly `[1]`, or — generalizing to a deeper chain — every position `1`) leaves no
+  // room; the previous `if (label.prefix.length > 0) return` guard refused far more than that.
+  // These three tests pin the boundary from both sides: the two review counterexamples that must
+  // now generate real candidates, and the minimal case that must still refuse.
+  it('AB2: minimally-prefixed R (prefix exactly [1]) — no structural room, throws rather than returning misleading data', () => {
     const P = plain(1);
     const R = label(2, [letterSeg(1)]); // A2 — already minimally prefixed
     expect(() => generateBetween(P, R, 1, 'AB2', false)).toThrow(RangeError);
   });
 
-  it('BA2: same structural dead end as AB2', () => {
+  it('BA2: same minimal-prefix dead end as AB2', () => {
     const P = plain(1);
     const R = label(2, [letterSeg(1)]); // A2
     expect(() => generateBetween(P, R, 1, 'BA2', false)).toThrow(RangeError);
   });
 
-  it('AB2 childSeq(plain) and preSeq(prefixed) are both ∅, per §22.2', () => {
+  it('AB2 counterexample: plain P=1, R=AB2 (prefix [1,2], not minimal) — A2 sorts strictly between, does not throw', () => {
+    const P = plain(1);
+    const R = label(2, [letterSeg(1, 2)]); // AB2
+    const { labels, gapExhausted } = generateBetween(P, R, 1, 'AB2', false);
+    expect(gapExhausted).toBe(false);
+    expect(compareLabels(labels[0]!, P, 'AB2')).toBeGreaterThan(0);
+    expect(compareLabels(labels[0]!, R, 'AB2')).toBeLessThan(0);
+    // Spec 02 §22.3 illustrates "A2" for this exact pair; this generator's own predecessor
+    // construction produces "AA2" instead — a *different*, also-valid candidate (both sort
+    // strictly between P and R), not a mismatch with the spec's illustration.
+    expect(render(labels[0]!, 'AB2')).toBe('AA2');
+  });
+
+  it('BA2 counterexample: plain P=1, R=BA2 (prefix [2,1], not minimal) — AA2 sorts strictly between, does not throw', () => {
+    const P = plain(1);
+    const R = label(2, [letterSeg(2, 1)]); // BA2
+    const { labels, gapExhausted } = generateBetween(P, R, 1, 'BA2', false);
+    expect(gapExhausted).toBe(false);
+    expect(compareLabels(labels[0]!, P, 'BA2')).toBeGreaterThan(0);
+    expect(compareLabels(labels[0]!, R, 'BA2')).toBeLessThan(0);
+    expect(render(labels[0]!, 'BA2')).toBe('AA2'); // matches spec 02 §22.3's own illustration exactly
+  });
+
+  it('AB2 childSeq(plain) and preSeq(minimally-prefixed) are both ∅, per §22.2 / corrected §22.3', () => {
     const take = <T>(it: Iterable<T>, n: number): T[] => {
       const out: T[] = [];
       for (const v of it) {
@@ -142,6 +171,31 @@ describe('generateBetween — gap-exhausted diagnostics beyond the §22.4 table'
     };
     expect(take(childSeq(plain(2), 'AB2', false), 3)).toEqual([]);
     expect(take(preSeq(label(2, [letterSeg(1)]), 'AB2', false), 3)).toEqual([]);
+  });
+
+  it('AB2/BA2 preSeq of a non-minimally-prefixed R is NOT ∅ — the corrected, narrower refusal', () => {
+    const take = <T>(it: Iterable<T>, n: number): T[] => {
+      const out: T[] = [];
+      for (const v of it) {
+        if (out.length >= n) break;
+        out.push(v);
+      }
+      return out;
+    };
+    expect(take(preSeq(label(2, [letterSeg(1, 2)]), 'AB2', false), 1)).toHaveLength(1); // AB2
+    expect(take(preSeq(label(2, [letterSeg(2, 1)]), 'BA2', false), 1)).toHaveLength(1); // BA2
+  });
+
+  it('childSeqAB2 throws on a digits prefix segment (defensive — no generator here ever builds one)', () => {
+    const malformed = label(2, [digitSeg(1)]); // a label this module never builds, handed in directly
+    const take = <T>(it: Iterable<T>): T => {
+      const { value } = it[Symbol.iterator]().next();
+      return value as T;
+    };
+    expect(() => take(childSeq(malformed, 'AB2', false))).toThrow(RangeError);
+    expect(() => take(childSeq(malformed, 'BA2', false))).toThrow(RangeError);
+    expect(() => take(preSeq(malformed, 'AB2', false))).toThrow(RangeError);
+    expect(() => take(preSeq(malformed, 'BA2', false))).toThrow(RangeError);
   });
 
   it('1AB: Z-extension continuation under large k (letterIndexRun overflow, not letters()\'s repeat-based one)', () => {
@@ -179,11 +233,16 @@ describe('generateBetween — gap-exhausted diagnostics beyond the §22.4 table'
 // nobody enumerated: for a random sorted locked sequence of plain integer labels, a random
 // insertion point (including the two open ends), a random k, mode and skipIO — every label
 // generateBetween returns sorts strictly between P and R under compareLabels(mode), and the
-// returned labels strictly increase among themselves. (Both P and R here are always plain
-// integers, so this scenario never trips gap-exhausted or the AB2/BA2 structural dead end above —
-// see modes.ts's generateBetween doc comment for why: base comparison alone always separates a
-// plain P from a plain R, so childSeq(P)/preSeq(R) never run dry. gapExhausted is asserted false
-// as part of the property, which is itself a regression check on that claim.)
+// returned labels strictly increase among themselves.
+//
+// Fix round 1 (Important): P and R here are always DISTINCT-base plain integers, so
+// compareLabels' base-first comparison makes `below`/`above` (modes.ts's per-candidate filters)
+// vacuously true across the whole domain this generator reaches — disabling both filters produces
+// zero failures across all 300 runs of *this* property. It still earns its keep for the
+// monotonicity half (childSeq/preSeq strictly increasing — the BA2 overflow bug above was caught
+// here), so it stays, but it does not exercise the filters at all. The second property below
+// (same-base, varying-prefix-depth P/R) is what does that — see its own comment for the disabled-
+// filter mutation run that failed under it.
 //
 // Seeded so a failure reproduces deterministically (spec 02 §1.1 forbids ambient inputs in
 // shipping code; this is a test file, but a seeded property is good practice regardless and the
@@ -217,6 +276,75 @@ describe('generateBetween — property (fast-check)', () => {
         },
       ),
       { seed: PROPERTY_SEED, numRuns: 300 },
+    );
+  });
+});
+
+// ─── Property test 2: P and R sharing a base, with prefixes/suffixes of varying depth ─────────────
+//
+// Fix round 1 (Important). Built by generating ONE level via generateBetween itself (locking,
+// inserting, "relocking" by treating the results as the new neighbours, exactly spec 02 §23.1's
+// real workflow) rather than hand-picked structures: pick a random adjacent pair from
+// `[P0, ...generateBetween(P0, P0+1, k1, mode, skipIO).labels, R0]` as the new P2/R2. Because P2
+// and R2 routinely share P0's base (differing only in suffix/prefix depth), `below`/`above` are no
+// longer vacuous — childSeq(P2) filtered `< R2` genuinely runs dry for several of these pairs
+// (e.g. P2=P0, R2=P0's own first generated child, the exact `1AB | 10 | 10A` shape from §22.4),
+// forcing reliance on preSeq(R2)/the gap-exhausted fallback, and for AB2/BA2 this also reaches the
+// narrowed-refusal path fixed above (a RangeError is an accepted outcome only for those two
+// modes). `< R2` holds even for gap-exhausted output here (R2 always has an empty prefix in this
+// construction, so the hasPrefix-first rule always puts a gap-exhausted candidate below it); `> P2`
+// is asserted only when NOT gap-exhausted, per generateBetween's documented relaxation.
+//
+// Disabling both filters (`below`/`above` both hard-coded `true`, matching the review's mutation)
+// against this property, run for real: **"Property failed after 4 tests"** (fast-check's own
+// count, `numRuns: 300`, seed below), shrunk 6 times to counterexample
+// `[base=0, k1=1, idxSeed=0, k2=1, mode="1AB", skipIO=false]` — i.e. P0=0, R0=1, the one-item
+// first-level insertion gives mid=[0A], so P2=0, R2=0A (exactly `1AB`'s `10/10A` shape from
+// §22.4). With `below` disabled, step 2 (childSeq(P2), now unfiltered) hands back its very first
+// candidate, `0A`, for k2=1 — `compareLabels(0A, R2=0A, '1AB')` is `0`, not negative, which is
+// exactly what the disabled `below` filter existed to reject (`AssertionError: expected 0 to be
+// less than 0`, at the `< R2` line below). This is the placement-half counterexample the first
+// property's generator could never reach (mutation restored before committing; do not
+// re-introduce it).
+const PROPERTY_SEED_2 = 20260917;
+
+describe('generateBetween — property 2 (fast-check): same-base P/R with varying prefix/suffix depth', () => {
+  it('every generated label still sorts correctly against R (and against P when not gap-exhausted), even when childSeq(P) alone cannot supply it', () => {
+    fc.assert(
+      fc.property(
+        fc.integer({ min: 0, max: 200 }),
+        fc.integer({ min: 1, max: 6 }),
+        fc.nat(),
+        fc.integer({ min: 1, max: 10 }),
+        fc.constantFrom(...NUMBER_MODES),
+        fc.boolean(),
+        (base, k1, idxSeed, k2, mode, skipIO) => {
+          const P0 = plain(base);
+          const R0 = plain(base + 1);
+          const { labels: mid } = generateBetween(P0, R0, k1, mode, skipIO); // always satisfiable — property 1
+
+          const seq = [P0, ...mid, R0];
+          const i = idxSeed % (seq.length - 1);
+          const P2 = seq[i]!;
+          const R2 = seq[i + 1]!;
+
+          let result: { labels: NumberLabel[]; gapExhausted: boolean };
+          try {
+            result = generateBetween(P2, R2, k2, mode, skipIO);
+          } catch (e) {
+            if ((mode === 'AB2' || mode === 'BA2') && e instanceof RangeError) return;
+            throw e;
+          }
+
+          expect(result.labels).toHaveLength(k2);
+          for (let j = 0; j < result.labels.length; j += 1) {
+            expect(compareLabels(result.labels[j]!, R2, mode)).toBeLessThan(0);
+            if (!result.gapExhausted) expect(compareLabels(result.labels[j]!, P2, mode)).toBeGreaterThan(0);
+            if (j > 0) expect(compareLabels(result.labels[j]!, result.labels[j - 1]!, mode)).toBeGreaterThan(0);
+          }
+        },
+      ),
+      { seed: PROPERTY_SEED_2, numRuns: 300 },
     );
   });
 });

@@ -54,6 +54,24 @@ function lastSegmentKind(segs: readonly LabelSegment[]): 'none' | 'letters' | 'd
   return segs.length === 0 ? 'none' : segs[segs.length - 1]!.kind;
 }
 
+/**
+ * Spec 02 §22.3 step 4's corrected AB2/BA2 rule: the lexicographic predecessor of `flat`, found by
+ * scanning from the end for the last position that isn't already the alphabet's first letter (`1`),
+ * decrementing it and truncating everything after — the standard "borrow" construction for finding
+ * what sorts immediately before a sequence when it can be freely extended with more elements
+ * (`[1,2]` → `[1,1]`; `[2,1,1]` → `[1]`, borrowing across two trailing `1`s). Returns `null` when
+ * every element is already `1` (`flat` is a chain of "first child of first child of …" down to the
+ * base) — there is no shorter or lexicographically-earlier sequence at this base, which is exactly
+ * §22.3's "only a *minimally* prefixed R … leaves no room" (generalized: not just `[1]` itself, but
+ * any all-`1`s chain, since each level is itself a minimal-child case one level up).
+ */
+function decrementLastPosition(flat: readonly number[]): number[] | null {
+  for (let i = flat.length - 1; i >= 0; i -= 1) {
+    if (flat[i]! > 1) return [...flat.slice(0, i), flat[i]! - 1];
+  }
+  return null;
+}
+
 // ─── childSeq ───────────────────────────────────────────────────────────────────────────────────
 
 /** `1AB`: append a brand-new `letters` segment to the suffix each step (1→1A,1B…; 1A→1AA,1AB…). */
@@ -144,17 +162,55 @@ function* preSeqPrependSegment(label: NumberLabel, n: number): Generator<NumberL
 }
 
 /**
- * `AB2`/`BA2` (§22.2: "for a plain base: prefix a new letters segment: 2→A2,B2,…; for a prefixed
- * label: ∅"). Only a plain `label` yields candidates — inserting before an *already*-prefixed
- * label has no representable slot in AB2/BA2's single-run model (see `generateBetween`'s step 4
- * comment for what that means for the gap-exhausted fallback in these two modes). `direction`
- * picks the same forward/reversed orientation `childSeqAB2` uses — see `orientedRun`.
+ * `AB2`/`BA2`, generalized per spec 02 §22.3's corrected step 4: the refusal condition is
+ * "steps 2 and 3 produced no candidate", *computed*, never inferred from whether `R` has a
+ * prefix. Two cases:
+ *
+ * - `label` plain (§22.2: "for a plain base: prefix a new letters segment: 2→A2,B2,…"):
+ *   unchanged — any new single-letter prefix sorts before a plain label of the same base
+ *   regardless of its value (`compareLabels`' hasPrefix-first rule), so `j=1,2,3,…` all qualify.
+ * - `label` prefixed: find `label`'s lexicographic predecessor at this base via
+ *   `decrementLastPosition` (run in *comparison space* — `label`'s flat prefix as-is for `AB2`,
+ *   reversed for `BA2`, matching `orientedRun`'s convention) and yield it as the first candidate,
+ *   then keep extending it further (still in comparison space, so the extension is monotonic
+ *   under the mode's own comparator) for every candidate after that. `null` (every comparison-space
+ *   element is already `1` — `label` is a chain of first-children down to the base) means no
+ *   predecessor exists at all: yields nothing, `∅`, which is the only case these two modes
+ *   genuinely have no step 4 for (see `generateBetween`'s doc comment on the resulting throw).
+ *
+ * Spec 02 §22.3's own examples: between plain `1` and `AB2` (comparison-space flat `[1,2]`), the
+ * predecessor is `[1,1]` = `AA2` (spec illustrates `A2`, a *different* valid candidate — both sort
+ * strictly between; this generator doesn't need to match spec's illustration verbatim, only to
+ * produce *a* correct one). Between plain `1` and `BA2` (stored `[2,1]`, comparison-space
+ * `reverse([2,1]) = [1,2]`), the predecessor in comparison space is also `[1,1]`, converted back to
+ * storage space (`reverse` again, self-inverse here) as `[1,1]` = `AA2` — matching spec exactly.
  */
-function* preSeqAB2(label: NumberLabel, n: number, direction: 'forward' | 'reversed'): Generator<NumberLabel> {
-  if (label.prefix.length > 0) return;
+function* preSeqAB2Plain(label: NumberLabel, n: number, direction: 'forward' | 'reversed'): Generator<NumberLabel> {
   for (let j = 1; ; j += 1) {
     yield { base: label.base, prefix: [{ kind: 'letters', value: orientedRun(j, n, direction) }], suffix: label.suffix };
   }
+}
+
+function* preSeqAB2Prefixed(label: NumberLabel, n: number, direction: 'forward' | 'reversed'): Generator<NumberLabel> {
+  const seg0 = label.prefix[0]!;
+  if (seg0.kind !== 'letters') {
+    throw new RangeError('AB2/BA2 prefix segment must be a letters segment — got a digits segment');
+  }
+  const flatCmp = direction === 'forward' ? seg0.value : [...seg0.value].reverse();
+  const predCmp = decrementLastPosition(flatCmp);
+  if (predCmp === null) return; // label is an all-minimal chain — genuinely no predecessor at this base
+
+  const toStorage = (cmp: readonly number[]): number[] => (direction === 'forward' ? [...cmp] : [...cmp].reverse());
+  yield { base: label.base, prefix: [{ kind: 'letters', value: toStorage(predCmp) }], suffix: label.suffix };
+  for (let j = 1; ; j += 1) {
+    const grown = [...predCmp, ...letterIndexRun(j, n)];
+    yield { base: label.base, prefix: [{ kind: 'letters', value: toStorage(grown) }], suffix: label.suffix };
+  }
+}
+
+function* preSeqAB2(label: NumberLabel, n: number, direction: 'forward' | 'reversed'): Generator<NumberLabel> {
+  if (label.prefix.length === 0) yield* preSeqAB2Plain(label, n, direction);
+  else yield* preSeqAB2Prefixed(label, n, direction);
 }
 
 export function* preSeq(label: NumberLabel, mode: NumberMode, skipIO: boolean): Iterable<NumberLabel> {
@@ -185,12 +241,34 @@ export function* preSeq(label: NumberLabel, mode: NumberMode, skipIO: boolean): 
  */
 const SCAN_CAP = 5000;
 
-function collect(gen: Iterable<NumberLabel>, passes: (l: NumberLabel) => boolean, limit: number): NumberLabel[] {
+/**
+ * `gen` is always a strictly-increasing sequence (childSeq/preSeq) and `passes` always compares
+ * each candidate against one fixed label (`< R` for step 2, `> P` for step 3) — a fixed threshold
+ * against an increasing sequence crosses at most once, so `passes` is monotonic. Which direction
+ * it's monotonic in depends on which side of the comparison the increasing sequence sits on:
+ * `< R` (step 2) starts `true` and goes `false` forever once it does (the sequence has grown past
+ * `R`), so scanning can stop the instant it first fails — no later candidate can pass again.
+ * `> P` (step 3) is the mirror image (starts `false`, becomes `true` forever) — a failure there
+ * does *not* mean every later candidate fails too. Example: mode `1AB`, `P = {base:10, prefix:
+ * [{letters:[1]}]}` ("A10"), `R = {base:10}` ("10", plain) — `preSeq(R)`'s j=1 candidate is also
+ * "A10" itself (equal to `P`, `> P` fails), but j=2 ("B10") passes and every later `j` keeps
+ * passing. So a step-3 scan still needs the `SCAN_CAP` bound rather than an early exit on failure.
+ */
+function collect(
+  gen: Iterable<NumberLabel>,
+  passes: (l: NumberLabel) => boolean,
+  limit: number,
+  onFailure: 'stop' | 'keep-scanning',
+): NumberLabel[] {
   const out: NumberLabel[] = [];
   let scanned = 0;
   for (const l of gen) {
     if (out.length >= limit) break;
-    if (passes(l)) out.push(l);
+    if (passes(l)) {
+      out.push(l);
+    } else if (onFailure === 'stop') {
+      break;
+    }
     scanned += 1;
     if (scanned >= SCAN_CAP) break;
   }
@@ -207,13 +285,16 @@ function collect(gen: Iterable<NumberLabel>, passes: (l: NumberLabel) => boolean
  * guaranteed position: spec 02 §22.4's own worked example (`1AB | 10 | 10A | 1 → A10A`) sorts
  * *before* `P` under `compareLabels` (a prefixed label sorts before a same-base plain one), so
  * gap-exhausted output is diagnosed via the returned `gapExhausted` flag, not guaranteed ordering
- * against `P`. For `AB2`/`BA2`, `preSeq(R)` is `∅` whenever `R` already carries a prefix — there
- * is provably no `NumberLabel` under these two modes' single-run, flattened-comparison scheme
- * (`compareLabels`'s `AB2`/`BA2` branch) that sorts before an already-minimally-prefixed `R`
- * (its own prefix letter is already the alphabet's first, and comparing shorter-common-prefix
- * favours the *existing* label, never a longer one) while sharing `R`'s base, and no other base is
- * available between two consecutive locked integers. Rather than silently return fewer than `k`
- * labels or labels with no defined relationship to `R`, that specific case throws.
+ * against `P`.
+ *
+ * `AB2`/`BA2` have no step 4 in the `1AB`-style sense (§22.3: "the prose above … does not
+ * generalise"), but the refusal is *narrow* and *computed*, never inferred from whether `R` has a
+ * prefix: `preSeqAB2` (see its doc comment) generates real candidates for any `R` whose prefix
+ * isn't an all-first-child chain (`[1]`, `[1,1]`, …) at every level — only that specific case has
+ * provably no `NumberLabel` under these two modes' single-run, flattened-comparison scheme that
+ * sorts before it while sharing `R`'s base, with no other base available between two consecutive
+ * locked integers. Rather than silently return fewer than `k` labels or labels with no defined
+ * relationship to `R`, that specific case throws.
  */
 export function generateBetween(
   P: NumberLabel | null,
@@ -235,11 +316,11 @@ export function generateBetween(
   const above = (l: NumberLabel): boolean => P === null || compareLabels(l, P, mode) > 0;
 
   // Step 2 (and step 5's "P === null" skips straight past this — childSeq(null) has no meaning).
-  const step2 = P === null ? [] : collect(childSeq(P, mode, skipIO), below, k);
+  const step2 = P === null ? [] : collect(childSeq(P, mode, skipIO), below, k, 'stop');
   if (step2.length >= k) return { labels: step2.slice(0, k), gapExhausted: false };
 
   // Step 3 (also step 5's first half, with `above` always true when P === null).
-  const step3 = collect(preSeq(R, mode, skipIO), above, k);
+  const step3 = collect(preSeq(R, mode, skipIO), above, k, 'keep-scanning');
   if (step3.length >= k) return { labels: step3.slice(0, k), gapExhausted: false };
 
   // Step 4: gap exhausted — preSeq(R) unfiltered, first k.
