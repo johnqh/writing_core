@@ -76,13 +76,21 @@ function repointAnchors(ctx: CommandContext, fromId: ElementId, toId: ElementId 
   }
 }
 
-export function removeElement(ctx: CommandContext, id: ElementId): void {
+/**
+ * Removes an element, or — under Track Changes — marks it pending-delete instead (spec 08 §3.3
+ * item 3). `mergeInto` records that this tracked delete stands in for a merge (spec 01 §5.10.3/
+ * §5.10.4): a future accept folds the element's text into `mergeInto` rather than discarding it.
+ * Omit `mergeInto` for a genuine whole-element deletion, where accept simply removes the element.
+ */
+export function removeElement(ctx: CommandContext, id: ElementId, opts?: { mergeInto: ElementId }): void {
   const container = bodyElements(ctx.doc);
   const record = container.get(id) as YMap | undefined;
   if (!record) return;
   const policy = writePolicy(ctx);
   if (policy.track) {
-    record.set('tc', { kind: 'delete', changeId: policy.track.changeId, by: policy.track.by, at: policy.track.at });
+    const tc: Record<string, unknown> = { kind: 'delete', changeId: policy.track.changeId, by: policy.track.by, at: policy.track.at };
+    if (opts?.mergeInto) tc.mergeInto = opts.mergeInto;
+    record.set('tc', tc);
     return;
   }
   for (const [key, v] of [...ctx.doc.getMap('tags').entries()]) if ((v as YMap).get('elementId') === id) ctx.doc.getMap('tags').delete(key);

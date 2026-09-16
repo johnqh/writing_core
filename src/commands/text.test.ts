@@ -137,6 +137,83 @@ describe('deleting', () => {
     expect(dRecord.get('tc')).toMatchObject({ kind: 'delete', by: 'u1' });
   });
 
+  it('records mergeInto on the tracked delete standing in for a merge, but not on a genuine tracked element delete', () => {
+    const h = commandHarness();
+    const [a, b] = h.replaceBody([['st_action', 'She runs'], ['st_dialogue', ' fast.']]);
+    h.doc.getMap('trackChanges').set('enabled', true);
+    h.run('text.deleteBackward', { at: at(b!, 0), unit: 'char' });
+    const bRecord = h.doc.getMap('elements').get(b!) as Y.Map<unknown>;
+    expect(bRecord.get('tc')).toMatchObject({ kind: 'delete', by: 'u1', mergeInto: a });
+
+    const [c, d] = h.replaceBody([['st_action', 'One'], ['st_action', 'Two']]);
+    h.run('text.deleteForward', { at: at(c!, h.textMap(c!).length), unit: 'char' });
+    const dRecord = h.doc.getMap('elements').get(d!) as Y.Map<unknown>;
+    expect(dRecord.get('tc')).toMatchObject({ kind: 'delete', by: 'u1', mergeInto: c });
+
+    // A genuine whole-element delete under Track Changes is not a merge stand-in: no mergeInto.
+    const [e] = h.replaceBody([['st_action', 'Whole element']]);
+    h.run('text.deleteBackward', { at: at(e!, 0), unit: 'element' });
+    const eRecord = h.doc.getMap('elements').get(e!) as Y.Map<unknown>;
+    const eTc = eRecord.get('tc') as { kind: string; mergeInto?: string };
+    expect(eTc.kind).toBe('delete');
+    expect(eTc.mergeInto).toBeUndefined();
+    expect('mergeInto' in eTc).toBe(false);
+  });
+
+  it('reports elementRemoved only when Track Changes did not keep the element (controller ruling B)', () => {
+    const h = commandHarness();
+
+    // unit: 'element', tracking off — real removal, effect reported.
+    const [x] = h.replaceBody([['st_action', 'Gone']]);
+    const untracked = h.run('text.deleteBackward', { at: at(x!, 0), unit: 'element' });
+    expect(untracked.ok).toBe(true);
+    if (untracked.ok) expect(untracked.results[0]).toEqual({ ok: true, effects: [{ kind: 'elementRemoved', id: x }] });
+    expect(h.doc.getMap('elements').has(x!)).toBe(false);
+
+    h.doc.getMap('trackChanges').set('enabled', true);
+
+    // unit: 'element', tracking on — element kept (marked tc), no effect reported.
+    const [y] = h.replaceBody([['st_action', 'Kept']]);
+    const trackedElement = h.run('text.deleteBackward', { at: at(y!, 0), unit: 'element' });
+    expect(trackedElement.ok).toBe(true);
+    if (trackedElement.ok) expect(trackedElement.results[0]).toEqual({ ok: true });
+    expect(h.doc.getMap('elements').has(y!)).toBe(true);
+
+    // deleteForward, unit: 'element', tracking on — same check.
+    const [z] = h.replaceBody([['st_action', 'Kept too']]);
+    const trackedElementFwd = h.run('text.deleteForward', { at: at(z!, 0), unit: 'element' });
+    expect(trackedElementFwd.ok).toBe(true);
+    if (trackedElementFwd.ok) expect(trackedElementFwd.results[0]).toEqual({ ok: true });
+    expect(h.doc.getMap('elements').has(z!)).toBe(true);
+
+    // Empty-current-element branch (backspace), tracking on — kept, no effect.
+    const [, empty] = h.replaceBody([['st_action', 'Prev'], ['st_action', '']]);
+    const trackedEmptyBack = h.run('text.deleteBackward', { at: at(empty!, 0), unit: 'char' });
+    expect(trackedEmptyBack.ok).toBe(true);
+    if (trackedEmptyBack.ok) expect(trackedEmptyBack.results[0]).toEqual({ ok: true });
+    expect(h.doc.getMap('elements').has(empty!)).toBe(true);
+
+    // Empty-next-element branch (forward delete), tracking on — kept, no effect.
+    const [cur, emptyNext] = h.replaceBody([['st_action', 'Cur'], ['st_action', '']]);
+    const trackedEmptyFwd = h.run('text.deleteForward', { at: at(cur!, h.textMap(cur!).length), unit: 'char' });
+    expect(trackedEmptyFwd.ok).toBe(true);
+    if (trackedEmptyFwd.ok) expect(trackedEmptyFwd.results[0]).toEqual({ ok: true });
+    expect(h.doc.getMap('elements').has(emptyNext!)).toBe(true);
+
+    h.doc.getMap('trackChanges').set('enabled', false);
+
+    // Same two empty-element branches, tracking off — real removal, effect reported.
+    const [, empty2] = h.replaceBody([['st_action', 'Prev'], ['st_action', '']]);
+    const untrackedEmptyBack = h.run('text.deleteBackward', { at: at(empty2!, 0), unit: 'char' });
+    expect(untrackedEmptyBack.ok).toBe(true);
+    if (untrackedEmptyBack.ok) expect(untrackedEmptyBack.results[0]).toEqual({ ok: true, effects: [{ kind: 'elementRemoved', id: empty2 }] });
+
+    const [cur2, empty3] = h.replaceBody([['st_action', 'Cur'], ['st_action', '']]);
+    const untrackedEmptyFwd = h.run('text.deleteForward', { at: at(cur2!, h.textMap(cur2!).length), unit: 'char' });
+    expect(untrackedEmptyFwd.ok).toBe(true);
+    if (untrackedEmptyFwd.ok) expect(untrackedEmptyFwd.results[0]).toEqual({ ok: true, effects: [{ kind: 'elementRemoved', id: empty3 }] });
+  });
+
   it('still hard-merges across a paragraph boundary with Track Changes off', () => {
     const h = commandHarness();
     const [a, b] = h.replaceBody([['st_action', 'She runs'], ['st_dialogue', ' fast.']]);

@@ -35,6 +35,8 @@ export const TrackChangeRecord = z.object({
   by: z.string(),
   at: Timestamp,
   fromStyle: StyleIdSchema.optional(),
+  /** `kind: 'delete'` only: this element stands in for a merge, accept folds its text into this survivor instead of removing it outright (spec 01 §5.10.3/§5.10.4). */
+  mergeInto: idSchema('el').optional(),
 });
 export type TrackChangeRecord = z.infer<typeof TrackChangeRecord>;
 

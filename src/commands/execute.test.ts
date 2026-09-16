@@ -75,14 +75,16 @@ registerCommand({
   },
 });
 
-// Mints an id from ctx.ids and records it, without otherwise touching the doc — used to
-// prove a rehearsal pass never advances the real IdSource's stream (queued ruling C).
-let mintedId = '';
+// Mints an id from ctx.ids and records it (appending, never overwriting), without otherwise
+// touching the doc — used to prove a rehearsal pass never advances the real IdSource's
+// stream (queued ruling C). Since a batch runs this command once per pass (rehearsal, then
+// the real apply), appending to an array lets a single execution's two mints be told apart.
+let mintedIds: string[] = [];
 registerCommand({
   id: 'test.mintId', params: z.object({}), scope: 'document', mutates: true, requires: ['write'], undo: 'normal',
   labelKey: 'writing.command.test.mintId', fastPath: true, isEnabled: () => ({ enabled: true }),
   run(ctx) {
-    mintedId = newId('el', ctx.ids);
+    mintedIds.push(newId('el', ctx.ids));
     return { ok: true };
   },
 });
@@ -207,6 +209,30 @@ describe('single-command rehearsal (fastPath)', () => {
 });
 
 describe('rehearsal and the id stream (queued ruling C)', () => {
+  it('mints the same id for the rehearsal pass and the real apply within one execution', () => {
+    // A 2-command batch always rehearses first (fastPath only exempts a solo single-command
+    // batch), so `test.mintId` runs twice in this one executeBatch call: once against the
+    // throwaway replica (via a forked IdSource) and once for the real apply (via the
+    // original, unforked IdSource). Recording into an array — instead of overwriting a
+    // scalar — lets us observe both mints from this single execution and compare them
+    // directly, rather than inferring equivalence from two separately seeded programs.
+    const ids = createSeededIdSource(4242);
+    const doc = createDocument({ template: screenplayStandard, uid: 'u', ids });
+    const model = openDocument(doc, { ids, clock: () => 0, locale: 'en' });
+    const origins = createSessionOrigins(actor);
+    mintedIds = [];
+    const r = executeBatch({
+      doc, model, actor, origin: origins.make('local-command'),
+      capabilities: new Set(['write'] as const), ids,
+      commands: [{ id: 'test.mintId', params: {} }, { id: 'test.noop', params: {} }],
+    });
+    expect(r.ok).toBe(true);
+    expect(mintedIds).toHaveLength(2);
+    const [rehearsalMintedId, realMintedId] = mintedIds;
+    expect(rehearsalMintedId).not.toBe('');
+    expect(realMintedId).toBe(rehearsalMintedId);
+  });
+
   it('a seeded IdSource assigns a command the same id whether or not it is rehearsed', () => {
     const actorForTest = actor;
 
@@ -215,12 +241,13 @@ describe('rehearsal and the id stream (queued ruling C)', () => {
     const docSolo = createDocument({ template: screenplayStandard, uid: 'u', ids: idsSolo });
     const modelSolo = openDocument(docSolo, { ids: idsSolo, clock: () => 0, locale: 'en' });
     const originsSolo = createSessionOrigins(actorForTest);
-    mintedId = '';
+    mintedIds = [];
     executeCommand({
       doc: docSolo, model: modelSolo, actor: actorForTest, origin: originsSolo.make('local-command'),
       capabilities: new Set(['write'] as const), ids: idsSolo, command: { id: 'test.mintId', params: {} },
     });
-    const idWithoutRehearsal = mintedId;
+    expect(mintedIds).toHaveLength(1);
+    const idWithoutRehearsal = mintedIds[0];
     expect(idWithoutRehearsal).not.toBe('');
 
     // Path 2: the same command inside a 2-command batch, which always rehearses first —
@@ -229,14 +256,14 @@ describe('rehearsal and the id stream (queued ruling C)', () => {
     const docBatched = createDocument({ template: screenplayStandard, uid: 'u', ids: idsBatched });
     const modelBatched = openDocument(docBatched, { ids: idsBatched, clock: () => 0, locale: 'en' });
     const originsBatched = createSessionOrigins(actorForTest);
-    mintedId = '';
+    mintedIds = [];
     const r = executeBatch({
       doc: docBatched, model: modelBatched, actor: actorForTest, origin: originsBatched.make('local-command'),
       capabilities: new Set(['write'] as const), ids: idsBatched,
       commands: [{ id: 'test.mintId', params: {} }, { id: 'test.noop', params: {} }],
     });
     expect(r.ok).toBe(true);
-    const idWithRehearsal = mintedId;
+    const idWithRehearsal = mintedIds[mintedIds.length - 1];
 
     expect(idWithRehearsal).toBe(idWithoutRehearsal);
   });

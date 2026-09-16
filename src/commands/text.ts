@@ -27,6 +27,18 @@ function fast<P>(s: CommandSpec<P>): CommandSpec<P> {
   return { ...s, fastPath: true };
 }
 
+/**
+ * `removeElement` reports its own outcome: under Track Changes it only marks the element
+ * pending-delete and leaves it in the container, so the command must not claim
+ * `effects: [{kind:'elementRemoved'}]` in that case (controller ruling B) — only a real
+ * removal (tracking off) is reported as an effect.
+ */
+function removedEffect(ctx: CommandContext, id: ElementId): CommandResult {
+  const tracked = writePolicy(ctx).track !== null;
+  removeElement(ctx, id);
+  return tracked ? ok : { ok: true, effects: [{ kind: 'elementRemoved', id }] };
+}
+
 function insertAt(ctx: CommandContext, pos: WireDocPos, text: string, marks?: Record<string, unknown>): CommandResult {
   const r = resolveWirePos(ctx.doc, pos);
   if (!r) return refuse('invalidPosition');
@@ -88,10 +100,7 @@ export const TEXT_COMMANDS: CommandSpec<never>[] = [
     if (p.unit === 'line') return refuse('notApplicable');
     const r = resolveWirePos(ctx.doc, p.at);
     if (!r) return refuse('invalidPosition');
-    if (p.unit === 'element') {
-      removeElement(ctx, r.elementId);
-      return { ok: true, effects: [{ kind: 'elementRemoved', id: r.elementId }] };
-    }
+    if (p.unit === 'element') return removedEffect(ctx, r.elementId);
     if (r.index > 0) {
       const policy = writePolicy(ctx);
       const start = previousBoundary(r.text.toString(), r.index, p.unit);
@@ -101,16 +110,15 @@ export const TEXT_COMMANDS: CommandSpec<never>[] = [
     }
     const previous = ctx.model.previous(r.elementId);
     if (!previous) return refuse('notApplicable');
-    if (r.text.length === 0) {
-      removeElement(ctx, r.elementId);
-      return { ok: true, effects: [{ kind: 'elementRemoved', id: r.elementId }] };
-    }
+    if (r.text.length === 0) return removedEffect(ctx, r.elementId);
     if (dualOrColumnBoundary(ctx, previous.id, r.elementId)) return ok;
     // Under Track Changes the merge itself must stay reviewable: leave both elements in
     // place and mark the later one pending-delete (same shape as `removeElement`'s tracked
     // branch), instead of hard-merging it into the previous element with no tc/del marker.
+    // `mergeInto` records the merge intent so a future accept folds the text in rather than
+    // discarding it (spec 01 §5.10.3/§5.10.4).
     if (writePolicy(ctx).track) {
-      removeElement(ctx, r.elementId);
+      removeElement(ctx, r.elementId, { mergeInto: previous.id });
       return ok;
     }
     mergeElements(ctx, previous.id, r.elementId);
@@ -121,10 +129,7 @@ export const TEXT_COMMANDS: CommandSpec<never>[] = [
     if (p.unit === 'line') return refuse('notApplicable');
     const r = resolveWirePos(ctx.doc, p.at);
     if (!r) return refuse('invalidPosition');
-    if (p.unit === 'element') {
-      removeElement(ctx, r.elementId);
-      return { ok: true, effects: [{ kind: 'elementRemoved', id: r.elementId }] };
-    }
+    if (p.unit === 'element') return removedEffect(ctx, r.elementId);
     if (r.index < r.text.length) {
       const policy = writePolicy(ctx);
       const end = nextBoundary(r.text.toString(), r.index, p.unit);
@@ -135,15 +140,13 @@ export const TEXT_COMMANDS: CommandSpec<never>[] = [
     const next = ctx.model.next(r.elementId);
     if (!next) return refuse('notApplicable');
     const nextText = (ctx.doc.getMap<unknown>('elements').get(next.id) as Y.Map<unknown>).get('text') as Y.Text;
-    if (nextText.length === 0) {
-      removeElement(ctx, next.id);
-      return { ok: true, effects: [{ kind: 'elementRemoved', id: next.id }] };
-    }
+    if (nextText.length === 0) return removedEffect(ctx, next.id);
     if (dualOrColumnBoundary(ctx, r.elementId, next.id)) return ok;
     // Same reviewable-boundary rule as text.deleteBackward above: under Track Changes,
-    // mark the later element pending-delete instead of merging it away outright.
+    // mark the later element pending-delete instead of merging it away outright, recording
+    // the merge intent via `mergeInto` (spec 01 §5.10.3/§5.10.4).
     if (writePolicy(ctx).track) {
-      removeElement(ctx, next.id);
+      removeElement(ctx, next.id, { mergeInto: r.elementId });
       return ok;
     }
     mergeElements(ctx, r.elementId, next.id);
