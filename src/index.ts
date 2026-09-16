@@ -29,7 +29,7 @@ export * from './model/portable-pos.js';
 export * from './model/remap-ids.js';
 export { documentToJSON, documentFromJSON, materializeDocument } from './model/json.js';
 export { INVARIANT_CODES, type InvariantCode, type Severity, type Issue, type Invariant } from './model/validate/types.js';
-export { registerInvariants, validateDocument } from './model/validate/index.js';
+export { UNIMPLEMENTED_INVARIANTS, registerInvariants, validateDocument } from './model/validate/index.js';
 export * from './smarttype/normalize.js';
 export * from './smarttype/harvest.js';
 

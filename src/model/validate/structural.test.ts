@@ -5,7 +5,8 @@ import { screenplayStandard } from '../../templates/builtin/screenplay-standard.
 import { ROOT_STYLE_DEFAULTS } from '../../templates/shared.js';
 import { createDocument } from '../create.js';
 import { documentToJSON } from '../json.js';
-import { validateDocument } from './index.js';
+import { UNIMPLEMENTED_INVARIANTS, validateDocument } from './index.js';
+import { INVARIANT_CODES } from './types.js';
 
 const fresh = () => createDocument({ template: screenplayStandard, uid: 'u', ids: createSeededIdSource(4) });
 const codes = (doc: Y.Doc) => validateDocument(doc).issues.map((i) => i.code);
@@ -226,5 +227,27 @@ describe('structural invariants', () => {
     const doc = fresh();
     doc.getMap('meta').set('schemaVersion', 99);
     expect(validateDocument(doc).issues.find((i) => i.code === 'I20')).toMatchObject({ severity: 'error', autoRepair: false });
+  });
+});
+
+describe('codes with no implementation in this build', () => {
+  it('answers `only: ["I14"]` honestly instead of reporting a clean document', () => {
+    const doc = createDocument({ template: screenplayStandard, uid: 'u', ids: createSeededIdSource(77) });
+    const issues = validateDocument(doc, { only: ['I14'] }).issues;
+    expect(issues).toHaveLength(1);
+    expect(issues[0]).toMatchObject({ code: 'I14', severity: 'info', autoRepair: false });
+    expect(issues[0]!.message).toContain('not implemented in this build');
+    expect(UNIMPLEMENTED_INVARIANTS.I14).toContain('M2');
+  });
+
+  it('stays silent in a full pass, so a healthy document still reports nothing', () => {
+    const doc = createDocument({ template: screenplayStandard, uid: 'u', ids: createSeededIdSource(78) });
+    expect(validateDocument(doc).issues).toEqual([]);
+  });
+
+  it('every other spec 01 §9 code IS implemented', () => {
+    const doc = createDocument({ template: screenplayStandard, uid: 'u', ids: createSeededIdSource(79) });
+    const unimplemented = INVARIANT_CODES.filter((code) => validateDocument(doc, { only: [code] }).issues.some((i) => i.message.includes('not implemented in this build')));
+    expect(unimplemented).toEqual(Object.keys(UNIMPLEMENTED_INVARIANTS));
   });
 });

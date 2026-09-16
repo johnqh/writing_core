@@ -38,7 +38,7 @@ const ROOT_EXPORTS = [
   'StyleDefaults', 'StyleFlow', 'StyleIdSchema', 'SuggestionItemJSON', 'SuggestionSetJSON', 'TAG_CATEGORY_SEEDS',
   'TEMPLATE_CATEGORIES', 'TEMPLATE_ISSUE_CODES', 'TEMPLATE_SCHEMA_VERSION', 'TEMPLATE_SEED_KEYS',
   'TEXT_COMMANDS', 'TEXT_DIRECTIONS', 'TITLE_FIELDS', 'TITLE_PAGE_STYLES', 'TRACKED_ORIGIN_KINDS',
-  'TRACK_CHANGE_VIEWS', 'TRAIT_DEF_SEEDS', 'TableReadJSON', 'TagCategoryJSON', 'TagCategorySeed', 'TagJSON',
+  'TRACK_CHANGE_VIEWS', 'TRAIT_DEF_SEEDS', 'UNIMPLEMENTED_INVARIANTS', 'TableReadJSON', 'TagCategoryJSON', 'TagCategorySeed', 'TagJSON',
   'TagTextStyle', 'TemplateJSON', 'TextAttrs', 'TextJSON', 'TextRun', 'Timestamp', 'TitlePageJSON',
   'TitlePageLayout', 'TokenString', 'TrackChangeRecord', 'TrackChangesJSON', 'TraitDefJSON', 'TraitDefSeed',
   'TransactionOrigin', 'UNDERLINE_KINDS', 'UNDO_CLEAR_REASONS', 'VehicleFields', 'VoiceJSON',
