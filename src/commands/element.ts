@@ -21,6 +21,27 @@ const ElementIdParam = idSchema('el');
 
 const spec = defineCommand;
 
+/**
+ * Opts a command out of `executeBatch`'s throwaway-replica rehearsal (see `CommandSpec.fastPath`
+ * and execute.ts). Rehearsal clones the whole document, so it costs O(document size) per
+ * invocation — about 46 ms at 3000 elements against spec 08 §15's 24 ms keystroke budget on a
+ * slower device. The three commands marked here are the keyboard hot path alongside text.ts's
+ * four (Enter → `element.split`, Tab / Shift-Tab → `element.cycleStyle`, the style shortcuts and
+ * the style menu → `element.setStyle`), and each provably refuses before its first write:
+ *
+ * - `element.setStyle` — both refusals (`styleNotInTemplate`, `notFound`) are checked over every
+ *   requested element up front; the `applyStyle` loop that follows cannot refuse (it returns void).
+ * - `element.cycleStyle` — the `notFound` refusal is first; after that `tabAction`/`shiftTabAction`
+ *   are pure, and the trailing `notApplicable` is reached only on the paths where neither the
+ *   `convert` nor the `insertAfter` branch ran, i.e. with nothing written.
+ * - `element.split` — `invalidPosition` is first; `enterAction` is pure, and its `openPicker`,
+ *   `none` and default refusals all return straight out of the switch before any branch writes.
+ *
+ * `src/commands/element.test.ts` pins that contract with refusal-leaves-nothing-behind tests, and
+ * `src/commands/builtin.test.ts` pins the allowlist itself.
+ */
+const fast = <P>(s: CommandSpec<P>): CommandSpec<P> => ({ ...s, fastPath: true });
+
 const styleExists = (ctx: CommandContext, style: string) => ctx.model.template().styles.some((s) => s.id === style);
 const record = (ctx: CommandContext, id: string) => bodyElements(ctx.doc).get(id) as YMap | undefined;
 
@@ -97,7 +118,7 @@ export const ELEMENT_COMMANDS: CommandSpec<never>[] = [
     return { ok: true, effects: [{ kind: 'elementCreated', id }] };
   }),
 
-  spec('element.split', z.object({ at: WireDocPos }), (ctx, p) => {
+  fast(spec('element.split', z.object({ at: WireDocPos }), (ctx, p) => {
     const r = resolveWirePos(ctx.doc, p.at);
     if (!r) return { ok: false, reason: 'invalidPosition' };
     const style = r.element.get('style') as StyleId;
@@ -154,16 +175,16 @@ export const ELEMENT_COMMANDS: CommandSpec<never>[] = [
       default:
         return { ok: false, reason: 'notApplicable' };
     }
-  }),
+  })),
 
-  spec('element.setStyle', z.object({ elements: z.array(ElementIdParam).min(1), style: StyleIdSchema }), (ctx, p) => {
+  fast(spec('element.setStyle', z.object({ elements: z.array(ElementIdParam).min(1), style: StyleIdSchema }), (ctx, p) => {
     if (!styleExists(ctx, p.style)) return { ok: false, reason: 'styleNotInTemplate' };
     if (p.elements.some((id) => !record(ctx, id))) return { ok: false, reason: 'notFound' };
     for (const id of p.elements) applyStyle(ctx, id, p.style);
     return { ok: true };
-  }),
+  })),
 
-  spec('element.cycleStyle', z.object({ element: ElementIdParam, direction: z.enum(['tabForward', 'tabBack']), caretAtEnd: z.boolean() }), (ctx, p) => {
+  fast(spec('element.cycleStyle', z.object({ element: ElementIdParam, direction: z.enum(['tabForward', 'tabBack']), caretAtEnd: z.boolean() }), (ctx, p) => {
     const el = record(ctx, p.element);
     if (!el) return { ok: false, reason: 'notFound' };
     const style = el.get('style') as StyleId;
@@ -179,7 +200,7 @@ export const ELEMENT_COMMANDS: CommandSpec<never>[] = [
       return { ok: true, effects: [{ kind: 'elementCreated', id }] };
     }
     return { ok: false, reason: 'notApplicable', detail: { action: action.kind, ...('list' in action ? { list: action.list } : {}) } };
-  }),
+  })),
 
   spec('element.move', z.object({ elements: z.array(ElementIdParam).min(1), to: MoveTarget }), (ctx, p) => moveIds(ctx, p.elements, p.to)),
 

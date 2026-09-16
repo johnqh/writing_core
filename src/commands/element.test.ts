@@ -2,6 +2,7 @@
 import * as Y from 'yjs';
 import { describe, expect, it } from 'vitest';
 import { newId } from '../ids/ids.js';
+import { documentToJSON } from '../model/json.js';
 import { commandHarness } from './test-harness.js';
 
 const at = (elementId: string, offset: number) => ({ elementId, offset });
@@ -136,5 +137,44 @@ describe('moving, duplicating and overrides', () => {
     expect(h.model.element(a!)!.ov).toEqual({ spaceBefore: 3 });
     h.run('element.revertOverrides', { elements: [a] });
     expect(h.model.element(a!)!.ov).toEqual({});
+  });
+});
+
+// `fastPath: true` (see the `fast()` doc comment in element.ts) removes executeBatch's
+// rehearsal-on-a-replica safety net, so each of these three must be able to refuse with the
+// document untouched. `documentToJSON` before/after is the strongest available statement of that.
+describe('the fastPath element commands refuse without writing', () => {
+  const snapshot = (h: ReturnType<typeof commandHarness>) => JSON.stringify(documentToJSON(h.doc));
+
+  it('element.setStyle refuses an unknown style and an unknown element, writing nothing for either', () => {
+    const h = commandHarness();
+    const [a, b] = h.replaceBody([['st_action', 'One'], ['st_action', 'Two']]);
+    const before = snapshot(h);
+    expect(h.run('element.setStyle', { elements: [a, b], style: 'st_01ARYZ6S410000000000000000' })).toMatchObject({ ok: false, reason: 'styleNotInTemplate' });
+    expect(snapshot(h)).toBe(before);
+    // b is valid and would be written first if the check were per-element rather than up front.
+    expect(h.run('element.setStyle', { elements: [b, 'el_01ARYZ6S410000000000000000'], style: 'st_shot' })).toMatchObject({ ok: false, reason: 'notFound' });
+    expect(snapshot(h)).toBe(before);
+  });
+
+  it('element.cycleStyle refuses an unknown element and a style with nowhere to go', () => {
+    const h = commandHarness();
+    const [a] = h.replaceBody([['st_cast_list', 'MAYA, JONAH']]);
+    const before = snapshot(h);
+    expect(h.run('element.cycleStyle', { element: 'el_01ARYZ6S410000000000000000', direction: 'tabForward', caretAtEnd: true })).toMatchObject({ ok: false, reason: 'notFound' });
+    expect(snapshot(h)).toBe(before);
+    // Cast List has onTabText: null, so tabAction returns `none`.
+    expect(h.run('element.cycleStyle', { element: a, direction: 'tabForward', caretAtEnd: true })).toMatchObject({ ok: false, reason: 'notApplicable', detail: { action: 'none' } });
+    expect(snapshot(h)).toBe(before);
+  });
+
+  it('element.split refuses an invalid position and an empty element whose style opens the picker', () => {
+    const h = commandHarness();
+    const [a] = h.replaceBody([['st_action', '']]);
+    const before = snapshot(h);
+    expect(h.run('element.split', { at: at('el_01ARYZ6S410000000000000000', 0) })).toMatchObject({ ok: false, reason: 'invalidPosition' });
+    expect(snapshot(h)).toBe(before);
+    expect(h.run('element.split', { at: at(a!, 0) })).toMatchObject({ ok: false, reason: 'notApplicable', detail: { action: 'openPicker' } });
+    expect(snapshot(h)).toBe(before);
   });
 });
