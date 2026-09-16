@@ -1,15 +1,17 @@
 /**
- * UAX #14 line breaking conformance (spec 02 §6.2, task 7 brief step 1). The official
- * `LineBreakTest.txt` (`test/ucd/`, downloaded and committed by `scripts/build-ucd.ts`)
- * run in full — every case, not a sample — plus the brief's explicit cases.
+ * UAX #14 line breaking conformance (spec 02 §6.2, task 7 brief step 1; profiles added
+ * task 7 fix round 1, spec 02 §7.3). The official `LineBreakTest.txt` (`test/ucd/`,
+ * downloaded and committed by `scripts/build-ucd.ts`) run in full — every case, not a
+ * sample — under the `'conformance'` profile, plus the brief's explicit cases and the
+ * `'screenplay'` profile's own never-break divergence tests.
  *
- * ## Tailoring deviations from stock UAX #14 (spec 02 §6.2's "Tailorings:", the brief's
- * "four documented tailorings")
+ * ## Tailoring deviations from stock UAX #14 (spec 02 §6.2's "Tailorings:" plus §7.3's
+ * never-break rule; the brief's "four documented tailorings" plus fix round 1's fifth)
  *
- * `LineBreakTest.txt` below is run with `{ language: 'en' }` (no `dictionary`) — the
- * profile a screenplay element without an explicit `lang` mark or Korean `meta.language`
- * uses. Under that profile all four tailorings turn out to match stock UAX #14 exactly;
- * see `linebreak.ts`'s header comment ("Deviation ledger") for the full reasoning:
+ * `LineBreakTest.txt` below is run with `{ language: 'en', profile: 'conformance' }` —
+ * `'conformance'` is stock UAX #14 plus only the tailorings the suite itself assumes
+ * (spec 02 §7.3). See `linebreak.ts`'s header comment ("Deviation ledger") for the full
+ * reasoning behind each:
  *
  *   1. SA → AL (no dictionary): **0 exclusions.** The suite's only SA-class sample
  *      (`0E01` THAI KO KAI) is already non-Mn/Mc, i.e. already `AL` in stock too, and
@@ -19,18 +21,26 @@
  *      resolution table — implemented explicitly per spec 02 ownership, not a behaviour
  *      change).
  *   3. Korean (`H2`/`H3`/`JL`/`JV`/`JT` → `AL`): **0 exclusions.** Opt-in via
- *      `language: 'ko'`, never triggered by this suite's `'en'` run (verified separately
- *      below, with `language: 'ko'`, against the brief's explicit case).
+ *      `language: 'ko'`, never triggered by this suite's `'en'` run, and not gated by
+ *      `profile` at all (verified separately below, with `language: 'ko'`, against the
+ *      brief's explicit case).
  *   4. Hard breaks (U+000A, U+2028 mandatory inside a paragraph): **0 exclusions** — both
  *      are already `LF`/`BK` in stock `LineBreak.txt` (confirmed against the source file
  *      in the task 7 report); no code path treats them differently from stock.
+ *   5. Never-break for U+2011/U+00A0/U+202F: **`'screenplay'`-only, 0 exclusions under
+ *      `'conformance'`** — this is the profile split's whole reason to exist. Under
+ *      `'conformance'` the suite's LB12a carve-out cases (SP/BA/HY directly before one of
+ *      these `GL` code points) pass exactly like stock; under `'screenplay'` (the engine
+ *      default) they diverge on purpose — see the "screenplay profile" describe block
+ *      below for the exact count and the disable-and-show-red proof.
  *
- * So the full ~16 000-case suite runs with **zero exclusions** under the default
- * profile — verified below, not assumed. `LineBreakTest.txt` only distinguishes "break
- * opportunity" (÷) from "no break" (×), not mandatory-vs-optional (no `!` appears in the
- * file — checked), so the comparison collapses this module's `1`/`2` to "break" and `0`
- * to "no break" for this suite only; the brief's own explicit cases assert the `2`
- * (mandatory) vs `1` (optional) distinction directly.
+ * So the full ~16 000-case suite runs with **zero exclusions** under `'conformance'` —
+ * verified below, not assumed; that zero is spec 02 §7.3's invariant, not a target.
+ * `LineBreakTest.txt` only distinguishes "break opportunity" (÷) from "no break" (×), not
+ * mandatory-vs-optional (no `!` appears in the file — checked), so the comparison
+ * collapses this module's `1`/`2` to "break" and `0` to "no break" for this suite only;
+ * the brief's own explicit cases assert the `2` (mandatory) vs `1` (optional) distinction
+ * directly.
  */
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -83,7 +93,7 @@ function loadConformanceCases(): ConformanceCase[] {
   return cases;
 }
 
-describe('breakOpportunities — UAX #14 official conformance (LineBreakTest.txt, all cases, default profile)', () => {
+describe('breakOpportunities — UAX #14 official conformance (LineBreakTest.txt, all cases, conformance profile)', () => {
   const cases = loadConformanceCases();
 
   it('loads the conformance file (sanity: about 16 000 cases)', () => {
@@ -92,13 +102,60 @@ describe('breakOpportunities — UAX #14 official conformance (LineBreakTest.txt
 
   for (const c of cases) {
     it(`line ${c.line}: ${JSON.stringify(c.text)} — ${c.comment}`, () => {
-      const result = breakOpportunities(c.text, { language: 'en' });
+      const result = breakOpportunities(c.text, { language: 'en', profile: 'conformance' });
       // Sample at each code point's own UTF-16 offset — `result` has one entry per UTF-16
       // unit (surrogate-pair low halves included), `expectedBreak` one per code point.
       const actualBreak = c.offsets.map((offset) => (result[offset] ?? 0) > 0);
       expect(actualBreak).toEqual(c.expectedBreak);
     });
   }
+});
+
+describe('breakOpportunities — screenplay profile divergence from conformance (spec 02 §7.3, deviation 5)', () => {
+  const cases = loadConformanceCases();
+  // Every (case, offset) pair where the *conformance* result and *screenplay* result
+  // differ — computed from the suite itself, not hand-counted, so this can never drift
+  // silently from what the code actually does.
+  interface Divergence {
+    c: ConformanceCase;
+    offset: number;
+    conformance: number;
+    screenplay: number;
+  }
+  const divergences: Divergence[] = [];
+  for (const c of cases) {
+    const conformance = breakOpportunities(c.text, { language: 'en', profile: 'conformance' });
+    const screenplay = breakOpportunities(c.text, { language: 'en' }); // default: 'screenplay'
+    for (const o of c.offsets) {
+      const cf = conformance[o] ?? 0;
+      const sp = screenplay[o] ?? 0;
+      if (cf !== sp) divergences.push({ c, offset: o, conformance: cf, screenplay: sp });
+    }
+  }
+
+  it('diverges on exactly the {U+2011, U+00A0, U+202F}-before boundary, always conformance-allows/screenplay-forbids, never the reverse', () => {
+    expect(divergences.length).toBeGreaterThan(0); // the divergence is real, not accidentally optimized away
+    for (const d of divergences) {
+      const cp = d.c.text.codePointAt(d.offset);
+      expect([0x2011, 0x00a0, 0x202f]).toContain(cp);
+      expect(d.conformance).toBeGreaterThan(0); // conformance (stock LB12a) allowed a break here...
+      expect(d.screenplay).toBe(0); // ...screenplay forbids it. Never the other direction.
+    }
+    // Recorded so a change is a visible, reviewable diff, not silent drift — measured
+    // from the suite itself: 134 divergent (line, offset) pairs, one per distinct line.
+    const distinctLines = new Set(divergences.map((d) => d.c.line));
+    expect(divergences.length).toBe(134);
+    expect(distinctLines.size).toBe(134);
+  });
+
+  it("'conformance' profile matches stock LB12a exactly on line 146 (SP directly before a NBSP: a break IS expected)", () => {
+    const c = cases.find((x) => x.line === 146);
+    if (!c) throw new Error('line 146 not found in LineBreakTest.txt');
+    expect(c.comment).toContain('NO-BREAK SPACE');
+    const result = breakOpportunities(c.text, { language: 'en', profile: 'conformance' });
+    const actualBreak = c.offsets.map((offset) => (result[offset] ?? 0) > 0);
+    expect(actualBreak).toEqual(c.expectedBreak);
+  });
 });
 
 describe('breakOpportunities — regression proof (LB25 numeric sequences)', () => {
@@ -153,16 +210,44 @@ describe('breakOpportunities — explicit cases (task 7 brief step 1)', () => {
     expect(result[2]).toBe(1);
   });
 
-  it('U+2011 (non-breaking hyphen) never breaks in an ordinary word-adjacent context', () => {
+  it('U+2011 (non-breaking hyphen) never breaks, even directly after a space (screenplay profile, the default)', () => {
     const result = breakOpportunities('co‑op', { language: 'en' });
     expect(result[2]).toBe(0); // no break before U+2011
     expect(result[3]).toBe(0); // no break after U+2011
+    // The case spec 02 §7.3 actually added the profile for: SP directly before U+2011
+    // would be a break under stock LB12a (verified in the "screenplay profile
+    // divergence" block above) — screenplay forbids it anyway.
+    const afterSpace = breakOpportunities('x ‑y', { language: 'en' });
+    expect(afterSpace[2]).toBe(0);
   });
 
-  it('U+00A0 (NBSP) never breaks in an ordinary word-adjacent context', () => {
+  it('U+00A0 (NBSP) never breaks, even directly after a space (screenplay profile, the default)', () => {
     const result = breakOpportunities('Dr. Smith', { language: 'en' });
     expect(result[3]).toBe(0); // no break before the NBSP
     expect(result[4]).toBe(0); // no break after the NBSP
+    const afterSpace = breakOpportunities('x  y', { language: 'en' });
+    expect(afterSpace[2]).toBe(0);
+  });
+
+  it('U+202F (narrow NBSP) never breaks, even directly after a space (screenplay profile, the default)', () => {
+    const result = breakOpportunities('10 PM', { language: 'en' });
+    expect(result[2]).toBe(0); // no break before the narrow NBSP
+    expect(result[3]).toBe(0); // no break after it
+    const afterSpace = breakOpportunities('x  y', { language: 'en' });
+    expect(afterSpace[2]).toBe(0);
+  });
+
+  it('U+2060 (word joiner) never breaks under either profile — it is WJ, not GL, so LB11 already covers it unconditionally', () => {
+    for (const profile of ['conformance', 'screenplay'] as const) {
+      const result = breakOpportunities('x⁠y', { language: 'en', profile });
+      expect(result[1]).toBe(0);
+      expect(result[2]).toBe(0);
+    }
+  });
+
+  it("the 'conformance' profile does NOT force never-break: SP directly before a NBSP allows a break (stock LB12a/LB18)", () => {
+    const result = breakOpportunities('x  y', { language: 'en', profile: 'conformance' });
+    expect(result[2]).toBe(1); // SP÷ (LB18) — the carve-out screenplay's deviation 5 suppresses
   });
 
   it('tab yields an opportunity after it', () => {

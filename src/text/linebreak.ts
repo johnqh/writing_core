@@ -29,44 +29,58 @@
  *     need one or two tokens of fixed lookback/lookahead — plain array indexing, since
  *     the token list is fully materialized before the boundary pass (`classAt`).
  *
- * **Deviation ledger (spec 02 §6.2's "Tailorings:", task 7 brief step 1's "four
- * documented tailorings").** Each is implemented in `resolveClass`/`tokenize` and its
- * effect on the official conformance suite is recorded in `linebreak.test.ts`'s
- * "tailoring deviations from stock UAX #14" section, not asserted here:
+ * **Profiles (spec 02 §7.3, task 7 fix round 1).** `opts.profile` picks which tailorings
+ * apply; see `BreakOptions.profile`'s doc comment for the two values and why they exist.
+ * The short version: everything below applies under both profiles *except* the
+ * `screenplay`-only never-break override in deviation 5, which stock UAX #14 (and so
+ * `conformance`) does not have.
+ *
+ * **Deviation ledger (spec 02 §6.2's "Tailorings:" plus §7.3's never-break rule, task 7
+ * brief step 1's "four documented tailorings" plus fix round 1's fifth).** Each is
+ * implemented in `resolveClass`/`tokenize`/`decideBoundary` and its effect on the official
+ * conformance suite is recorded in `linebreak.test.ts`'s "tailoring deviations from stock
+ * UAX #14" section, not asserted here:
  *   1. **SA** (Thai/Lao/Khmer/Myanmar) with no `opts.dictionary` resolves to `AL`
  *      (`resolveClass`) — the spec's literal "residual SA characters treated as AL",
  *      which simplifies stock UAX #14's GC-conditional `SA→CM (Mn/Mc) | AL (else)` table.
+ *      Applies under both profiles (`LineBreakTest.txt` itself assumes it — spec 02 §7.3).
  *      Zero conformance exclusions: `LineBreakTest.txt`'s only SA-class sample is a
  *      non-Mn/Mc Thai letter (already `AL` in stock too), and the individual-`AL`-token
  *      chain this produces is indistinguishable from stock's CM-collapsed chain anyway —
  *      LB28 (`AL×AL`) forbids a break either way.
  *   2. **CJ→NS** (`resolveClass`) is stock UAX #14's own LB1 default resolution table,
  *      implemented explicitly here (not left implicit) because spec 02 names it as an
- *      owned tailoring. Zero conformance exclusions (it doesn't change stock behaviour).
+ *      owned tailoring. Applies under both profiles. Zero conformance exclusions (it
+ *      doesn't change stock behaviour).
  *   3. **Korean** (`opts.language`'s primary subtag `ko`): `H2`/`H3`/`JL`/`JV`/`JT`
  *      resolve to `AL` instead of participating in LB26/27's Hangul-syllable-block
- *      rules, so breaks occur only at spaces (`resolveClass`). Opt-in only — the
- *      conformance suite is run at a non-Korean language, so it exercises stock
- *      LB26/27 unchanged. Zero conformance exclusions.
+ *      rules, so breaks occur only at spaces (`resolveClass`). Opt-in via `language`, not
+ *      gated by `profile` — the conformance suite is run at a non-Korean language, so it
+ *      exercises stock LB26/27 unchanged regardless of profile. Zero conformance
+ *      exclusions.
  *   4. **Hard breaks** (U+000A mandatory inside a paragraph, U+2028 likewise): both are
  *      already `LF`/`BK` in stock `LineBreak.txt` (LB5/LB4 already make them mandatory).
  *      No code path deviates from stock; the tailoring is a restatement, not a rule
- *      change. Zero conformance exclusions.
- * Tab (U+0009, `BA`) and soft hyphen (U+00AD, `BA`) are *not* among the four: both are
+ *      change. Zero conformance exclusions, both profiles.
+ *   5. **Never-break for U+2011/U+00A0/U+202F** (`decideBoundary`'s LB12a check,
+ *      `NEVER_BREAK_GL`) — **`screenplay` profile only.** Stock LB12a
+ *      (`[^SP BA HY] × GL`) forbids breaking before *any* `GL` character *except* when
+ *      immediately preceded by `SP`, `BA` or `HY`, and the official conformance suite
+ *      tests that carve-out for exactly these three code points (134 `LineBreakTest.txt`
+ *      lines — measured by running `breakOpportunities` under both profiles against the
+ *      whole suite and diffing, in `linebreak.test.ts`'s "screenplay profile divergence"
+ *      block, not estimated — e.g. line 146: `SP ÷ 00A0`, a break *is* expected right
+ *      after a literal space before a NBSP). Spec 02 §7.3 (amended
+ *      after task 7's first round) makes "never break" absolute and outranks UAX #14 for
+ *      it, so `conformance` runs stock LB12a unchanged (0 exclusions, verified) and
+ *      `screenplay` — the engine default — suppresses the SP/BA/HY carve-out for these
+ *      three code points only. U+2060 WORD JOINER needs no override: it's `WJ`, not
+ *      `GL`, so LB11 (`×WJ, WJ×`) already forbids breaking around it unconditionally
+ *      under both profiles (confirmed by a dedicated test, not assumed).
+ * Tab (U+0009, `BA`) and soft hyphen (U+00AD, `BA`) are *not* among these five: both are
  * already break-opportunities-after in stock UAX #14 (LB21's `×BA` only forbids breaking
  * *before* BA; nothing forbids breaking after), so the brief's explicit tests for them
  * exercise stock behaviour, not a deviation.
- *
- * **Not a deviation, deliberately not special-cased:** spec 02 §7.3 also asks that
- * U+2011 (non-breaking hyphen) and U+00A0 (NBSP) — both `GL` — "never break". Stock LB12a
- * ("`[^SP BA HY] × GL`") already forbids breaking before *any* `GL` character except when
- * immediately preceded by `SP`, `BA` or `HY` — and the official conformance suite tests
- * exactly that carve-out for `GL` (`LineBreakTest.txt`, e.g. `SP ÷ 00A0`: a break *is*
- * expected right after a literal space before a NBSP). Overriding LB12a for these two
- * code points specifically would regress that verified case for a scenario screenplay
- * text never produces (a bare space directly before a NBSP/non-breaking hyphen). This
- * module therefore leaves LB11/LB12/LB12a exactly as UAX #14 specifies; the brief's
- * "never break" tests use the realistic adjacent-word context the spec's prose is about.
  */
 import { EXTENDED_PICTOGRAPHIC_STARTS, EXTENDED_PICTOGRAPHIC_VALUES } from './generated/extended-pictographic.generated.js';
 import { EAST_ASIAN_WIDTH_NAMES, EAST_ASIAN_WIDTH_STARTS, EAST_ASIAN_WIDTH_VALUES } from './generated/east-asian-width.generated.js';
@@ -90,6 +104,18 @@ export interface DictionarySegmenter {
   segment(text: string): number[];
 }
 
+/**
+ * Spec 02 §7.3's line-breaking profiles (task 7 fix round 1). The `screenplay` never-break
+ * rule genuinely diverges from stock UAX #14 (see this file's header comment, deviation
+ * 5), so it's a profile rather than baked into every call:
+ *   - `'conformance'` — stock UAX #14 plus only the tailorings `LineBreakTest.txt` itself
+ *     assumes (SA→AL, CJ→NS). Passes every official conformance case with zero
+ *     exclusions — that zero is an invariant (spec 02 §7.3), not a target.
+ *   - `'screenplay'` — the engine default. Everything `'conformance'` does, plus the
+ *     absolute never-break rule for U+2011/U+00A0/U+202F.
+ */
+export type LineBreakProfile = 'conformance' | 'screenplay';
+
 export interface BreakOptions {
   /**
    * A BCP-47-ish language tag (`'en'`, `'ko'`, `'ko-KR'`, ...) — spec 02 §6.2's "the
@@ -99,6 +125,8 @@ export interface BreakOptions {
   language: string;
   /** Injected Thai/Lao/Khmer/Myanmar segmenter (spec 02 §6.4). See `DictionarySegmenter`. */
   dictionary?: DictionarySegmenter;
+  /** Default `'screenplay'` (spec 02 §7.3) — the engine's own call sites should normally leave this unset. */
+  profile?: LineBreakProfile;
 }
 
 // ─── UCD accessors (imported directly, not through ./ucd.generated.js, so this module's
@@ -110,16 +138,17 @@ function rawLineBreakClass(cp: number): LineBreakClass {
   return LINE_BREAK_NAMES[lookupRangeValue(LINE_BREAK_STARTS, LINE_BREAK_VALUES, cp)] ?? 'XX';
 }
 
+/** General_Category, for the three single-category checks LB15a/15b/19/30b need (Pi, Pf, Cn). */
+function generalCategory(cp: number): string {
+  return GENERAL_CATEGORY_NAMES[lookupRangeValue(GENERAL_CATEGORY_STARTS, GENERAL_CATEGORY_VALUES, cp)] ?? 'Cn';
+}
+
 function isPi(cp: number): boolean {
-  return GENERAL_CATEGORY_NAMES[lookupRangeValue(GENERAL_CATEGORY_STARTS, GENERAL_CATEGORY_VALUES, cp)] === 'Pi';
+  return generalCategory(cp) === 'Pi';
 }
 
 function isPf(cp: number): boolean {
-  return GENERAL_CATEGORY_NAMES[lookupRangeValue(GENERAL_CATEGORY_STARTS, GENERAL_CATEGORY_VALUES, cp)] === 'Pf';
-}
-
-function isUnassigned(cp: number): boolean {
-  return GENERAL_CATEGORY_NAMES[lookupRangeValue(GENERAL_CATEGORY_STARTS, GENERAL_CATEGORY_VALUES, cp)] === 'Cn';
+  return generalCategory(cp) === 'Pf';
 }
 
 function isExtendedPictographic(cp: number): boolean {
@@ -276,7 +305,14 @@ const LB15B_FOLLOW: ReadonlySet<LineBreakClass> = new Set(['SP', 'GL', 'WJ', 'CL
 const LB20A_CONTEXT: ReadonlySet<LineBreakClass> = new Set(['BK', 'CR', 'LF', 'NL', 'SP', 'ZW', 'CB', 'GL']);
 const KOREAN_SYLLABLE: ReadonlySet<LineBreakClass> = new Set(['JL', 'JV', 'JT', 'H2', 'H3']);
 
-/** Running state threaded left to right across the token loop (see header comment). */
+/** Deviation 5's never-break set — `screenplay` profile only (spec 02 §7.3). U+2060 needs no entry: it's `WJ`, already covered unconditionally by LB11. */
+const NEVER_BREAK_GL: ReadonlySet<number> = new Set([0x2011, 0x00a0, 0x202f]);
+
+/**
+ * Running state threaded left to right across the token loop (see header comment).
+ * `profile` isn't really "running" — it's fixed for the whole call — but it's carried
+ * alongside the genuine chain state so `decideBoundary` takes one context parameter.
+ */
 interface ChainState {
   /** Nearest non-`SP` class before the current position (LB8/LB14/LB16/LB17's `X SP* ×/÷`). */
   runBase: ClassOrSentinel;
@@ -286,6 +322,8 @@ interface ChainState {
   numChain: 'none' | 'num' | 'numCl';
   /** Length of the run of `RI` tokens ending at the current position (LB30a). */
   riRun: number;
+  /** Fixed for the whole call (spec 02 §7.3, deviation 5). */
+  profile: LineBreakProfile;
 }
 
 /**
@@ -319,7 +357,9 @@ function decideBoundary(tokens: Token[], k: number, state: ChainState): 0 | 1 | 
   if (currCls === 'WJ' || prevCls === 'WJ') return 0;
   // LB12: GL×
   if (prevCls === 'GL') return 0;
-  // LB12a: [^SP BA HY]×GL
+  // LB12a: [^SP BA HY]×GL — under `screenplay`, U+2011/U+00A0/U+202F never break,
+  // full stop, even when preceded by SP/BA/HY (spec 02 §7.3, deviation 5).
+  if (currCls === 'GL' && state.profile === 'screenplay' && NEVER_BREAK_GL.has(curr.baseCp)) return 0;
   if (currCls === 'GL' && prevCls !== 'SP' && prevCls !== 'BA' && prevCls !== 'HY') return 0;
   // LB13: ×CL, ×CP, ×EX, ×SY
   if (currCls === 'CL' || currCls === 'CP' || currCls === 'EX' || currCls === 'SY') return 0;
@@ -405,7 +445,7 @@ function decideBoundary(tokens: Token[], k: number, state: ChainState): 0 | 1 | 
   // LB30a: regional indicator pairing
   if (prevCls === 'RI' && currCls === 'RI' && state.riRun % 2 === 1) return 0;
   // LB30b: EB×EM, [ExtendedPictographic&Cn]×EM
-  if (currCls === 'EM' && (prevCls === 'EB' || (isExtendedPictographic(prev.baseCp) && isUnassigned(prev.baseCp)))) return 0;
+  if (currCls === 'EM' && (prevCls === 'EB' || (isExtendedPictographic(prev.baseCp) && generalCategory(prev.baseCp) === 'Cn'))) return 0;
   // LB31: ALL ÷, ÷ ALL (default)
   return 1;
 }
@@ -424,7 +464,7 @@ export function breakOpportunities(text: string, opts: BreakOptions): Uint8Array
   if (text.length === 0) return result;
 
   const { tokens, dictionaryBreaks } = tokenize(text, opts);
-  const state: ChainState = { runBase: 'sot', piActive: false, numChain: 'none', riRun: 0 };
+  const state: ChainState = { runBase: 'sot', piActive: false, numChain: 'none', riRun: 0, profile: opts.profile ?? 'screenplay' };
 
   for (let k = 0; k < tokens.length; k++) {
     if (k > 0) result[(tokens[k] as Token).offset] = decideBoundary(tokens, k, state);

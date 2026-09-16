@@ -111,7 +111,7 @@ export {
   type WordBreakClass, type SentenceBreakClass, type EastAsianWidth,
 } from './text/ucd.generated.js';
 export { graphemeClusters, nextCluster, previousCluster } from './text/grapheme.js';
-export { breakOpportunities, type DictionarySegmenter, type BreakOptions } from './text/linebreak.js';
+export { breakOpportunities, type DictionarySegmenter, type BreakOptions, type LineBreakProfile } from './text/linebreak.js';
 
 // ─── Fonts ──────────────────────────────────────────────────────────────────
 // (`FaceId`/`FontFaceMetrics` are already exported above from `./layout/types.js`; this
