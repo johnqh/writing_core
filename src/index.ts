@@ -98,6 +98,10 @@ export * from './undo/undo-manager.js';
 export { LAYOUT_ENGINE_VERSION, roundHalfEven, emuFromFontUnits, sizeEmuFromPoints } from './layout/round.js';
 export * from './layout/types.js';
 
+// ─── Text (shaping) ─────────────────────────────────────────────────────────
+export { nullShaper } from './text/shaper.js';
+export { HARFBUZZ_CORE_VERSION, createHarfBuzzShaper, type HarfBuzzDeps, type HbModule } from './text/harfbuzz.js';
+
 // ─── Fonts ──────────────────────────────────────────────────────────────────
 // (`FaceId`/`FontFaceMetrics` are already exported above from `./layout/types.js`; this
 // module implements them rather than redeclaring them, so they are not re-exported here.)

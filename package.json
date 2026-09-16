@@ -58,6 +58,7 @@
   },
   "dependencies": {
     "@noble/hashes": "^2.4.0",
+    "harfbuzzjs": "1.6.1",
     "yjs": "^13.6.32",
     "zod": "^4.6.5"
   }
