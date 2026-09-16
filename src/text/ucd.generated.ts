@@ -11,8 +11,9 @@ import { SCRIPT_NAMES, SCRIPT_STARTS, SCRIPT_VALUES, type ScriptCode } from './g
 import { GENERAL_CATEGORY_NAMES, GENERAL_CATEGORY_STARTS, GENERAL_CATEGORY_VALUES, type GeneralCategory } from './generated/general-category.generated.js';
 import { WORD_BREAK_NAMES, WORD_BREAK_STARTS, WORD_BREAK_VALUES, type WordBreakClass } from './generated/word-break.generated.js';
 import { SENTENCE_BREAK_NAMES, SENTENCE_BREAK_STARTS, SENTENCE_BREAK_VALUES, type SentenceBreakClass } from './generated/sentence-break.generated.js';
+import { EAST_ASIAN_WIDTH_NAMES, EAST_ASIAN_WIDTH_STARTS, EAST_ASIAN_WIDTH_VALUES, type EastAsianWidth } from './generated/east-asian-width.generated.js';
 
-export type { GraphemeBreakClass, LineBreakClass, BidiClass, ScriptCode, GeneralCategory, WordBreakClass, SentenceBreakClass };
+export type { GraphemeBreakClass, LineBreakClass, BidiClass, ScriptCode, GeneralCategory, WordBreakClass, SentenceBreakClass, EastAsianWidth };
 
 /** Unicode 16.0 Grapheme_Cluster_Break (spec 02 §6.1). */
 export function graphemeBreakProperty(cp: number): GraphemeBreakClass {
@@ -47,4 +48,9 @@ export function wordBreakProperty(cp: number): WordBreakClass {
 /** Unicode 16.0 Sentence_Break (spec 02 §6.5). */
 export function sentenceBreakProperty(cp: number): SentenceBreakClass {
   return SENTENCE_BREAK_NAMES[lookupRangeValue(SENTENCE_BREAK_STARTS, SENTENCE_BREAK_VALUES, cp)] ?? 'Other';
+}
+
+/** Unicode 16.0 East_Asian_Width (spec 02 §6.2, task 7). */
+export function eastAsianWidth(cp: number): EastAsianWidth {
+  return EAST_ASIAN_WIDTH_NAMES[lookupRangeValue(EAST_ASIAN_WIDTH_STARTS, EAST_ASIAN_WIDTH_VALUES, cp)] ?? 'N';
 }

@@ -61,10 +61,16 @@ const SOURCES: Record<string, string> = {
   // here rather than silently added, per the implementer instructions ("fix minimally and
   // record exactly what and why").
   'DerivedCoreProperties.txt': `${BASE}/DerivedCoreProperties.txt`,
+  // Task 7 (line breaking, UAX #14) addition: East_Asian_Width backs the `$EastAsian` set
+  // ([\p{ea=F}\p{ea=W}\p{ea=H}], tr14 §6.2) used by LB19a, LB21a and LB30. Not needed by
+  // task 6's grapheme/word/sentence/bidi tables, so it wasn't fetched until now.
+  'EastAsianWidth.txt': `${BASE}/EastAsianWidth.txt`,
 };
 
 const CONFORMANCE: Record<string, string> = {
   'GraphemeBreakTest.txt': `${BASE}/auxiliary/GraphemeBreakTest.txt`,
+  // Task 7 addition: UAX #14 line-breaking conformance (spec 02 §37.1, task 7 brief step 1).
+  'LineBreakTest.txt': `${BASE}/auxiliary/LineBreakTest.txt`,
 };
 
 async function fetchText(url: string): Promise<string> {
@@ -377,6 +383,14 @@ async function main(): Promise<void> {
     console.log(`BidiMirroring: ${codes.length} entries`);
   }
 
+  // East_Asian_Width (spec 02 §6.2, task 7) — backs the `$EastAsian` set LB19a/LB21a/LB30 test.
+  {
+    const { entries, missing } = parseRangedProperty(req('EastAsianWidth.txt'));
+    const encoded = encodeProperty(entries, missing, 'N');
+    writeCategoryProperty('east-asian-width', 'EastAsianWidth.txt', sourceSha['EastAsianWidth.txt']!, 'EAST_ASIAN_WIDTH', 'EastAsianWidth', encoded);
+    console.log(`East_Asian_Width: ${encoded.starts.length} ranges, ${encoded.names.length} values`);
+  }
+
   // Barrel: `src/text/ucd.generated.ts` (task 6 brief's named artifact). Re-exports typed
   // getter functions built on the per-property files above — the per-property files carry
   // the bulk data, this file is the small, stable entry point `src/index.ts` re-exports
@@ -394,8 +408,9 @@ async function main(): Promise<void> {
     `import { SCRIPT_NAMES, SCRIPT_STARTS, SCRIPT_VALUES, type ScriptCode } from './generated/script.generated.js';\n` +
     `import { GENERAL_CATEGORY_NAMES, GENERAL_CATEGORY_STARTS, GENERAL_CATEGORY_VALUES, type GeneralCategory } from './generated/general-category.generated.js';\n` +
     `import { WORD_BREAK_NAMES, WORD_BREAK_STARTS, WORD_BREAK_VALUES, type WordBreakClass } from './generated/word-break.generated.js';\n` +
-    `import { SENTENCE_BREAK_NAMES, SENTENCE_BREAK_STARTS, SENTENCE_BREAK_VALUES, type SentenceBreakClass } from './generated/sentence-break.generated.js';\n\n` +
-    `export type { GraphemeBreakClass, LineBreakClass, BidiClass, ScriptCode, GeneralCategory, WordBreakClass, SentenceBreakClass };\n\n` +
+    `import { SENTENCE_BREAK_NAMES, SENTENCE_BREAK_STARTS, SENTENCE_BREAK_VALUES, type SentenceBreakClass } from './generated/sentence-break.generated.js';\n` +
+    `import { EAST_ASIAN_WIDTH_NAMES, EAST_ASIAN_WIDTH_STARTS, EAST_ASIAN_WIDTH_VALUES, type EastAsianWidth } from './generated/east-asian-width.generated.js';\n\n` +
+    `export type { GraphemeBreakClass, LineBreakClass, BidiClass, ScriptCode, GeneralCategory, WordBreakClass, SentenceBreakClass, EastAsianWidth };\n\n` +
     `/** Unicode 16.0 Grapheme_Cluster_Break (spec 02 §6.1). */\n` +
     `export function graphemeBreakProperty(cp: number): GraphemeBreakClass {\n` +
     `  return GRAPHEME_BREAK_NAMES[lookupRangeValue(GRAPHEME_BREAK_STARTS, GRAPHEME_BREAK_VALUES, cp)] ?? 'Other';\n` +
@@ -423,6 +438,10 @@ async function main(): Promise<void> {
     `/** Unicode 16.0 Sentence_Break (spec 02 §6.5). */\n` +
     `export function sentenceBreakProperty(cp: number): SentenceBreakClass {\n` +
     `  return SENTENCE_BREAK_NAMES[lookupRangeValue(SENTENCE_BREAK_STARTS, SENTENCE_BREAK_VALUES, cp)] ?? 'Other';\n` +
+    `}\n\n` +
+    `/** Unicode 16.0 East_Asian_Width (spec 02 §6.2, task 7). */\n` +
+    `export function eastAsianWidth(cp: number): EastAsianWidth {\n` +
+    `  return EAST_ASIAN_WIDTH_NAMES[lookupRangeValue(EAST_ASIAN_WIDTH_STARTS, EAST_ASIAN_WIDTH_VALUES, cp)] ?? 'N';\n` +
     `}\n`;
   writeFileSync(BARREL_PATH, barrel);
 

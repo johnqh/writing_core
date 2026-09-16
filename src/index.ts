@@ -102,14 +102,16 @@ export * from './layout/types.js';
 export { nullShaper } from './text/shaper.js';
 export { HARFBUZZ_CORE_VERSION, createHarfBuzzShaper, type HarfBuzzDeps, type HbModule } from './text/harfbuzz.js';
 
-// ─── Text (segmentation — UCD tables, UAX #29 grapheme clusters) ────────────
+// ─── Text (segmentation — UCD tables, UAX #29 grapheme clusters, UAX #14 line breaking) ──
 export {
   UNICODE_VERSION,
   graphemeBreakProperty, lineBreakClass, bidiClass, script, generalCategory, wordBreakProperty, sentenceBreakProperty,
+  eastAsianWidth,
   type GraphemeBreakClass, type LineBreakClass, type BidiClass, type ScriptCode, type GeneralCategory,
-  type WordBreakClass, type SentenceBreakClass,
+  type WordBreakClass, type SentenceBreakClass, type EastAsianWidth,
 } from './text/ucd.generated.js';
 export { graphemeClusters, nextCluster, previousCluster } from './text/grapheme.js';
+export { breakOpportunities, type DictionarySegmenter, type BreakOptions } from './text/linebreak.js';
 
 // ─── Fonts ──────────────────────────────────────────────────────────────────
 // (`FaceId`/`FontFaceMetrics` are already exported above from `./layout/types.js`; this
