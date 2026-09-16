@@ -131,7 +131,7 @@ function writeElementList(map: YMap, elements: readonly ElementJSON[]): void {
 
 // ---------- rich records ----------
 
-function readEntity(m: YMap): EntityJSON {
+export function readEntity(m: YMap): EntityJSON {
   const kind = m.get('kind') as EntityKind;
   const fieldsMap = m.get('fields') as YMap;
   const fields: Record<string, unknown> = {};
@@ -162,7 +162,7 @@ export function writeEntity(parent: YMap, e: EntityJSON): YMap {
   return m;
 }
 
-function readNote(m: YMap): NoteJSON {
+export function readNote(m: YMap): NoteJSON {
   const out: Record<string, unknown> = {};
   for (const [k, v] of m.entries()) {
     if (k === 'body') out.body = readTextJSON(v as Y.Text);
@@ -191,7 +191,7 @@ function writeNote(parent: YMap, n: NoteJSON): void {
   }
 }
 
-function readTextKeyed<T>(m: YMap, textKeys: readonly string[], keyMaps: readonly string[]): T {
+export function readTextKeyed<T>(m: YMap, textKeys: readonly string[], keyMaps: readonly string[]): T {
   const out: Record<string, unknown> = {};
   for (const [k, v] of m.entries()) {
     if (textKeys.includes(k)) out[k] = readTextJSON(v as Y.Text);

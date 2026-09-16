@@ -1,6 +1,9 @@
 import type { IdSource } from '../ids/id-source.js';
 import type { ElementId, EntityId, FolderId, StyleId } from '../ids/ids.js';
-import type { ElementMeta, ElementNumbering, OmitRecord, TrackChangeRecord } from '../schema/document.js';
+import type { EntityJSON } from '../schema/entities.js';
+import type {
+  ElementMeta, ElementNumbering, NoteJSON, OmitRecord, TagCategoryJSON, TagJSON, TrackChangeRecord,
+} from '../schema/document.js';
 import type { ElementOverrides } from '../schema/template.js';
 import type { TextJSON } from '../schema/text.js';
 import type { StyleRole, TitleField } from '../schema/vocab.js';
@@ -96,4 +99,25 @@ export interface OutlineNode {
 export interface TitlePageView {
   readonly elements: readonly ElementView[];
   readonly fields: Partial<Record<TitleField, { elementId: ElementId; text: string }>>;
+}
+
+export type EntityView = Readonly<EntityJSON> & { readonly hidden: boolean };
+export interface OccurrenceView {
+  readonly sceneId: ElementId | null;
+  readonly elementId: ElementId;
+  readonly source: 'speaker' | 'heading' | 'tag';
+  readonly range: { index: number; length: number } | null;
+}
+export type TagView = Readonly<TagJSON>;
+export type TagCategoryView = Readonly<TagCategoryJSON>;
+export type NoteView = Readonly<NoteJSON>;
+export interface Suggestion {
+  text: string;
+  key: string;
+  source: 'entity' | 'list';
+  entityId: EntityId | null;
+  count: number;
+}
+export interface SuggestionContext {
+  elementId?: ElementId;
 }

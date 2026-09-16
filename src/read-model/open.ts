@@ -1,18 +1,23 @@
 import * as Y from 'yjs';
 import type { DocId, ElementId, EntityId, StyleId } from '../ids/ids.js';
 import { readEmbeddedTemplate } from '../model/embed-template.js';
-import { documentToJSON } from '../model/json.js';
+import { documentToJSON, readEntity, readNote, readTextKeyed } from '../model/json.js';
 import { comparePositions } from '../model/positions.js';
-import { readTextJSON } from '../model/ytext.js';
-import type { DocumentJSON, EmbeddedTemplateJSON, SettingsJSON } from '../schema/document.js';
-import type { StyleDef } from '../schema/template.js';
-import type { EntityKind, StyleRole } from '../schema/vocab.js';
+import { readTextJSON, scanText } from '../model/ytext.js';
+import type {
+  BeatJSON, BinItemJSON, BookmarkJSON, DocumentJSON, EmbeddedTemplateJSON, ProductionJSON, RevisionsJSON, SettingsJSON, ShotJSON, TrackChangesJSON,
+} from '../schema/document.js';
+import type { MacroRecord, StyleDef } from '../schema/template.js';
+import type { EntityKind, SmartTypeList, StyleRole } from '../schema/vocab.js';
 import { normalizeKey, stripExtension } from '../smarttype/normalize.js';
 import { type ResolvedStyle, resolveStyle } from '../template/resolve.js';
+import { readCollection } from './collections.js';
 import { OrderIndex } from './order-index.js';
 import { computeDialogueBlocks, computeOutlineTree, computeScenes, type StructureInput } from './structure.js';
+import { matchesPrefix, rankSuggestions } from './suggestions.js';
 import type {
-  DialogueBlockView, ElementView, ModelChange, ModelChangeBatch, ModelDeps, OutlineNode, SceneView, TitlePageView, Unsubscribe,
+  DialogueBlockView, ElementView, EntityView, ModelChange, ModelChangeBatch, ModelDeps, NoteView, OccurrenceView, OutlineNode,
+  SceneView, Suggestion, SuggestionContext, TagCategoryView, TagView, TitlePageView, Unsubscribe,
 } from './views.js';
 
 type YMap = Y.Map<unknown>;
@@ -45,6 +50,23 @@ export interface DocumentModel {
   dialogueBlocks(sceneId?: ElementId): readonly DialogueBlockView[];
   outlineTree(): OutlineNode;
   titlePage(): TitlePageView;
+  entities(filter?: { kind?: EntityKind; includeHidden?: boolean }): readonly EntityView[];
+  entity(id: EntityId): EntityView | undefined;
+  resolveEntity(kind: EntityKind, name: string): EntityView | undefined;
+  occurrences(entityId: EntityId): readonly OccurrenceView[];
+  tags(filter?: { elementId?: ElementId; categoryId?: string; entityId?: EntityId }): readonly TagView[];
+  tagCategories(): readonly TagCategoryView[];
+  notes(filter?: { elementId?: ElementId; resolved?: boolean }): readonly NoteView[];
+  revisionState(): RevisionsJSON;
+  trackChangesState(): TrackChangesJSON;
+  productionState(): ProductionJSON;
+  shots(sceneId?: ElementId): readonly ShotJSON[];
+  beats(filter?: { board?: boolean; plotColumnId?: string; laneId?: string }): readonly BeatJSON[];
+  bin(): readonly BinItemJSON[];
+  bookmarks(): readonly BookmarkJSON[];
+  macros(): readonly MacroRecord[];
+  smartTypeSuggestions(list: SmartTypeList, prefix: string, context?: SuggestionContext): readonly Suggestion[];
+  guessNextCharacter(elementId: ElementId): string | null;
   subscribe(listener: (batch: ModelChangeBatch) => void): Unsubscribe;
   dispose(): void;
 }
@@ -158,6 +180,8 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
   for (const key of [...Object.keys(COLLECTION_KINDS), 'tagCategories']) {
     const map = doc.getMap<unknown>(key);
     const handler = (events: Y.YEvent<Y.AbstractType<unknown>>[], tx: Y.Transaction) => {
+      caches.delete(key);
+      caches.delete('occurrences');
       if (STRUCTURE_SOURCES.has(key)) invalidateStructure();
       if (key === 'titlePage') titlePageCache = null;
       const make = COLLECTION_KINDS[key];
@@ -229,6 +253,7 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
 
   const onElements = (events: Y.YEvent<Y.AbstractType<unknown>>[], tx: Y.Transaction) => {
     invalidateStructure();
+    caches.delete('occurrences');
     const inserted = new Set<string>();
     const removed = new Set<string>();
     const changed = new Set<string>();
@@ -275,6 +300,7 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
 
   const onTemplate = (events: Y.YEvent<Y.AbstractType<unknown>>[], tx: Y.Transaction) => {
     invalidateStructure();
+    caches.delete('occurrences');
     templateCache = null;
     views.clear();
     const styleIds = new Set<string>();
@@ -305,6 +331,39 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
   doc.on('afterTransaction', afterTransaction);
 
   const docId = doc.getMap('meta').get('docId') as DocId;
+
+  const caches = new Map<string, unknown>();
+  const cached = <T>(key: string, compute: () => T): T => {
+    if (!caches.has(key)) caches.set(key, deepFreeze(compute()));
+    return caches.get(key) as T;
+  };
+  const entityRecords = () => cached('entities', () => readCollection(doc, 'entities', readEntity));
+
+  function occurrenceMap(): Map<string, OccurrenceView[]> {
+    return cached('occurrences', () => {
+      const map = new Map<string, OccurrenceView[]>();
+      const add = (entityId: string | null, o: OccurrenceView) => {
+        if (!entityId) return;
+        map.set(entityId, [...(map.get(entityId) ?? []), o]);
+      };
+      const s = getStructure();
+      for (const b of s.blocks) add(b.entityId, { sceneId: b.sceneId, elementId: b.speakerId, source: 'speaker', range: null });
+      for (const scene of s.scenes) add(scene.locationId, { sceneId: scene.id, elementId: scene.id, source: 'heading', range: null });
+      for (const tag of model.tags()) {
+        const el = elementsMap.get(tag.elementId) as YMap | undefined;
+        const text = el?.get('text');
+        const mark = text instanceof Y.Text ? scanText(text).marks.find((m) => m.key === `t:${tag.id}`) : undefined;
+        add(tag.entityId, { sceneId: s.sceneOf.get(tag.elementId)?.id ?? null, elementId: tag.elementId, source: 'tag', range: mark ? { index: mark.index, length: mark.length } : null });
+      }
+      return map;
+    });
+  }
+
+  const follow = (e: EntityView | undefined): EntityView | undefined => {
+    let cur = e;
+    for (let i = 0; cur?.mergedInto && i < 64; i++) cur = entityRecords().find((x) => x.id === cur!.mergedInto) as EntityView | undefined;
+    return cur;
+  };
 
   const model: DocumentModel = {
     doc,
@@ -381,6 +440,102 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
         titlePageCache = deepFreeze({ elements: views, fields });
       }
       return titlePageCache;
+    },
+    entities(filter = {}) {
+      const all = entityRecords().filter((e) => e.mergedInto === null && (!filter.kind || e.kind === filter.kind));
+      const occ = occurrenceMap();
+      const withHidden = all.map((e) => ({ ...e, hidden: e.origin === 'harvested' && !e.retain && !(occ.get(e.id)?.length) }) as EntityView);
+      const visible = filter.includeHidden ? withHidden : withHidden.filter((e) => !e.hidden);
+      // `new Intl.Collator` is banned by the platform-free guard; `localeCompare` with an
+      // explicit locale gives the same base-sensitivity comparison.
+      return visible.sort((a, b) => a.name.localeCompare(b.name, deps.locale, { sensitivity: 'base' }));
+    },
+    entity(id) {
+      const e = entityRecords().find((x) => x.id === id);
+      return e ? follow({ ...e, hidden: false } as EntityView) : undefined;
+    },
+    resolveEntity(kind, name) {
+      const found = entityLookup(kind, name);
+      return found ? model.entity(found) : undefined;
+    },
+    occurrences: (entityId) => occurrenceMap().get(entityId) ?? [],
+    tags(filter = {}) {
+      const all = cached('tags', () => readCollection(doc, 'tags', (m) => m.toJSON() as TagView));
+      return all.filter((t) => (!filter.elementId || t.elementId === filter.elementId) && (!filter.categoryId || t.categoryId === filter.categoryId) && (!filter.entityId || t.entityId === filter.entityId));
+    },
+    tagCategories: () => cached('tagCategories', () => readCollection(doc, 'tagCategories', (m) => m.toJSON() as TagCategoryView)),
+    notes(filter = {}) {
+      const all = cached('notes', () => readCollection(doc, 'notes', readNote));
+      return all.filter((n) => {
+        if (filter.resolved !== undefined && (n.resolved !== null) !== filter.resolved) return false;
+        if (!filter.elementId) return true;
+        const a = n.anchor;
+        return (a.kind === 'element' || a.kind === 'scene') && a.elementId === filter.elementId;
+      });
+    },
+    revisionState: () => cached('revisions', () => {
+      const rev = doc.getMap<unknown>('revisions');
+      const sets = rev.get('sets');
+      const list = sets instanceof Y.Map
+        ? [...(sets as YMap).values()].map((s) => (s as YMap).toJSON() as RevisionsJSON['sets'][number]).sort((a, b) => comparePositions(a.pos, b.pos))
+        : [];
+      return { ...(rev.toJSON() as RevisionsJSON), sets: list };
+    }),
+    trackChangesState: () => cached('trackChanges', () => doc.getMap('trackChanges').toJSON() as TrackChangesJSON),
+    productionState: () => cached('production', () => {
+      const prod = doc.getMap<unknown>('production');
+      const json = prod.toJSON() as Record<string, unknown>;
+      return {
+        ...(json as unknown as ProductionJSON),
+        lockedStyles: Object.keys((json.lockedStyles as Record<string, true>) ?? {}).sort() as ProductionJSON['lockedStyles'],
+        pageLocks: Object.values((json.pageLocks as Record<string, ProductionJSON['pageLocks'][number]>) ?? {}),
+      };
+    }),
+    shots: (sceneId) => cached('shots', () => readCollection(doc, 'shots', (m) => readTextKeyed<ShotJSON>(m, ['description'], []))).filter((s) => !sceneId || s.sceneId === sceneId),
+    beats(filter = {}) {
+      const all = cached('beats', () => readCollection(doc, 'beats', (m) => readTextKeyed<BeatJSON>(m, ['title', 'body'], ['storylineIds'])));
+      return all.filter((b) => (filter.board === undefined || (b.board !== null) === filter.board) && (!filter.plotColumnId || b.plot?.columnId === filter.plotColumnId) && (!filter.laneId || b.lane?.laneId === filter.laneId));
+    },
+    bin: () => cached('bin', () => readCollection(doc, 'bin', (m) => m.toJSON() as BinItemJSON)),
+    bookmarks: () => cached('bookmarks', () => readCollection(doc, 'bookmarks', (m) => m.toJSON() as BookmarkJSON)),
+    macros: () => cached('macros', () => readCollection(doc, 'macros', (m) => m.toJSON() as MacroRecord)),
+    smartTypeSuggestions(list, prefix) {
+      const language = String(doc.getMap('meta').get('language') ?? deps.locale);
+      const st = doc.getMap<unknown>('smartType');
+      const sortMode = (st.get('sortMode') as 'alphabetical' | 'custom' | 'frequency') ?? 'alphabetical';
+      const dismissed = st.get('dismissed') instanceof Y.Map ? (st.get('dismissed') as YMap) : null;
+      if (list === 'characters' || list === 'locations') {
+        const kind = list === 'characters' ? 'character' : 'location';
+        const occ = occurrenceMap();
+        const items: Suggestion[] = model.entities({ kind }).flatMap((e) => {
+          const names = [e.name, ...e.aliases];
+          const reading = typeof e.attributes['smartType.reading'] === 'string' ? (e.attributes['smartType.reading'] as string) : null;
+          const hit = names.some((n) => matchesPrefix(n, prefix, language)) || (reading !== null && matchesPrefix(reading, prefix, language));
+          return hit ? [{ text: e.name, key: e.nameKey, source: 'entity' as const, entityId: e.id, count: occ.get(e.id)?.length ?? 0 }] : [];
+        });
+        return rankSuggestions(items, sortMode === 'custom' ? 'alphabetical' : sortMode, language);
+      }
+      const entries = st.get(list);
+      if (!(entries instanceof Y.Map)) return [];
+      const order = new Map<string, string>();
+      const items: Suggestion[] = [];
+      for (const [key, v] of (entries as YMap).entries()) {
+        const entry = v as { text: string; pos: string; count: number };
+        if (dismissed?.has(`${list}:${key}`)) continue;
+        if (!matchesPrefix(entry.text, prefix, language)) continue;
+        order.set(key, entry.pos);
+        items.push({ text: entry.text, key, source: 'list', entityId: null, count: entry.count });
+      }
+      return rankSuggestions(items, sortMode, language, order);
+    },
+    guessNextCharacter(elementId) {
+      const scene = model.sceneOf(elementId);
+      const index = model.indexOf(elementId);
+      const blocks = model.dialogueBlocks(scene?.id).filter((b) => b.speakerId !== elementId && model.indexOf(b.speakerId) < index);
+      if (blocks.length >= 2) return blocks[blocks.length - 2]!.name;
+      const counts = new Map<string, number>();
+      for (const b of blocks) counts.set(b.name, (counts.get(b.name) ?? 0) + 1);
+      return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null;
     },
     subscribe(listener) {
       listeners.add(listener);
