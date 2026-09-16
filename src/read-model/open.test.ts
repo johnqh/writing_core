@@ -93,4 +93,95 @@ describe('openDocument elements', () => {
     expect(model.template().styles.find((s) => s.id === 'st_action')!.spaceBefore).toBe(2);
     model.dispose();
   });
+
+  it('removes an element from the index, views and change batch', () => {
+    const { doc, h, a, c } = setup();
+    const model = openDocument(doc, deps);
+    // Warm the view cache so the removal branch also has to evict it.
+    model.elements();
+    const batches: ModelChangeBatch[] = [];
+    model.subscribe((b) => batches.push(b));
+    const removedId = a.get('id') as string;
+
+    doc.getMap('elements').delete(removedId);
+
+    expect(model.elementCount()).toBe(2);
+    expect(model.indexOf(removedId as never)).toBe(-1);
+    expect(model.elements().map((e) => e.id)).toEqual([h.get('id'), c.get('id')]);
+    expect(model.element(removedId as never)).toBeUndefined();
+    expect(model.next(h.get('id') as never)!.id).toBe(c.get('id'));
+    expect(model.previous(c.get('id') as never)!.id).toBe(h.get('id'));
+
+    expect(batches).toHaveLength(1);
+    const el = batches[0]!.changes.find((ch) => ch.kind === 'elements')!;
+    expect(el).toEqual({ kind: 'elements', inserted: [], removed: [removedId], changed: [], reordered: true });
+  });
+
+  it('applies a remote transaction that inserts, moves and removes elements', () => {
+    const { doc, h, a, c } = setup();
+    const model = openDocument(doc, deps);
+    const batches: ModelChangeBatch[] = [];
+    model.subscribe((b) => batches.push(b));
+
+    const remote = new Y.Doc();
+    Y.applyUpdate(remote, Y.encodeStateAsUpdate(doc));
+    const remoteElements = remote.getMap('elements');
+    const insertedId = insertElementRecord(
+      remoteElements,
+      { id: newId('el', ids), pos: 'A', style: 'st_action' as never, text: { plain: 'New first.', runs: [{ text: 'New first.', attrs: {} }], embeds: [] } },
+      meta,
+    ).get('id') as string;
+    (remoteElements.get(h.get('id') as string) as Y.Map<unknown>).set('pos', 'ZZ'); // move heading after everything else
+    remoteElements.delete(a.get('id') as string); // remove the action
+    Y.applyUpdate(doc, Y.encodeStateAsUpdate(remote, Y.encodeStateVector(doc)));
+
+    expect(batches).toHaveLength(1);
+    expect(batches[0]!.local).toBe(false);
+    expect(model.elementCount()).toBe(3);
+    expect(model.elements().map((e) => e.id)).toEqual([insertedId, c.get('id'), h.get('id')]);
+    expect(model.indexOf(a.get('id') as never)).toBe(-1);
+  });
+
+  it('stops delivering batches once unsubscribed', () => {
+    const { doc, h } = setup();
+    const model = openDocument(doc, deps);
+    const batches: ModelChangeBatch[] = [];
+    const unsubscribe = model.subscribe((b) => batches.push(b));
+
+    doc.transact(() => (h.get('text') as Y.Text).insert(0, 'A '));
+    expect(batches).toHaveLength(1);
+
+    unsubscribe();
+    doc.transact(() => (h.get('text') as Y.Text).insert(0, 'B '));
+    expect(batches).toHaveLength(1);
+  });
+
+  it('delivers no further batches after dispose and detaches its observers', () => {
+    const { doc, h } = setup();
+    const model = openDocument(doc, deps);
+    const batches: ModelChangeBatch[] = [];
+    model.subscribe((b) => batches.push(b));
+
+    model.dispose();
+    doc.transact(() => (h.get('text') as Y.Text).insert(0, 'C '));
+    expect(batches).toHaveLength(0);
+    // Not just an empty listener set: the element observer itself must be detached, or
+    // textVersion would still advance even with nobody subscribed to hear about it.
+    expect(model.textVersion(h.get('id') as never)).toBe(0);
+  });
+
+  it('resolves role to null for an unknown style without throwing', () => {
+    const { doc, add } = setup();
+    const model = openDocument(doc, deps);
+    const bogus = add('st_does_not_exist', 'Q', 'Mystery line.');
+    expect(model.element(bogus.get('id') as never)!.role).toBeNull();
+  });
+
+  it('lets a genuine resolveStyle failure propagate instead of being swallowed', () => {
+    const { doc, h } = setup();
+    const model = openDocument(doc, deps);
+    const rootStyle = (doc.getMap('template').get('styles') as Y.Map<Y.Map<unknown>>).get('st_normal')!;
+    rootStyle.delete('align'); // no style in h's chain overrides align, so its resolution has no value left to inherit
+    expect(() => model.element(h.get('id') as never)).toThrow(/no value for align/);
+  });
 });

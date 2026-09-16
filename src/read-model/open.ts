@@ -205,12 +205,11 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
     const m = elementsMap.get(id);
     if (!(m instanceof Y.Map)) return undefined;
     const style = m.get('style') as StyleId;
-    let role: StyleRole | null = null;
-    try {
-      role = resolveStyle(template(), style).role;
-    } catch {
-      role = null;
-    }
+    // Only an unknown style (dangling reference, e.g. after a style deletion) resolves to a
+    // null role; any other resolveStyle failure (e.g. an incomplete root chain) is a genuine
+    // template bug and must propagate rather than be silently swallowed as "no role".
+    const styleExists = template().styles.some((s) => s.id === style);
+    const role: StyleRole | null = styleExists ? resolveStyle(template(), style).role : null;
     const alts = m.get('alts');
     const view: ElementView = {
       id: id as ElementId,
@@ -302,6 +301,10 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
     invalidateStructure();
     caches.delete('occurrences');
     templateCache = null;
+    // Clear every cached view rather than diffing which elements are affected: template edits
+    // are rare, but a single style edit (e.g. changing its `role`) can change the resolved role
+    // of any element that references it, directly or via `basedOn`/`paginateAs`, so a targeted
+    // invalidation would have to replicate the whole resolution chain just to be an optimization.
     views.clear();
     const styleIds = new Set<string>();
     let all = false;
