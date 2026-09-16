@@ -107,3 +107,4 @@ export {
 } from './fonts/fwm.js';
 export { FONT_ALIASES, aliasFor } from './fonts/aliases.js';
 export { createFontRegistry, type FontRegistryHandle, type CreateFontRegistryOptions } from './fonts/registry.js';
+export { fallbackChain, tofuFace, scriptOf, cjkRegion, type FallbackScript } from './fonts/fallback.js';
