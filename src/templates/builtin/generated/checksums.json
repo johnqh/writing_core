@@ -1,0 +1,58 @@
+{
+  "screenplay-final-draft-fi": {
+    "source": "v1:b8bbea906e37bba8ad2c69aec2d5e169bc5ab164a2db1f5d156ddfbd2ff29695",
+    "template": "v1:46f26689cfadb7497fc89b1304c2a489d83722d4489c3370520d5c2b592f2300"
+  },
+  "screenplay-cole-haag": {
+    "source": "v1:2fc10abb91d7517ba0af707af910561211704e601351343fccf9963aceb4b567",
+    "template": "v1:fb83d926899d10672252c13db264564cdbf234a328ee78da2b23cce18e0ebe29"
+  },
+  "screenplay-warner": {
+    "source": "v1:8c74b998eeb8ee4a805a6b0c19ee7c36bcee832b98ed4fd7e5a5ff8c6c71815d",
+    "template": "v1:11519219376b53291cf709ea00da9bbc6a862e2cc9e36318af808f618d55f9f7"
+  },
+  "tv-one-hour": {
+    "source": "v1:9113a2723ac4f5ecc118c3912dea8cb4d89e2f1767b6ceca98baebe4d5e7f0da",
+    "template": "v1:eef73e1a91602750572a59c0ebd71335987cdb55e10b34b6a90f32cd88098f33"
+  },
+  "tv-half-hour": {
+    "source": "v1:79674a6a2a9ada0e96873bc3bc29e4959db5c7bd0bb144946bf23017435b5a53",
+    "template": "v1:a80a47ff520d5fabb8a82e7a418c2ad4c6390a7254dfe66616f0a240eecf3bb6"
+  },
+  "stage-play": {
+    "source": "v1:770cfbddf924fac2e50ce124c96be27879350c0d7c4aff57de37714e04612cbb",
+    "template": "v1:055e003d198f778b254aa7f0c55fd3ef7c629c1c368a8878e031ce96f71a15d7"
+  },
+  "stage-play-tnr": {
+    "source": "v1:23d62fcc45c291f416265dc878619b7584549c930b8c4779768f5fcd50fa14f9",
+    "template": "v1:0f38ada650828306f783a56bcd4c5bf4abe72f624c7e1e4bf9cf3df5f531d7aa"
+  },
+  "stage-play-bbc": {
+    "source": "v1:05e14093344b0e6898e53103161cce823a680dc03a0df2a8eb4c536a45ac252f",
+    "template": "v1:5924a852d622f9fa8800d0b6d598dd2dba7d6a0dea2c35cd29d15a17014efa16"
+  },
+  "radio-play-bbc": {
+    "source": "v1:383c8f90e77182d49c29b33ce9f0cf18ec44eb717614801286fa638a984f0d80",
+    "template": "v1:f26e3e45378f8d38d07ded298d122241b7735999d0c22bfe79b5a7a0e681be5e"
+  },
+  "radio-script-us": {
+    "source": "v1:ada18856519950985fad3725543ff82d3fa16a82a290e6df59f80bc9ae3a8aa3",
+    "template": "v1:6b7da0499d475e4077d074074b6b7c860951dd716e2066cb4c09647fb4409519"
+  },
+  "av-two-column": {
+    "source": "v1:1f06919e5200fded4b9a22d98354563a492047238cb3071ab8a6727560c19121",
+    "template": "v1:4e648700a4677fb96b62bb1ac4414cb4d4e5639224ffbab00d85ccf04958250e"
+  },
+  "multimedia": {
+    "source": "v1:61e49911309a017686af36f265a75cd23f0ef1ef33e402ad1c5d09bcb9dd8cd2",
+    "template": "v1:4458f4fe35ad60139b558747140f7eaaab0d9e5f3962980e13cb7d871a459f6c"
+  },
+  "graphic-novel": {
+    "source": "v1:f6f109104d98fee89277d8c3b897fce1e7544a8d357dd9c7215d9f6a8aac2ffb",
+    "template": "v1:4d56da6f79eddadd860b0b33c4a36ce496e262a779779237d3b504b8ac9449d0"
+  },
+  "novel-manuscript": {
+    "source": "v1:3afb8a5a63be5691715decea6678a0049e67117722d5731d21d1928051478f38",
+    "template": "v1:ec5ea4e36c4dad37a4819f8ad886fa1cbda4b2a076251d1f267b2ef14fa0dc5d"
+  }
+}

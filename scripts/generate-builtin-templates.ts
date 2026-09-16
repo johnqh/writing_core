@@ -1,5 +1,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { canonicalJSON } from '../src/hash/canonical-json.js';
+import { sha256Hex } from '../src/hash/sha256.js';
 import { camelKey } from '../src/templates/role-table.js';
 import { osfTemplateToJSON } from '../src/templates/generator/osf.js';
 import { BUILTIN_SOURCES } from '../src/templates/generator/sources.js';
@@ -11,6 +13,7 @@ const out = resolve('src/templates/builtin/generated');
 mkdirSync(out, { recursive: true });
 
 const written: string[] = [];
+const checksums: Record<string, { source: string; template: string }> = {};
 for (const source of BUILTIN_SOURCES) {
   const xml = readFileSync(join(dir, source.file, 'document.xml'), 'utf8');
   const template = TemplateJSON.parse(osfTemplateToJSON(xml, source));
@@ -24,7 +27,14 @@ for (const source of BUILTIN_SOURCES) {
       `export const ${name} = ${JSON.stringify(template, null, 2)} as unknown as TemplateJSON;\n`,
   );
   written.push(name);
+  // Vendored so the shipped templates have drift protection that does not need the source files:
+  // `source` pins the exact XML these modules were generated from (checked when the research repo
+  // is available), `template` pins the committed module itself (checked always, including in CI,
+  // where the research repo is not checked out).
+  checksums[source.key] = { source: `v1:${sha256Hex(xml)}`, template: `v1:${sha256Hex(canonicalJSON(template))}` };
 }
+
+writeFileSync(join(out, 'checksums.json'), `${JSON.stringify(checksums, null, 2)}\n`);
 
 writeFileSync(
   join(out, 'index.ts'),
@@ -35,4 +45,4 @@ writeFileSync(
     BUILTIN_SOURCES.map((s) => `  '${s.key}': ${camelKey(s.key)},`).join('\n') +
     '\n};\n',
 );
-console.log(`wrote ${written.length} templates to ${out}`);
+console.log(`wrote ${written.length} templates + checksums.json to ${out}`);

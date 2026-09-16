@@ -1,14 +1,19 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { canonicalJSON } from '../../hash/canonical-json.js';
+import { sha256Hex } from '../../hash/sha256.js';
 import { TemplateJSON } from '../../schema/template.js';
 import { validateTemplate } from '../../template/validate.js';
 import { inchesToEmu } from '../../units.js';
+import CHECKSUMS from '../builtin/generated/checksums.json' with { type: 'json' };
 import { GENERATED_TEMPLATES } from '../builtin/generated/index.js';
 import { osfTemplateToJSON } from './osf.js';
 import { BUILTIN_SOURCES } from './sources.js';
 
-const dir = resolve(process.env.FADEWRIGHT_TEMPLATES_DIR ?? '../screenwriter_plans/research/templates');
+const explicitDir = process.env.FADEWRIGHT_TEMPLATES_DIR;
+const dir = resolve(explicitDir ?? '../screenwriter_plans/research/templates');
+const sourcesPresent = existsSync(dir);
 
 describe('generated built-in templates', () => {
   it('are all present, schema-valid and consistent', () => {
@@ -38,10 +43,38 @@ describe('generated built-in templates', () => {
     expect(gn.smartType.characters).toEqual(['CAPTION:', 'SFX:']);
   });
 
-  it.skipIf(!existsSync(dir))('are byte-for-byte what the generator produces from the research files', () => {
-    for (const source of BUILTIN_SOURCES) {
-      const xml = readFileSync(join(dir, source.file, 'document.xml'), 'utf8');
-      expect(JSON.parse(JSON.stringify(osfTemplateToJSON(xml, source)))).toEqual(GENERATED_TEMPLATES[source.key]);
-    }
+  /**
+   * The drift guard that runs EVERYWHERE, including CI, where the research repo (a separate,
+   * private sibling) is not checked out. `checksums.json` is written by
+   * `bun run templates:generate` alongside the modules, so hand-editing a file under
+   * `builtin/generated/` — which its header forbids — fails here instead of shipping silently.
+   * Before this existed, the only protection was the byte-for-byte test below, which quietly
+   * skipped whenever the sources were absent: the 14 shipped templates had no CI guard at all.
+   */
+  it('match their vendored checksums, with or without the research sources', () => {
+    const actual = Object.fromEntries(BUILTIN_SOURCES.map((s) => [s.key, `v1:${sha256Hex(canonicalJSON(GENERATED_TEMPLATES[s.key]!))}`]));
+    const expected = Object.fromEntries(BUILTIN_SOURCES.map((s) => [s.key, (CHECKSUMS as Record<string, { template: string }>)[s.key]?.template]));
+    expect(actual).toEqual(expected);
+  });
+
+  describe.skipIf(!sourcesPresent)('against the research sources', () => {
+    it('read the exact source files the committed modules were generated from', () => {
+      const actual = Object.fromEntries(BUILTIN_SOURCES.map((s) => [s.key, `v1:${sha256Hex(readFileSync(join(dir, s.file, 'document.xml'), 'utf8'))}`]));
+      const expected = Object.fromEntries(BUILTIN_SOURCES.map((s) => [s.key, (CHECKSUMS as Record<string, { source: string }>)[s.key]?.source]));
+      expect(actual).toEqual(expected);
+    });
+
+    it('are byte-for-byte what the generator produces from the research files', () => {
+      for (const source of BUILTIN_SOURCES) {
+        const xml = readFileSync(join(dir, source.file, 'document.xml'), 'utf8');
+        expect(JSON.parse(JSON.stringify(osfTemplateToJSON(xml, source)))).toEqual(GENERATED_TEMPLATES[source.key]);
+      }
+    });
+  });
+
+  // A silent skip is what hid the gap in the first place. If someone points at a templates
+  // directory explicitly, a missing one is their mistake, not a reason to pass quietly.
+  it('fail rather than skip when a templates directory was named explicitly', () => {
+    expect(explicitDir === undefined || sourcesPresent, `FADEWRIGHT_TEMPLATES_DIR=${explicitDir} does not exist`).toBe(true);
   });
 });
