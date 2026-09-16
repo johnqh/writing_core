@@ -233,10 +233,17 @@ const CLOSING_PUNCT: ReadonlySet<number> = new Set(
   [')', ']', '"', "'", '”', '’', '」', '』'].map((c) => c.codePointAt(0) as number),
 );
 
-/** Spec 02 §6.5's may-end rule: "an opening quote or bracket" — the opening counterparts of `CLOSING_PUNCT`. */
-const OPENING_PUNCT: ReadonlySet<number> = new Set(
-  ['(', '[', '"', "'", '“', '‘', '「', '『'].map((c) => c.codePointAt(0) as number),
-);
+/**
+ * Spec 02 §6.5's may-end trigger set, **exactly** (fix round 2): `(`, `[`, `{`, the curly
+ * opening quotes `‘` and `“`, and the straight double quote `"`. Deliberately **not** the
+ * straight apostrophe `'` (U+0027) or the curly apostrophe `’` (U+2019) — both serve double
+ * duty as a contraction mark (`'tis`, `'twas`, `'em`, all common in screenplay dialogue), so
+ * including either would fire the may-end rule on `etc. 'tis done.` and wrongly split a
+ * contraction, not a real new sentence. `"` is kept because, unlike `'`, it has no
+ * contraction use. Not the same set as `CLOSING_PUNCT` (whose `'`/`’`/CJK corner brackets do
+ * not appear here) — this is a different, narrower, spec-pinned set for a different purpose.
+ */
+const OPENING_PUNCT: ReadonlySet<number> = new Set(['(', '[', '{', '“', '‘', '"'].map((c) => c.codePointAt(0) as number));
 
 /** Spec 02 §6.5's literal "CJK full stops always end a sentence (no whitespace required)" set. */
 const CJK_ALWAYS_END: ReadonlySet<number> = new Set(['。', '！', '？'].map((c) => c.codePointAt(0) as number));
@@ -280,6 +287,14 @@ function isSingleUppercaseInitial(cps: CodePointAt[], runStart: number): boolean
  * whitespace run; true end of paragraph after skipping it is treated as an honoured end too
  * (spec 02 §6.5's general rule already ends a sentence at "whitespace or end of paragraph" —
  * the uppercase/opening-punct refinement only disambiguates the case where more text follows).
+ *
+ * **Two deliberate, accepted imprecisions (spec 02 §6.5, do not "fix"):** a digit is not a
+ * trigger (`etc. 42 items remained.` stays one sentence — misses a genuine new sentence
+ * starting with a number), and this checks General_Category `Lu` alone with no semantic
+ * check, so it also misfires on `etc. Kraft brand.` (a capitalized common noun, not a new
+ * sentence). Both are accepted: the rule is a heuristic, and a missed split only costs
+ * `breakOnSentences` (§13.6) one fewer place to break, while a wrong split would put a page
+ * break inside a sentence — asymmetric costs, so the rule suppresses when in doubt.
  */
 function mayEndHonoured(cps: CodePointAt[], j: number): boolean {
   let k = j;

@@ -103,9 +103,7 @@ describe('sentenceEnds — spec 02 §6.5 explicit cases', () => {
 
   it('`?"` followed by a space ends a sentence (STerm + closing quote + whitespace)', () => {
     const text = 'She asked, "Really?" He nodded.';
-    const ends = sentenceEnds(text, 'en');
-    const afterQuote = text.indexOf('?"') + 2; // right after the closing quote
-    expect(ends).toContain(afterQuote);
+    expect(sentenceEnds(text, 'en')).toEqual([20, 31]); // right after the closing quote, and at text end
   });
 
   it('a plain "." followed by whitespace ends an ordinary sentence', () => {
@@ -143,9 +141,8 @@ describe('sentenceEnds — two abbreviation classes (spec 02 §6.5, fix round 1)
 
   it('may-end "etc." is honoured when followed by whitespace then an opening quote', () => {
     const text = 'We packed food, tools, etc. "Are we ready?" she asked.';
-    const afterEtc = text.indexOf('etc.') + 'etc.'.length;
-    const ends = sentenceEnds(text, 'en');
-    expect(ends).toContain(afterEtc);
+    // [after "etc.", after the closing quote following "?", after the final period]
+    expect(sentenceEnds(text, 'en')).toEqual([27, 43, 54]);
   });
 
   it('may-end "etc." at true end of paragraph is honoured (nothing follows to disambiguate)', () => {
@@ -218,6 +215,52 @@ describe('sentenceEnds — two abbreviation classes (spec 02 §6.5, fix round 1)
       const neverList = ABBREVIATIONS[lang] ?? [];
       for (const abbrev of mayList) expect(neverList).not.toContain(abbrev);
     }
+  });
+});
+
+describe('sentenceEnds — may-end trigger set, exactly (spec 02 §6.5, fix round 2)', () => {
+  it('REGRESSION: a straight apostrophe contraction ("\'tis") after a may-end abbreviation stays one sentence', () => {
+    // Before fix round 2, U+0027 was (wrongly) in the trigger set, so this split at 14.
+    const text = "We packed etc. 'tis done.";
+    expect(sentenceEnds(text, 'en')).toEqual([text.length]);
+  });
+
+  it('a genuine straight double-quote opening quote after a may-end abbreviation still splits', () => {
+    const text = 'We packed etc. "Tis done," she said.';
+    expect(sentenceEnds(text, 'en')).toEqual([14, text.length]);
+  });
+
+  it('the curly closing/contraction apostrophe (’, U+2019) is not a trigger — stays one sentence', () => {
+    const text = 'We packed etc. ’tis done.';
+    expect(sentenceEnds(text, 'en')).toEqual([text.length]);
+  });
+
+  it('the curly opening single quote (‘, U+2018) IS a trigger (it is not the contraction form) — splits', () => {
+    const text = 'We packed etc. ‘tis done.';
+    expect(sentenceEnds(text, 'en')).toEqual([14, text.length]);
+  });
+
+  it('the curly opening double quote (“, U+201C) is a trigger — splits', () => {
+    const text = 'We packed etc. “Tis done,” she said.';
+    expect(sentenceEnds(text, 'en')).toEqual([14, text.length]);
+  });
+
+  it('opening brackets `(`, `[`, `{` are triggers', () => {
+    expect(sentenceEnds('We packed etc. (really).', 'en')).toEqual([14, 24]);
+    expect(sentenceEnds('We packed etc. [note].', 'en')).toEqual([14, 22]);
+    expect(sentenceEnds('We packed etc. {note}.', 'en')).toEqual([14, 22]);
+  });
+
+  it('a digit following the whitespace is deliberately not a trigger (spec 02 §6.5, accepted imprecision)', () => {
+    const text = 'We packed etc. 42 items remained.';
+    expect(sentenceEnds(text, 'en')).toEqual([33]);
+  });
+
+  it('a capitalized common noun deliberately misfires as a trigger too (spec 02 §6.5, accepted imprecision)', () => {
+    // The heuristic checks General_Category Lu alone, with no semantic distinction between a
+    // new sentence and a capitalized proper/common noun continuing the same sentence.
+    const text = 'We packed etc. Kraft brand.';
+    expect(sentenceEnds(text, 'en')).toEqual([14, 27]);
   });
 });
 
