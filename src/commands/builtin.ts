@@ -1,9 +1,10 @@
+import { ELEMENT_COMMANDS } from './element.js';
 import { MARK_COMMANDS } from './mark.js';
 import { registerCommand } from './registry.js';
 import { TEXT_COMMANDS } from './text.js';
 import type { CommandSpec } from './types.js';
 
-const BUILTIN: CommandSpec<never>[][] = [TEXT_COMMANDS, MARK_COMMANDS];
+const BUILTIN: CommandSpec<never>[][] = [TEXT_COMMANDS, MARK_COMMANDS, ELEMENT_COMMANDS];
 let registered = false;
 
 export function registerBuiltinCommands(): void {

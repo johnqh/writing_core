@@ -43,6 +43,7 @@ export * from './commands/segment.js';
 export * from './commands/element-ops.js';
 export { TEXT_COMMANDS } from './commands/text.js';
 export { MARK_COMMANDS } from './commands/mark.js';
+export { ELEMENT_COMMANDS } from './commands/element.js';
 export * from './commands/builtin.js';
 
 // ─── Schema ─────────────────────────────────────────────────────────────────
