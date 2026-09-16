@@ -1,8 +1,9 @@
 import * as Y from 'yjs';
 import { z } from 'zod/v4';
 import { describe, expect, it } from 'vitest';
+import { executeBatch } from '../commands/execute.js';
 import { registerCommand } from '../commands/registry.js';
-import { commandHarness } from '../commands/test-harness.js';
+import { TEST_ACTOR, commandHarness } from '../commands/test-harness.js';
 import { documentToJSON } from '../model/json.js';
 import { createSessionUndo } from './undo-manager.js';
 
@@ -177,5 +178,109 @@ describe('createSessionUndo', () => {
       expect(undo.redo(), id).toBe(true);
       expect(JSON.stringify(documentToJSON(h.doc)), id).toBe(after);
     }
+  });
+
+  it('composes a multi-command batch into a single undo step', () => {
+    const h = commandHarness();
+    const [a] = h.replaceBody([['st_action', 'Alpha']]);
+    const undo = createSessionUndo(h.doc, h.origins, { clock: h.now });
+    const r = executeBatch({
+      doc: h.doc, model: h.model, ids: h.ids, actor: TEST_ACTOR, origin: h.origins.make('local-command', { commandId: 'batch' }),
+      capabilities: new Set(['write', 'comment', 'lockAdmin', 'revisionAdmin']), clock: h.now,
+      commands: [
+        { id: 'mark.toggle', params: { range: { anchor: at(a!, 0), head: at(a!, 5) }, mark: 'b' } },
+        { id: 'mark.toggle', params: { range: { anchor: at(a!, 0), head: at(a!, 5) }, mark: 'i' } },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    expect(h.delta(a!)).toEqual([{ insert: 'Alpha', attributes: { b: true, i: true } }]);
+    // Both commands ran inside one `doc.transact`, so Yjs captured them as one undo step:
+    // a single `undo()` reverts both marks together, and there is nothing left to undo after.
+    expect(undo.undo()).toBe(true);
+    expect(h.delta(a!)).toEqual([{ insert: 'Alpha' }]);
+    expect(undo.canUndo()).toBe(false);
+  });
+
+  it('undoes a tracked delete carrying tc.mergeInto back to no tc field', () => {
+    const h = commandHarness();
+    const [first, second] = h.replaceBody([['st_action', 'First.'], ['st_action', 'Second.']]);
+    // Enable Track Changes outside any tracked origin, same as `replaceBody`'s fixture setup,
+    // so turning it on is not itself part of this session's undo history.
+    h.doc.transact(() => { (h.doc.getMap('trackChanges') as Y.Map<unknown>).set('enabled', true); });
+    const undo = createSessionUndo(h.doc, h.origins, { clock: h.now });
+    const elements = h.doc.getMap('elements') as Y.Map<unknown>;
+    const record = () => elements.get(second!) as Y.Map<unknown>;
+    expect(record().get('tc')).toBeUndefined();
+    // Backspacing at the start of the second element merges it into the first; under Track
+    // Changes that merge stays reviewable, so the element survives with `tc.mergeInto` set
+    // instead of being deleted outright (src/commands/text.ts's text.deleteBackward).
+    const r = h.run('text.deleteBackward', { at: at(second!, 0), unit: 'char' }, 'local-typing');
+    expect(r.ok).toBe(true);
+    const tc = record().get('tc') as { kind: string; mergeInto: string } | undefined;
+    expect(tc?.kind).toBe('delete');
+    expect(tc?.mergeInto).toBe(first);
+    expect(elements.has(second!)).toBe(true);
+    expect(undo.undo()).toBe(true);
+    expect(record().get('tc')).toBeUndefined();
+    expect(elements.has(second!)).toBe(true);
+  });
+
+  it("undoes entity.delete cleanly, restoring the entity and clearing its tombstone", () => {
+    const h = commandHarness();
+    h.replaceBody([['st_action', '']]);
+    const created = h.run('entity.create', { kind: 'character', name: 'MAYA' });
+    expect(created.ok, 'create').toBe(true);
+    if (!created.ok) throw new Error('unreachable');
+    const entityId = (created.results[0] as { ok: true; effects?: { kind: string; id: string }[] }).effects![0]!.id;
+    // Only entity.delete should be on this session's undo stack.
+    const undo = createSessionUndo(h.doc, h.origins, { clock: h.now });
+    const entities = h.doc.getMap('entities') as Y.Map<unknown>;
+    const tombstones = () => (h.doc.getMap('smartType') as Y.Map<unknown>).get('entityTombstones') as Y.Map<unknown>;
+    expect(tombstones().size).toBe(0);
+    const deleted = h.run('entity.delete', { entityId });
+    expect(deleted.ok, 'delete').toBe(true);
+    expect(entities.has(entityId)).toBe(false);
+    expect(tombstones().size).toBe(1);
+    expect(undo.undo()).toBe(true);
+    expect(entities.has(entityId)).toBe(true);
+    expect(tombstones().size).toBe(0);
+  });
+
+  it('destroy() detaches the doc listeners so a later edit is no longer captured', () => {
+    const h = commandHarness();
+    const [a] = h.replaceBody([['st_action', '']]);
+    const undo = createSessionUndo(h.doc, h.origins, { clock: h.now });
+    h.run('text.insert', { at: at(a!, 0), text: 'a' }, 'local-typing');
+    expect(undo.canUndo()).toBe(true);
+    undo.destroy();
+    expect(() => undo.destroy()).not.toThrow();
+    // A tracked edit after destroy() is invisible to the now-detached undo manager: it is
+    // never added to any undo step, so it survives an undo() that only reverts what was
+    // captured before destroy() (Yjs's undo reverts the specific inserted item, not "whatever
+    // is at this position now").
+    h.run('text.insert', { at: at(a!, 1), text: 'b' }, 'local-typing');
+    expect(undo.undo()).toBe(true);
+    expect(h.textMap(a!).toString()).toBe('b');
+    expect(undo.canUndo()).toBe(false);
+  });
+
+  it('onStackItemAdded fires once per new undo step, with a meta Map, and its unsubscribe stops further events', () => {
+    const h = commandHarness();
+    const [a] = h.replaceBody([['st_action', '']]);
+    const undo = createSessionUndo(h.doc, h.origins, { clock: h.now });
+    const events: { type: string; hasMetaMap: boolean }[] = [];
+    const off = undo.onStackItemAdded((e) => events.push({ type: e.type, hasMetaMap: e.stackItem.meta instanceof Map }));
+    h.run('text.insert', { at: at(a!, 0), text: 'a' }, 'local-typing');
+    // No pause and the same kind/no groupKey: groups into the same step as the first insert,
+    // so this does not push a second stack item.
+    h.run('text.insert', { at: at(a!, 1), text: 'b' }, 'local-typing');
+    expect(events).toEqual([{ type: 'undo', hasMetaMap: true }]);
+    off();
+    h.tick(600);
+    // Past the 500 ms capture gap this would start a new undo step (and fire again) if still
+    // subscribed; after `off()` no further event should be observed.
+    h.run('text.insert', { at: at(a!, 2), text: 'c' }, 'local-typing');
+    expect(events).toEqual([{ type: 'undo', hasMetaMap: true }]);
+    expect(undo.undo()).toBe(true);
   });
 });
