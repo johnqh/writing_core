@@ -36,4 +36,22 @@ describe('mark commands', () => {
     expect(attrs.b).toBe(true);
     expect(attrs.fmt!.before).toEqual({ b: null });
   });
+  it('mark.clear records a fmt mark under Track Changes too, instead of formatting raw', () => {
+    const h = commandHarness();
+    const [a] = h.replaceBody([['st_action', 'Bold']]);
+    h.textMap(a!).format(0, 4, { b: true, hl: '#FFFF00' });
+    h.doc.getMap('trackChanges').set('enabled', true);
+    h.run('mark.clear', { range: range(a!, 0, a!, 4) });
+    const attrs = (h.delta(a!)[0] as { attributes: Record<string, { before?: unknown }> }).attributes;
+    expect(attrs.b).toBeUndefined();
+    expect(attrs.hl).toBeUndefined();
+    expect(attrs.fmt!.before).toEqual({ b: true, hl: '#FFFF00' });
+  });
+  it('mark.clear clears every FORMAT_MARK, including ln, lang and nospell', () => {
+    const h = commandHarness();
+    const [a] = h.replaceBody([['st_action', 'Colour']]);
+    h.textMap(a!).format(0, 6, { ln: 'https://example.test', lang: 'fr-FR', nospell: true, b: true });
+    h.run('mark.clear', { range: range(a!, 0, a!, 6) });
+    expect(h.delta(a!)).toEqual([{ insert: 'Colour' }]);
+  });
 });

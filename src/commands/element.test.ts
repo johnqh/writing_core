@@ -91,6 +91,40 @@ describe('moving, duplicating and overrides', () => {
     const copyTag = tags.find((t) => t.elementId === copy!.id)!;
     expect(h.delta(copy!.id)).toEqual([{ insert: 'Gun', attributes: { [`t:${copyTag.id}`]: true } }, { insert: ' here' }]);
   });
+  it('duplicates through the write policy: the copy is this edit, not a clone of somebody else’s change marks', () => {
+    const h = commandHarness();
+    const [a] = h.replaceBody([['st_action', 'Keep gone rest']]);
+    const foreign = { changeId: 'chg_01ARYZ6S410000000000000000', by: 'u2', at: 1 };
+    h.textMap(a!).format(0, 5, { ins: foreign });
+    h.textMap(a!).format(5, 5, { del: foreign });
+    h.textMap(a!).format(10, 4, { fmt: { ...foreign, before: { b: null } }, b: true });
+    h.doc.getMap('trackChanges').set('enabled', true);
+    h.run('element.duplicate', { elements: [a] });
+    const copy = h.body()[1]!;
+    // Pending-delete text is content the source has deleted; it is not part of what gets copied.
+    expect(copy.text).toBe('Keep rest');
+    const ops = h.delta(copy.id) as { insert: string; attributes?: Record<string, unknown> }[];
+    for (const op of ops) {
+      const ins = op.attributes?.ins as { by?: string; changeId?: string } | undefined;
+      expect(ins?.by).toBe('u1');
+      expect(ins?.changeId).not.toBe(foreign.changeId);
+      expect(op.attributes?.del).toBeUndefined();
+      expect(op.attributes?.fmt).toBeUndefined();
+    }
+    // Formatting the source carried is still copied.
+    expect(ops.find((o) => o.insert.includes('rest'))!.attributes!.b).toBe(true);
+  });
+  it('duplicates under revision mode with the active revision set, not the source’s', () => {
+    const h = commandHarness();
+    const [a] = h.replaceBody([['st_action', 'Line']]);
+    h.textMap(a!).format(0, 4, { rev: 'rev_01ARYZ6S410000000000000000' });
+    const setId = h.model.revisionState().sets[1]!.id;
+    h.doc.getMap('revisions').set('mode', true);
+    h.doc.getMap('revisions').set('activeSetId', setId);
+    h.run('element.duplicate', { elements: [a] });
+    const copy = h.body()[1]!;
+    expect((h.delta(copy.id) as { attributes?: Record<string, unknown> }[])[0]!.attributes!.rev).toBe(setId);
+  });
   it('sets and reverts overrides with validation', () => {
     const h = commandHarness();
     const [a] = h.replaceBody([['st_action', 'x']]);

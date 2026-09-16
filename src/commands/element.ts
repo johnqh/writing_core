@@ -11,7 +11,7 @@ import { SPEAKER_ROLES, SPEECH_MEMBER_ROLES } from '../schema/vocab.js';
 import { enterAction, shiftTabAction, tabAction } from '../template/flow.js';
 import { resolveStyle } from '../template/resolve.js';
 import { bodyElements, createElement } from './element-ops.js';
-import { touchElement, writePolicy } from './marks-policy.js';
+import { insertAttributes, touchElement, writePolicy } from './marks-policy.js';
 import { WireDocPos, resolveWirePos } from './positions.js';
 import { defineCommand } from './registry.js';
 import type { CommandContext, CommandResult, CommandSpec } from './types.js';
@@ -203,6 +203,7 @@ export const ELEMENT_COMMANDS: CommandSpec<never>[] = [
     if (ordered.some((id) => ctx.model.indexOf(id) < 0)) return { ok: false, reason: 'notFound' };
     const container = bodyElements(ctx.doc);
     const tags = ctx.doc.getMap<unknown>('tags');
+    const policy = writePolicy(ctx);
     let after: ElementId = ordered[ordered.length - 1]!;
     const effects: { kind: 'elementCreated'; id: string }[] = [];
     for (const sourceId of ordered) {
@@ -210,7 +211,11 @@ export const ELEMENT_COMMANDS: CommandSpec<never>[] = [
       const ov = source.get('ov') instanceof Y.Map ? ((source.get('ov') as YMap).toJSON() as ElementOverrides) : undefined;
       const id = createElement(ctx, { after, style: source.get('style') as StyleId, ov });
       const tagMap = new Map<string, string>();
-      const delta = ((source.get('text') as Y.Text).toDelta() as YDeltaOp[]).map((op) => {
+      const delta: YDeltaOp[] = [];
+      for (const op of (source.get('text') as Y.Text).toDelta() as YDeltaOp[]) {
+        // Text the source has marked pending-delete is content it no longer has; a duplicate
+        // reproduces what the element reads now, so those runs are not copied at all.
+        if (op.attributes?.del !== undefined) continue;
         const attributes: Record<string, unknown> = {};
         for (const [k, v] of Object.entries(op.attributes ?? {})) {
           if (k.startsWith('n:') || k.startsWith('s:')) continue;
@@ -220,8 +225,12 @@ export const ELEMENT_COMMANDS: CommandSpec<never>[] = [
             attributes[`t:${tagMap.get(oldTag)}`] = v;
           } else attributes[k] = v;
         }
-        return Object.keys(attributes).length > 0 ? { insert: op.insert, attributes } : { insert: op.insert };
-      });
+        // The copied text is THIS edit: `insertAttributes` drops the source's rev/ins/del/fmt
+        // records (which belong to somebody else's changeId) and stamps the current write policy's
+        // revision set and Track Changes insertion instead (spec 08 §3.3 item 3).
+        const withPolicy = insertAttributes(policy, attributes);
+        delta.push(Object.keys(withPolicy).length > 0 ? { insert: op.insert, attributes: withPolicy } : { insert: op.insert });
+      }
       ((container.get(id) as YMap).get('text') as Y.Text).applyDelta(delta);
       for (const [oldTag, newTag] of tagMap) {
         const old = tags.get(oldTag) as YMap | undefined;
