@@ -44,6 +44,11 @@ export * from './template/resolve.js';
 export * from './template/validate.js';
 export * from './template/flow.js';
 
+// ─── Read model ─────────────────────────────────────────────────────────────
+export * from './read-model/order-index.js';
+export * from './read-model/views.js';
+export * from './read-model/open.js';
+
 // ─── Templates (seeds) ──────────────────────────────────────────────────────
 export * from './templates/role-table.js';
 export * from './templates/script-words.js';
