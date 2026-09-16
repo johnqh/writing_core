@@ -3,8 +3,11 @@
  * second-cluster-non-caret guarantee, the three named language tailorings (Turkish/Azerbaijani,
  * Lithuanian, Greek) each proven to route the language through rather than merely matching
  * platform behaviour (context item 2), a round-trip proof mixing an expanding transform, an
- * unchanged run and a combining sequence (context item 1), and the brief's own regression proof
- * that dropping the cluster map breaks the `ß` caret case.
+ * unchanged run and a combining sequence (context item 1), the brief's own regression proof
+ * that dropping the cluster map breaks the `ß` caret case, and (fix round 1) six real Greek
+ * words verified against this repo's own runtime to need cross-cluster dialytika insertion, not
+ * just per-letter tonos removal — each proven to fail under the per-cluster-concatenation
+ * approach the fix replaced.
  */
 import { describe, expect, it } from 'vitest';
 import { graphemeClusters } from './grapheme.js';
@@ -51,6 +54,46 @@ describe('upperCaseWithMap — language-tailored uppercasing (spec 02 §7.1, con
     const withoutLanguage = upperCaseWithMap(text, 'en').display;
     expect(withoutLanguage).toBe('ΆΛΦΑ'); // ΆΛΦΑ, tonos kept
     expect(withoutLanguage).not.toBe(upperCaseWithMap(text, 'el').display);
+  });
+
+  // Fix round 1 (Important finding 1): the el-Upper transform §7.1 names doesn't just strip
+  // tonos, it also inserts a dialytika on ι/υ after an accented vowel to keep the result from
+  // misreading as a diphthong once the accent is gone — a genuinely cross-cluster rule. These
+  // six words are exactly the ones review verified diverge (whole-string vs per-cluster) against
+  // this repo's own runtime, not invented cases.
+  const DIALYTIKA_WORDS: readonly [source: string, expectedUpper: string][] = [
+    ['νεράιδα', 'ΝΕΡΑΪΔΑ'],
+    ['άυλος', 'ΑΫΛΟΣ'],
+    ['κορόιδο', 'ΚΟΡΟΪΔΟ'],
+    ['ρολόι', 'ΡΟΛΟΪ'],
+    ['γάιδαρος', 'ΓΑΪΔΑΡΟΣ'],
+    ['μπέικον', 'ΜΠΕΪΚΟΝ'],
+  ];
+
+  it.each(DIALYTIKA_WORDS)('Greek dialytika insertion: %s → %s (cross-cluster, not just per-letter tonos removal)', (source, expectedUpper) => {
+    const { display, clusterSource } = upperCaseWithMap(source, 'el');
+    expect(display).toBe(expectedUpper);
+    // The map must still be structurally sound: one entry per display cluster, every source
+    // code unit accounted for exactly once (no cluster map regression from the content fix).
+    expect(clusterSource.length).toBe(graphemeClusters(display).length);
+    let total = 0;
+    for (let i = 0; i < clusterSource.length; i++) total += sourceLength(clusterSource, i, source.length);
+    expect(total).toBe(source.length);
+  });
+
+  it.each(DIALYTIKA_WORDS)('REGRESSION: per-cluster concatenation (the pre-fix approach) gives %s the wrong result, missing the dialytika', (source, expectedUpper) => {
+    // The exact per-cluster approach fix round 1 replaced: uppercase each source grapheme
+    // cluster in isolation and concatenate — correct for ß/tr/lt (verified elsewhere in this
+    // file) but blind to this cross-cluster Greek rule.
+    const srcStarts = graphemeClusters(source);
+    let naive = '';
+    for (let i = 0; i < srcStarts.length; i++) {
+      const start = srcStarts[i] as number;
+      const end = i + 1 < srcStarts.length ? (srcStarts[i + 1] as number) : source.length;
+      naive += source.slice(start, end).toLocaleUpperCase('el');
+    }
+    expect(naive).not.toBe(expectedUpper); // fails before the fix — no dialytika inserted
+    expect(upperCaseWithMap(source, 'el').display).toBe(expectedUpper); // the real function gets it right
   });
 
   it('Lithuanian: "i" + combining dot above drops the dot under lt (2 source units → 1 display unit), kept otherwise', () => {

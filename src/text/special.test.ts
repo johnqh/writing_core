@@ -101,18 +101,45 @@ describe('tabAdvance — grid anchored to textLeft, minimum one space width (spe
   });
 
   it('the grid is anchored to textLeft, not to absolute x=0', () => {
-    const textLeft = 300_000; // not a multiple of TAB_STOP_EMU
+    // textLeft deliberately > one tab stop (fix round 1: a smaller textLeft let a partial bug —
+    // dropping textLeft from the final addition but keeping it in the relative-offset
+    // computation — coincidentally land on the same wrong number as dropping it altogether,
+    // so it couldn't actually distinguish the two).
+    const textLeft = 1_000_000; // > TAB_STOP_EMU (457 200)
     expect(tabAdvance(textLeft, textLeft, stops(10_000))).toBe(textLeft + TAB_STOP_EMU);
   });
 
-  it('REGRESSION: a naive grid computed from absolute x (ignoring textLeft) gives a different, wrong stop', () => {
-    const textLeft = 300_000;
+  /**
+   * A mutation of `tabAdvance`'s own logic (`special.ts`), not an independently-derived
+   * approximation: identical except `textLeft` is dropped everywhere it would otherwise be
+   * used to compute the grid position — the "measured the tab grid from absolute `x` instead
+   * of the paragraph's left text edge" bug. `minTarget` is untouched: the real function's own
+   * floor term is already `x + minAdvanceEmu`, with no `textLeft` in it to drop, so it stays
+   * identical in both — which is exactly why, at a *small* `textLeft`, that shared floor term
+   * can dominate `Math.max` for both versions and mask a target-only bug (the previous version
+   * of this test picked `textLeft = 300 000`, small enough for that to happen, and couldn't
+   * actually tell this bug apart from others). At `textLeft` bigger than one tab stop, the
+   * floor no longer dominates and the two formulas' own difference is what's being measured.
+   */
+  function tabAdvanceIgnoringTextLeft(x: number, textLeft: number, s: TabStops): number {
+    void textLeft; // BUG: never consulted below
+    const rel = Math.max(0, x);
+    const custom = s.positions;
+    let nextRel: number | undefined = custom?.find((p) => p > rel);
+    if (nextRel === undefined) nextRel = (Math.floor(rel / TAB_STOP_EMU) + 1) * TAB_STOP_EMU;
+    const target = nextRel; // BUG: real code is `textLeft + nextRel`
+    const minTarget = x + Math.max(0, s.minAdvanceEmu);
+    return Math.max(target, minTarget);
+  }
+
+  it('REGRESSION: a mutation ignoring textLeft entirely gives a different, wrong stop', () => {
+    const textLeft = 1_000_000; // > TAB_STOP_EMU, so the shared floor term can't mask the bug
     const x = textLeft;
-    const naiveIgnoringTextLeft = (Math.floor(x / TAB_STOP_EMU) + 1) * TAB_STOP_EMU;
+    const mutated = tabAdvanceIgnoringTextLeft(x, textLeft, stops(10_000));
     const real = tabAdvance(x, textLeft, stops(10_000));
-    expect(naiveIgnoringTextLeft).toBe(TAB_STOP_EMU); // 457 200 — measured from 0, not from textLeft
-    expect(real).toBe(textLeft + TAB_STOP_EMU); // 757 200 — the correct, textLeft-anchored stop
-    expect(real).not.toBe(naiveIgnoringTextLeft);
+    expect(mutated).toBe(1_371_600); // grid measured from x=1 000 000 directly: 3 stops, not textLeft-relative
+    expect(real).toBe(textLeft + TAB_STOP_EMU); // 1 457 200 — correct, textLeft-anchored
+    expect(real).not.toBe(mutated);
   });
 
   it('when the natural next stop is closer than one space width, advances by the minimum instead', () => {

@@ -4,18 +4,34 @@
  * (U+000A inside `Y.Text`) isn't handled here — it's a mandatory break, the itemizer's concern
  * (a later task), not a measured glyph.
  *
- * **`specialCharWidth`'s unit and second parameter (a decision, flagged in the task 10 report).**
- * The brief names the parameter `faceMetrics`, and this module takes it literally as
- * `FontFaceMetrics` (spec 02 §4.3, `../layout/types.js`) rather than `fonts/fwm.js`'s
- * already-EMU `AdvanceTable` cache — the brief's signature has no `sizeEmu` parameter, and
- * `FontFaceMetrics.advance(cp)` already returns **font units**, not EMU, matching that. This
- * makes `specialCharWidth` a drop-in replacement for `metrics.advance(cp)` wherever a caller
- * (a later task's `advanceOf` closure passed to `advanceTableFor`, `fonts/fwm.ts`) wants special
- * characters folded into the same measurement path rather than special-cased around it: instead
- * of `(cp) => emuFromFontUnits(metrics.advance(cp), sizeEmu, metrics.unitsPerEm)`, that closure
- * becomes `(cp) => emuFromFontUnits(specialCharWidth(cp, metrics), sizeEmu, metrics.unitsPerEm)`.
- * `specialCharWidth` itself never touches EMU or a size, so it stays that one line away from
- * both fitting into the cache and working before one exists.
+ * **`specialCharWidth`'s unit and second parameter (a decision, flagged in the task 10 report;
+ * integration guidance corrected in fix round 1).** The brief names the parameter `faceMetrics`,
+ * and this module takes it literally as `FontFaceMetrics` (spec 02 §4.3, `../layout/types.js`)
+ * rather than `fonts/fwm.js`'s already-EMU `AdvanceTable` cache — the brief's signature has no
+ * `sizeEmu` parameter, and `FontFaceMetrics.advance(cp)` already returns **font units**, not
+ * EMU, matching that. The signature stays as-is (reaffirmed on review): `Emu` is itself an
+ * unbranded number in this codebase and `FontFaceMetrics.advance()` is likewise
+ * font-units-and-unbranded, and no amount of unit safety inside this function alone could
+ * express the one thing that actually has to happen for a monospaced face — see below.
+ *
+ * **A caller integrating this into the real measurement path must check `faceMetrics.monospace`
+ * FIRST, before consulting `specialCharWidth` at all.** Spec 02 §3.2/§4.3 requires every
+ * monospaced Courier family to measure every code point it covers at a flat 10 cpi
+ * (`roundHalfEven(sizeEmu × 3 ÷ 5)` EMU, e.g. 91 440 at 12 pt) — overriding the face's own true
+ * advance — and states plainly that "nothing on the measurement path may call `face.advance()`
+ * directly". `specialCharWidth`'s own fallthrough for an ordinary code point (and for NBSP,
+ * which borrows the space glyph's advance) *is* a `faceMetrics.advance(cp)` call, so wiring it
+ * straight into `emuFromFontUnits(specialCharWidth(cp, metrics), sizeEmu, metrics.unitsPerEm)`
+ * for every code point — this module's own earlier guidance here, now corrected — would silently
+ * measure every Courier character by its true (91 380 EMU for Courier Prime) rather than the
+ * required flat 10 cpi advance. The correct integration checks `monospace` first: true → use the
+ * flat 10 cpi value directly, without calling `specialCharWidth`, `advance()`, or
+ * `emuFromFontUnits` on the font's own metric at all; false → the formula above. This applies
+ * only to the width a *font's own advance* would otherwise supply (ordinary glyphs, and NBSP's
+ * borrowed space width) — it does not touch this function's zero-width special cases (ZWSP, the
+ * sanitized control range below), which stay zero regardless of the face, because spec 02 §7.4's
+ * rule for those is "not rendered at all", a content-level decision that has nothing to do with
+ * font metrics in the first place.
  */
 import type { FontFaceMetrics } from '../layout/types.js';
 import type { Embed } from '../schema/text.js';
@@ -36,10 +52,14 @@ const SPACE = 0x0020;
  * source (see any task's "no control bytes" constraint) — 0x00–0x08, 0x0B, 0x0C, 0x0E–0x1F. Tab
  * (0x09) and LF (0x0A, the soft-return code unit) are excluded: both get their own §7.4 rows and
  * neither is "not rendered, zero width" — a tab has real advance and LF is a break, not a glyph.
- * CR (0x0D) is excluded for the same reason as LF: `Y.Text` uses `\n` (LB4/LB5's `LF`) for the
- * soft return per spec 01 §5.5, but a stray CR reaching this far is still a line-structural
- * character, not an ordinary control byte, and §7.4 doesn't separately list it — left to the
- * sanitizer spec 01 already requires on import rather than special-cased here.
+ * CR (0x0D) is excluded too, but on weaker grounds, stated on its own terms rather than by a
+ * citation this task couldn't find: spec 01's own "characters with meaning inside text" table
+ * (§5.5) lists only U+000A for the soft return and says nothing about U+000D at all — `Y.Text`
+ * has no defined use for a bare CR. Whether one can even reach this function is therefore an open
+ * question this module doesn't resolve; CR is left out of the zero-width range as the more
+ * conservative choice (an unexpected non-zero-width glyph is visible and gets noticed; an
+ * unexpectedly invisible one is a silent layout bug) rather than on the strength of an import-time
+ * sanitizer that, as of this task, no spec text actually requires.
  */
 function isSanitizedControl(cp: number): boolean {
   return (cp >= 0x00 && cp <= 0x08) || cp === 0x0b || cp === 0x0c || (cp >= 0x0e && cp <= 0x1f);

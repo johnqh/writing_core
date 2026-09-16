@@ -3,24 +3,32 @@
  * lets carets, selection and hit-testing survive a length-changing transform (`ß`→`SS`,
  * Lithuanian `i̇`→`I`).
  *
- * **Why per-cluster, not one `toLocaleUpperCase` call.** Unicode's case-mapping conditions that
- * matter for *uppercasing* (as opposed to lowercasing, which has the Final_Sigma condition) are
- * all either unconditional (German `ß`→`SS`) or gated purely on the resolved language (Turkish/
- * Azerbaijani `i`→`İ`, Lithuanian `i̇`→`I`, Greek tonos removal) — none of them depend on
- * *neighbouring* characters the way lowercasing's Final_Sigma does. That means transforming one
- * source grapheme cluster at a time and concatenating the results is equivalent to transforming
- * the whole string at once (verified empirically for every case this module is tested against),
- * and doing it per-cluster is what makes the cluster map constructible at all: the map has to
- * know, for every piece of *display* text, which slice of *source* text produced it, and that
- * correspondence only exists at cluster granularity once a transform stops being 1:1 in length.
+ * **Content comes from the whole-string transform, not per-cluster ones — fix round 1.** An
+ * earlier version of this module built `display` by uppercasing one source grapheme cluster at
+ * a time and concatenating the results, reasoning that no uppercase-relevant SpecialCasing.txt
+ * condition depends on neighbouring characters. That reasoning was wrong: CLDR's Greek `el-Upper`
+ * transform (the same transform spec 02 §7.1 cites for tonos removal) also inserts a dialytika
+ * on ι/υ to disambiguate what would otherwise misread as a diphthong once accents are stripped —
+ * e.g. `νεράιδα` → `ΝΕΡΑΪΔΑ` whole-string, but the wrong `ΝΕΡΑΙΔΑ` (no dialytika) if the accented
+ * vowel and the following ι are cased independently, because the dialytika is a property of the
+ * *pair*, not of either cluster alone. This is systematic (any accented-vowel-then-ι/υ sequence
+ * in running Greek text), not an edge case.
  *
- * One known gap from this approach, flagged rather than hidden (task 10 report): ICU's Greek
- * uppercasing algorithm has at least one genuinely cross-character rule beyond tonos removal —
- * inserting a dialytika to disambiguate a diphthong that would otherwise misread once accents
- * are stripped (e.g. a "artificial diphthong" case). That rule needs the letter *after* the
- * vowel being cased, which per-cluster processing cannot see. Spec 02 §7.1 names only tonos
- * removal, which this module reproduces exactly (proven by test); the diphthong-disambiguation
- * edge case is not implemented and is out of this task's named scope.
+ * The fix keeps the whole-string transform's content — `text.toLocaleUpperCase(lang)`, called
+ * once, so cross-cluster rules like this one are handled by the same code ICU itself uses — and
+ * derives the cluster map by *counting*, not concatenating: for each source cluster, a
+ * throwaway per-cluster transform still runs only to learn how many display grapheme clusters
+ * that source cluster is expected to contribute (a **structural** question, which — empirically,
+ * for every case this module is tested against, including all six Greek dialytika words, `ß`,
+ * `ﬁ`/`ﬄ`, standalone and mid-word final sigma, and combining sequences — the dialytika-style
+ * content differences never change). Those counts are then used to partition the whole-string
+ * transform's *actual* grapheme clusters among the source clusters, in order: content is always
+ * `whole`'s, correct for cross-cluster rules; structure (which display cluster maps to which
+ * source cluster, and which one is the non-caret second half of an expansion) is exactly what
+ * the previous, verified-correct per-cluster method already computed. If the two ever disagree
+ * in total count (not observed for any tested input, but not provably impossible for every
+ * script), the code falls back to the old fully-per-cluster construction rather than emit a
+ * map that doesn't match `display`'s own length.
  *
  * **Indexing.** `clusterSource` is UTF-16 code-unit indexed, matching `grapheme.ts`/
  * `linebreak.ts`'s convention (not `bidi.ts`'s code-point convention) — deliberately, because
@@ -34,8 +42,8 @@ import { graphemeClusters } from './grapheme.js';
  * All-caps display text (spec 02 §7.1: Unicode full case mapping, language-tailored) plus its
  * cluster map (spec 02 §29.4). `lang` is a BCP 47 language tag — the resolved element language,
  * required (not optional) because Turkish/Azerbaijani `i`→`İ`, Lithuanian `i̇`→`I` and Greek
- * tonos removal are all language-gated: silently defaulting would produce plausible-looking but
- * wrong output for exactly the scripts this function exists to get right.
+ * tonos removal/dialytika insertion are all language-gated: silently defaulting would produce
+ * plausible-looking but wrong output for exactly the scripts this function exists to get right.
  *
  * `clusterSource.length === graphemeClusters(display).length`: one entry per *display* grapheme
  * cluster, giving the UTF-16 offset of that cluster's source range start. Per spec 02 §29.4, a
@@ -53,22 +61,51 @@ export function upperCaseWithMap(text: string, lang: string): { display: string;
     // Fast path (the common case: most screenplay character names are already ASCII upper-case,
     // and this runs on every character-name element on every relayout — spec 02 §33 budget).
     // Nothing changed, so display clusters are exactly source clusters: the map is the
-    // identity and building it per-cluster below would recompute what string equality already
-    // proved.
+    // identity and building it below would recompute what string equality already proved.
     return { display: whole, clusterSource: Uint32Array.from(graphemeClusters(text)) };
   }
 
   const srcStarts = graphemeClusters(text);
-  const displayParts: string[] = [];
-  const map: number[] = [];
+  // Per-source-cluster display text (content) and cluster COUNT (structure), from transforming
+  // each source cluster in isolation. Content is discarded on the happy path below (`whole`'s
+  // own content is used instead, to get cross-cluster rules like Greek dialytika insertion
+  // right); the count is what tells the map which of `whole`'s actual clusters belong to which
+  // source cluster, and is kept as a fallback's content too.
+  const perClusterText: string[] = new Array(srcStarts.length);
+  const counts: number[] = new Array(srcStarts.length);
   for (let i = 0; i < srcStarts.length; i++) {
     const srcStart = srcStarts[i] as number;
     const srcEnd = i + 1 < srcStarts.length ? (srcStarts[i + 1] as number) : text.length;
     const upperCluster = text.slice(srcStart, srcEnd).toLocaleUpperCase(lang);
-    displayParts.push(upperCluster);
-    if (upperCluster.length === 0) continue; // a transform that empties a cluster contributes no display cluster
-    const displayClusterCount = graphemeClusters(upperCluster).length;
-    for (let j = 0; j < displayClusterCount; j++) map.push(j === 0 ? srcStart : srcEnd);
+    perClusterText[i] = upperCluster;
+    counts[i] = upperCluster.length > 0 ? graphemeClusters(upperCluster).length : 0;
   }
-  return { display: displayParts.join(''), clusterSource: Uint32Array.from(map) };
+
+  const wholeDisplayClusterCount = graphemeClusters(whole).length;
+  const totalCounts = counts.reduce((a, b) => a + b, 0);
+
+  const map: number[] = [];
+  if (totalCounts === wholeDisplayClusterCount) {
+    // Happy path: `whole`'s own clustering has exactly as many display clusters as the
+    // per-cluster structural count predicts, so `whole`'s clusters can be handed out to source
+    // clusters `counts[i]` at a time, in order — content comes from `whole` (correct for
+    // cross-cluster rules), boundaries from the per-cluster structural count (verified correct
+    // by the cluster-map regression proof and round-trip test in casing.test.ts).
+    for (let i = 0; i < srcStarts.length; i++) {
+      const srcStart = srcStarts[i] as number;
+      const srcEnd = i + 1 < srcStarts.length ? (srcStarts[i + 1] as number) : text.length;
+      for (let j = 0; j < (counts[i] as number); j++) map.push(j === 0 ? srcStart : srcEnd);
+    }
+    return { display: whole, clusterSource: Uint32Array.from(map) };
+  }
+
+  // Fallback (structural mismatch between the whole-string and per-cluster transforms — not
+  // observed for any tested language/script, kept so a future exotic case degrades to the
+  // previous, structurally-guaranteed-consistent behaviour instead of an inconsistent map).
+  for (let i = 0; i < srcStarts.length; i++) {
+    const srcStart = srcStarts[i] as number;
+    const srcEnd = i + 1 < srcStarts.length ? (srcStarts[i + 1] as number) : text.length;
+    for (let j = 0; j < (counts[i] as number); j++) map.push(j === 0 ? srcStart : srcEnd);
+  }
+  return { display: perClusterText.join(''), clusterSource: Uint32Array.from(map) };
 }
