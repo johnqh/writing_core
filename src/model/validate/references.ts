@@ -1,8 +1,9 @@
 // src/model/validate/references.ts
 import * as Y from 'yjs';
 import type { StyleId } from '../../ids/ids.js';
-import { ENTITY_KINDS, SCENE_ROLES, SPEAKER_ROLES, SPEECH_MEMBER_ROLES } from '../../schema/vocab.js';
+import { ENTITY_KINDS, SCENE_ROLES } from '../../schema/vocab.js';
 import { resolveStyle } from '../../template/resolve.js';
+import { dualRuns } from '../dual-runs.js';
 import { decodeRelativePosition, encodeRelativePosition } from '../portable-pos.js';
 import { type YMap, has, records } from './helpers.js';
 import { allTexts, roleOf, scanText } from './marks.js';
@@ -12,39 +13,21 @@ const I7: Invariant = {
   code: 'I7', severity: 'warning', autoRepair: true,
   check(ctx) {
     const ordered = ctx.orderedBody();
-    const runs: YMap[][] = [];
-    let current: YMap[] = [];
-    let group: string | null = null;
-    for (const el of ordered) {
-      const g = (el.get('dual') as { group?: string } | undefined)?.group ?? null;
-      if (g !== null && g === group) current.push(el);
-      else {
-        if (current.length > 0) runs.push(current);
-        current = g !== null ? [el] : [];
-      }
-      group = g;
-    }
-    if (current.length > 0) runs.push(current);
-    const seen = new Map<string, number>();
-    for (const run of runs) {
-      const g = (run[0]!.get('dual') as { group: string }).group;
-      seen.set(g, (seen.get(g) ?? 0) + 1);
-    }
+    const byId = new Map(ordered.map((el) => [String(el.get('id')), el] as const));
+    const runs = dualRuns(ordered.map((el) => {
+      const dual = el.get('dual') as { group?: unknown; side?: unknown } | undefined;
+      const group = typeof dual?.group === 'string' ? dual.group : null;
+      const side = dual?.side === 'left' || dual?.side === 'right' ? dual.side : null;
+      let dualAllowed = false;
+      try { dualAllowed = resolveStyle(ctx.template, el.get('style') as StyleId).dualDialogue; } catch { dualAllowed = false; }
+      return { id: String(el.get('id')), group, side, role: roleOf(ctx, el), dualAllowed };
+    }));
     const out: Issue[] = [];
     for (const run of runs) {
-      const g = (run[0]!.get('dual') as { group: string }).group;
-      const sides = run.map((el) => (el.get('dual') as { side: string }).side);
-      const firstRight = sides.indexOf('right');
-      const wellOrdered = firstRight > 0 && sides.slice(firstRight).every((s) => s === 'right') && sides.slice(0, firstRight).every((s) => s === 'left');
-      const rolesOk = run.every((el) => {
-        const role = roleOf(ctx, el);
-        let dualAllowed = false;
-        try { dualAllowed = resolveStyle(ctx.template, el.get('style') as StyleId).dualDialogue; } catch { dualAllowed = false; }
-        return dualAllowed && (has(SPEAKER_ROLES, role) || has(SPEECH_MEMBER_ROLES, role));
-      });
-      const startsWithSpeakers = wellOrdered && has(SPEAKER_ROLES, roleOf(ctx, run[0]!)) && has(SPEAKER_ROLES, roleOf(ctx, run[firstRight]!));
-      if (wellOrdered && rolesOk && startsWithSpeakers && seen.get(g) === 1) continue;
-      out.push(issue(I7, `malformed dual dialogue group ${g}`, run.map((el) => String(el.get('id'))), () => run.forEach((el) => el.delete('dual'))));
+      if (run.wellFormed) continue;
+      out.push(issue(I7, `malformed dual dialogue group ${run.group}`, run.ids, () => {
+        for (const id of run.ids) byId.get(id)?.delete('dual');
+      }));
     }
     return out;
   },

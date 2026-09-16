@@ -1,11 +1,14 @@
 import * as Y from 'yjs';
 import { type ElementId, type StyleId, newId } from '../ids/ids.js';
+import { dualRuns } from '../model/dual-runs.js';
 import { insertElementRecord } from '../model/element-record.js';
 import { decodeRelativePosition, encodeRelativePosition } from '../model/portable-pos.js';
 import { positionBetween } from '../model/positions.js';
+import { orderElements } from '../model/ymap.js';
 import type { YDeltaOp } from '../model/ytext.js';
 import type { ElementOverrides } from '../schema/template.js';
 import { FORMAT_MARKS, type TextJSON } from '../schema/text.js';
+import { type ResolvedStyle, resolveStyle } from '../template/resolve.js';
 import { writePolicy } from './marks-policy.js';
 import { type ResolvedPos, type WireRange, orderRange, resolveWirePos } from './positions.js';
 import type { CommandContext } from './types.js';
@@ -40,6 +43,11 @@ export function createElement(ctx: CommandContext, input: { after: ElementId | n
   return id;
 }
 
+/**
+ * Moves everything anchored to `fromId` onto `toId`, or — when `toId` is null, i.e. the element is
+ * being deleted outright — detaches it the way invariant I10's repair would, so a command never
+ * leaves the document in a state validateDocument has to clean up after it.
+ */
 function repointAnchors(ctx: CommandContext, fromId: ElementId, toId: ElementId | null, offsetShift: number, fromText: Y.Text | null, toText: Y.Text | null): void {
   const doc = ctx.doc;
   for (const v of doc.getMap('tags').values()) {
@@ -51,12 +59,32 @@ function repointAnchors(ctx: CommandContext, fromId: ElementId, toId: ElementId 
   for (const v of doc.getMap('notes').values()) {
     const note = v as YMap;
     const anchor = note.get('anchor') as { kind: string; elementId?: string } | undefined;
-    if (anchor?.elementId === fromId) note.set('anchor', toId ? { ...anchor, elementId: toId } : { kind: 'document' });
+    if (anchor?.elementId !== fromId) continue;
+    if (toId) {
+      note.set('anchor', { ...anchor, elementId: toId });
+      continue;
+    }
+    // Spec 01 §5.7: a detached note remembers the element it came from, so the UI can offer to
+    // re-attach it. I10's repair records it; so must the command that detaches it.
+    note.set('anchor', { kind: 'document' });
+    note.set('detachedFrom', fromId);
   }
-  for (const v of doc.getMap('shots').values()) {
+  for (const [key, v] of [...doc.getMap('shots').entries()]) {
     const shot = v as YMap;
     if (shot.get('elementId') === fromId) shot.set('elementId', toId);
-    if (shot.get('sceneId') === fromId && toId) shot.set('sceneId', toId);
+    if (shot.get('sceneId') !== fromId) continue;
+    // A shot belongs to its scene; with the scene element gone there is nothing to belong to.
+    // I10's repair for a dangling `shot.sceneId` is to delete the shot, and this used to leave it
+    // dangling instead (the `&& toId` guard silently skipped the delete case).
+    if (toId) shot.set('sceneId', toId);
+    else doc.getMap('shots').delete(key);
+  }
+  // Beat anchors were never walked at all (I10 `beat … anchor dangles`).
+  for (const v of doc.getMap('beats').values()) {
+    const beat = v as YMap;
+    const anchor = beat.get('anchor') as { elementId: string } | null;
+    if (!anchor || anchor.elementId !== fromId) continue;
+    beat.set('anchor', toId ? { ...anchor, elementId: toId } : null);
   }
   for (const [key, v] of [...doc.getMap('bookmarks').entries()]) {
     const bm = v as YMap;
@@ -153,4 +181,47 @@ export function elementIdsBetween(ctx: CommandContext, fromId: ElementId, toId: 
   const from = ctx.model.indexOf(fromId);
   const to = ctx.model.indexOf(toId);
   return ctx.model.elements({ from, to: to + 1 }).map((e) => e.id);
+}
+
+/** `dual.group` of an element record, or null when it carries no (or a malformed) dual. */
+export function dualGroupOf(element: YMap | undefined): string | null {
+  const dual = element?.get('dual') as { group?: unknown } | undefined;
+  return typeof dual?.group === 'string' ? dual.group : null;
+}
+
+/**
+ * Spec 01 §5.3.4 / invariant I7. A structural edit — changing a member's style, splitting a member
+ * in two, moving one out of the run, duplicating one into the middle of it — can leave a dual
+ * dialogue group malformed, or split one group across two runs. The commands that can do that call
+ * this afterwards with the groups they touched, and it applies I7's own repair (drop `dual` from
+ * every member of a run that is no longer well formed) to those groups only, so a pre-existing
+ * problem elsewhere in the document is still left for validateDocument to report.
+ */
+export function repairDualRuns(ctx: CommandContext, groups: Iterable<string>): void {
+  const touched = new Set(groups);
+  if (touched.size === 0) return;
+  const template = ctx.model.template();
+  // Read the Y.Doc, NOT `ctx.model`: a command runs inside `doc.transact`, and the read model's
+  // order index and element views are only refreshed by its observers when the transaction ends.
+  // Mid-transaction the model still describes the document as it was before this command's writes
+  // — it would not even list an element the command just created.
+  const ordered = orderElements(bodyElements(ctx.doc));
+  const runs = dualRuns(ordered.map((el) => {
+    const dual = el.get('dual') as { group?: unknown; side?: unknown } | undefined;
+    const style = el.get('style') as StyleId;
+    let resolved: ResolvedStyle | null = null;
+    try { resolved = resolveStyle(template, style); } catch { resolved = null; }
+    return {
+      id: String(el.get('id')),
+      group: typeof dual?.group === 'string' ? dual.group : null,
+      side: dual?.side === 'left' || dual?.side === 'right' ? dual.side : null,
+      role: resolved?.role ?? null,
+      dualAllowed: resolved?.dualDialogue ?? false,
+    };
+  }));
+  const byId = new Map(ordered.map((el) => [String(el.get('id')), el] as const));
+  for (const run of runs) {
+    if (run.wellFormed || !touched.has(run.group)) continue;
+    for (const id of run.ids) byId.get(id)?.delete('dual');
+  }
 }

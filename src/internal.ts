@@ -25,6 +25,7 @@ export {
 export * from './model/ymap.js';
 export * from './model/embed-template.js';
 export * from './model/element-record.js';
+export { type DualMember, type DualRun, dualRuns } from './model/dual-runs.js';
 export { systemOrigin } from './model/origins.js';
 export { writeTextJSON } from './model/ytext.js';
 export {

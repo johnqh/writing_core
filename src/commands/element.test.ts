@@ -1,8 +1,9 @@
 // src/commands/element.test.ts
 import * as Y from 'yjs';
 import { describe, expect, it } from 'vitest';
-import { newId } from '../ids/ids.js';
+import { newDualGroupId, newId } from '../ids/ids.js';
 import { documentToJSON } from '../model/json.js';
+import { validateDocument } from '../model/validate/index.js';
 import { commandHarness } from './test-harness.js';
 
 const at = (elementId: string, offset: number) => ({ elementId, offset });
@@ -176,5 +177,109 @@ describe('the fastPath element commands refuse without writing', () => {
     expect(snapshot(h)).toBe(before);
     expect(h.run('element.split', { at: at(a!, 0) })).toMatchObject({ ok: false, reason: 'notApplicable', detail: { action: 'openPicker' } });
     expect(snapshot(h)).toBe(before);
+  });
+});
+
+// Spec 01 §9: a command leaves the document satisfying the invariants. These all end in
+// `validateDocument` reporting nothing, which is the actual contract — not just "the field I
+// expected changed".
+describe('commands leave the document valid', () => {
+  const dualScript = (h: ReturnType<typeof commandHarness>) => {
+    const ids = h.replaceBody([
+      ['st_action', 'They talk over each other.'],
+      ['st_character', 'MAYA'], ['st_dialogue', 'You first.'],
+      ['st_character', 'JONAH'], ['st_dialogue', 'No, you.'],
+      ['st_action', 'Silence.'],
+    ]);
+    const group = newDualGroupId(h.ids);
+    const sides: ('left' | 'right')[] = ['left', 'left', 'right', 'right'];
+    ids.slice(1, 5).forEach((id, i) => (h.doc.getMap('elements').get(id) as Y.Map<unknown>).set('dual', { group, side: sides[i]! }));
+    expect(validateDocument(h.doc, { only: ['I7'] }).issues).toEqual([]);
+    return { ids, group };
+  };
+  const dualOf = (h: ReturnType<typeof commandHarness>, id: string) => (h.doc.getMap('elements').get(id) as Y.Map<unknown> | undefined)?.get('dual');
+
+  it('element.setStyle: taking a speaker out of a dual run repairs the run instead of leaving I7 broken', () => {
+    const h = commandHarness();
+    const { ids } = dualScript(h);
+    h.run('element.setStyle', { elements: [ids[1]], style: 'st_action' });
+    expect(validateDocument(h.doc, { only: ['I7'] }).issues).toEqual([]);
+    for (const id of ids.slice(1, 5)) expect(dualOf(h, id)).toBeUndefined();
+  });
+
+  it('element.split: splitting a member keeps the run intact, and splitting it apart repairs it', () => {
+    const h = commandHarness();
+    const { ids, group } = dualScript(h);
+    // A mid-text split keeps the current style, so the tail is as valid a member as the head.
+    h.run('element.split', { at: at(ids[2]!, 4) });
+    expect(validateDocument(h.doc, { only: ['I7'] }).issues).toEqual([]);
+    expect(dualOf(h, h.body()[3]!.id)).toEqual({ group, side: 'left' });
+  });
+
+  it('element.split at the end of a left-side member inserts a dual-less element and repairs the run', () => {
+    const h = commandHarness();
+    const { ids } = dualScript(h);
+    // Enter at the end of the left dialogue inserts a fresh element between the two sides.
+    h.run('element.split', { at: at(ids[2]!, 10) });
+    expect(validateDocument(h.doc, { only: ['I7'] }).issues).toEqual([]);
+  });
+
+  it('element.move: moving a member out of the run repairs it', () => {
+    const h = commandHarness();
+    const { ids } = dualScript(h);
+    h.run('element.move', { elements: [ids[4]], to: { after: ids[5] } });
+    expect(validateDocument(h.doc, { only: ['I7'] }).issues).toEqual([]);
+  });
+
+  it('element.duplicate: copying a member does not punch a dual-less element into the run', () => {
+    const h = commandHarness();
+    const { ids } = dualScript(h);
+    h.run('element.duplicate', { elements: [ids[2]] });
+    expect(validateDocument(h.doc, { only: ['I7'] }).issues).toEqual([]);
+  });
+
+  it('deleting an element detaches its notes with detachedFrom, drops its shots and nulls its beat anchor (I10)', () => {
+    const h = commandHarness();
+    const [scene, a] = h.replaceBody([['st_scene_heading', 'INT. A - DAY'], ['st_action', 'Maya waits.']]);
+    const noteType = [...h.doc.getMap('noteTypes').keys()][0]!;
+    const noteId = newId('note', h.ids);
+    const note = h.doc.getMap('notes').set(noteId, new Y.Map<unknown>());
+    for (const [k, v] of Object.entries({ id: noteId, anchor: { kind: 'element', elementId: a }, typeId: noteType, title: '', color: null, authorUid: 'u1', createdAt: 0, updatedAt: 0, resolved: null, includeInPdf: false, mentions: [] })) note.set(k, v);
+    note.set('body', new Y.Text());
+    note.set('replies', new Y.Array());
+    const shotId = newId('shot', h.ids);
+    const shot = h.doc.getMap('shots').set(shotId, new Y.Map<unknown>());
+    for (const [k, v] of Object.entries({ id: shotId, sceneId: scene, pos: 'B', elementId: a, range: null, label: '1', camera: {}, attributes: {}, createdBy: 'u1', createdAt: 0 })) shot.set(k, v);
+    shot.set('description', new Y.Text());
+    const beatId = newId('beat', h.ids);
+    const beat = h.doc.getMap('beats').set(beatId, new Y.Map<unknown>());
+    for (const [k, v] of Object.entries({ id: beatId, color: null, imageAssetId: null, board: null, boneyard: false, plot: null, storylineIds: [], arc: {}, lane: null, anchor: { elementId: scene }, createdBy: 'u1', createdAt: 0 })) beat.set(k, v);
+    for (const k of ['title', 'body']) beat.set(k, new Y.Text());
+
+    expect(h.run('text.deleteBackward', { at: at(a!, 0), unit: 'element' })).toMatchObject({ ok: true });
+    expect(note.get('anchor')).toEqual({ kind: 'document' });
+    expect(note.get('detachedFrom')).toBe(a);
+    expect(shot.get('elementId')).toBeNull();
+
+    expect(h.run('text.deleteBackward', { at: at(scene!, 0), unit: 'element' })).toMatchObject({ ok: true });
+    expect(h.doc.getMap('shots').has(shotId)).toBe(false);
+    expect(beat.get('anchor')).toBeNull();
+    expect(validateDocument(h.doc, { only: ['I10'] }).issues).toEqual([]);
+  });
+
+  it('element.split moves a note whose mark is wholly in the tail, like it already did for tags (I10/I12)', () => {
+    const h = commandHarness();
+    const [a] = h.replaceBody([['st_action', 'She runs. He waits.']]);
+    const noteType = [...h.doc.getMap('noteTypes').keys()][0]!;
+    const noteId = newId('note', h.ids);
+    const note = h.doc.getMap('notes').set(noteId, new Y.Map<unknown>());
+    for (const [k, v] of Object.entries({ id: noteId, anchor: { kind: 'element', elementId: a }, typeId: noteType, title: '', color: null, authorUid: 'u1', createdAt: 0, updatedAt: 0, resolved: null, includeInPdf: false, mentions: [] })) note.set(k, v);
+    note.set('body', new Y.Text());
+    note.set('replies', new Y.Array());
+    h.textMap(a!).format(10, 2, { [`n:${noteId}`]: true });
+    h.run('element.split', { at: at(a!, 10) });
+    const tailId = h.body()[1]!.id;
+    expect(note.get('anchor')).toEqual({ kind: 'element', elementId: tailId });
+    expect(validateDocument(h.doc, { only: ['I10', 'I12'] }).issues).toEqual([]);
   });
 });

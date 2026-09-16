@@ -10,7 +10,7 @@ import { ElementOverrides } from '../schema/template.js';
 import { SPEAKER_ROLES, SPEECH_MEMBER_ROLES } from '../schema/vocab.js';
 import { enterAction, shiftTabAction, tabAction } from '../template/flow.js';
 import { resolveStyle } from '../template/resolve.js';
-import { bodyElements, createElement } from './element-ops.js';
+import { bodyElements, createElement, dualGroupOf, repairDualRuns } from './element-ops.js';
 import { insertAttributes, touchElement, writePolicy } from './marks-policy.js';
 import { WireDocPos, resolveWirePos } from './positions.js';
 import { defineCommand } from './registry.js';
@@ -84,7 +84,11 @@ function moveIds(ctx: CommandContext, ids: ElementId[], to: { after?: ElementId 
   if (!n) return { ok: false, reason: 'notApplicable' };
   const pos = (id: string | null) => (id ? String(record(ctx, id)!.get('pos')) : null);
   const keys = generatePositions(ordered.length, pos(n.after), pos(n.before), ctx.ids);
+  // Moving part of a dual-dialogue run out of it (or into the middle of another one) breaks I7,
+  // so remember the groups involved before the positions change (spec 01 §5.3.4).
+  const groups = ordered.map((id) => dualGroupOf(record(ctx, id))).filter((g): g is string => g !== null);
   ordered.forEach((id, i) => record(ctx, id)!.set('pos', keys[i]!));
+  repairDualRuns(ctx, groups);
   return { ok: true };
 }
 
@@ -125,6 +129,8 @@ export const ELEMENT_COMMANDS: CommandSpec<never>[] = [
     const template = ctx.model.template();
     const enterOnBlank = ctx.model.settings().enterOnBlank;
     const action = enterAction(template, style, { empty: r.text.length === 0, caretAtEnd: r.index === r.text.length, enterOnBlank });
+    const dualRecord = r.element.get('dual') as { group: string; side: 'left' | 'right' } | undefined;
+    const dualGroup = dualGroupOf(r.element);
     switch (action.kind) {
       case 'openPicker':
         return { ok: false, reason: 'notApplicable', detail: { action: 'openPicker' } };
@@ -132,9 +138,11 @@ export const ELEMENT_COMMANDS: CommandSpec<never>[] = [
         return { ok: false, reason: 'notApplicable' };
       case 'convert':
         applyStyle(ctx, r.elementId, action.style);
+        repairDualRuns(ctx, dualGroup ? [dualGroup] : []);
         return { ok: true };
       case 'insertAfter': {
         const id = createElement(ctx, { after: r.elementId, style: action.style });
+        repairDualRuns(ctx, dualGroup ? [dualGroup] : []);
         return { ok: true, effects: [{ kind: 'elementCreated', id }], selection: { anchor: { elementId: id, offset: 0 }, head: { elementId: id, offset: 0 } } };
       }
       case 'split': {
@@ -148,28 +156,43 @@ export const ELEMENT_COMMANDS: CommandSpec<never>[] = [
           }
           pos += size;
         }
-        const tailTagIds = new Set<string>();
-        const headTagIds = new Set<string>();
+        // Which `t:` tag and `n:` note marks end up wholly in the tail: those records' anchors
+        // have to follow their marks to the new element. (`n:` was missed — the marks travelled
+        // with the delta but the `notes` record kept pointing at the head.)
+        const tailAnchors = new Set<string>();
+        const headAnchors = new Set<string>();
         pos = 0;
         for (const op of r.text.toDelta() as YDeltaOp[]) {
           const size = typeof op.insert === 'string' ? op.insert.length : 1;
           for (const key of Object.keys(op.attributes ?? {})) {
-            if (!key.startsWith('t:')) continue;
-            if (pos < r.index) headTagIds.add(key.slice(2));
-            if (pos + size > r.index) tailTagIds.add(key.slice(2));
+            if (!key.startsWith('t:') && !key.startsWith('n:')) continue;
+            if (pos < r.index) headAnchors.add(key);
+            if (pos + size > r.index) tailAnchors.add(key);
           }
           pos += size;
         }
+        const movesToTail = (key: string) => tailAnchors.has(key) && !headAnchors.has(key);
         const id = createElement(ctx, { after: r.elementId, style: action.style });
-        const newText = record(ctx, id)!.get('text') as Y.Text;
+        const newRecord = record(ctx, id)!;
+        // enterAction's `split` keeps the current style, so the tail is as valid a member of the
+        // dual run as the head was; carrying `dual` over keeps the run intact (spec 01 §5.3.4)
+        // instead of punching a dual-less element into the middle of it.
+        if (dualRecord) newRecord.set('dual', { ...dualRecord });
+        const newText = newRecord.get('text') as Y.Text;
         newText.applyDelta(tail);
         r.text.delete(r.index, r.text.length - r.index);
         for (const v of ctx.doc.getMap('tags').values()) {
           const tag = v as YMap;
-          const tagId = String(tag.get('id'));
-          if (tag.get('elementId') === r.elementId && tailTagIds.has(tagId) && !headTagIds.has(tagId)) tag.set('elementId', id);
+          if (tag.get('elementId') === r.elementId && movesToTail(`t:${String(tag.get('id'))}`)) tag.set('elementId', id);
+        }
+        for (const v of ctx.doc.getMap('notes').values()) {
+          const note = v as YMap;
+          const anchor = note.get('anchor') as { kind: string; elementId?: string } | undefined;
+          if (!anchor || anchor.elementId !== r.elementId) continue;
+          if (movesToTail(`n:${String(note.get('id'))}`)) note.set('anchor', { ...anchor, elementId: id });
         }
         touchElement(r.element, writePolicy(ctx));
+        repairDualRuns(ctx, dualGroup ? [dualGroup] : []);
         return { ok: true, effects: [{ kind: 'elementCreated', id }], selection: { anchor: { elementId: id, offset: 0 }, head: { elementId: id, offset: 0 } } };
       }
       default:
@@ -180,7 +203,9 @@ export const ELEMENT_COMMANDS: CommandSpec<never>[] = [
   fast(spec('element.setStyle', z.object({ elements: z.array(ElementIdParam).min(1), style: StyleIdSchema }), (ctx, p) => {
     if (!styleExists(ctx, p.style)) return { ok: false, reason: 'styleNotInTemplate' };
     if (p.elements.some((id) => !record(ctx, id))) return { ok: false, reason: 'notFound' };
+    const groups = p.elements.map((id) => dualGroupOf(record(ctx, id))).filter((g): g is string => g !== null);
     for (const id of p.elements) applyStyle(ctx, id, p.style);
+    repairDualRuns(ctx, groups);
     return { ok: true };
   })),
 
@@ -191,12 +216,15 @@ export const ELEMENT_COMMANDS: CommandSpec<never>[] = [
     const empty = (el.get('text') as Y.Text).length === 0;
     const template = ctx.model.template();
     const action = p.direction === 'tabForward' ? tabAction(template, style, { empty, caretAtEnd: p.caretAtEnd }) : shiftTabAction(template, style, { empty });
+    const group = dualGroupOf(el);
     if (action.kind === 'convert') {
       applyStyle(ctx, p.element, action.style);
+      repairDualRuns(ctx, group ? [group] : []);
       return { ok: true };
     }
     if (action.kind === 'insertAfter') {
       const id = createElement(ctx, { after: p.element, style: action.style });
+      repairDualRuns(ctx, group ? [group] : []);
       return { ok: true, effects: [{ kind: 'elementCreated', id }] };
     }
     return { ok: false, reason: 'notApplicable', detail: { action: action.kind, ...('list' in action ? { list: action.list } : {}) } };
@@ -261,6 +289,9 @@ export const ELEMENT_COMMANDS: CommandSpec<never>[] = [
       effects.push({ kind: 'elementCreated', id });
       after = id;
     }
+    // The copy has no `dual`, so duplicating a member lands a dual-less element in the middle of
+    // the run (spec 01 §5.3.4 / I7).
+    repairDualRuns(ctx, ordered.map((id) => dualGroupOf(container.get(id) as YMap | undefined)).filter((g): g is string => g !== null));
     return { ok: true, effects };
   }),
 
