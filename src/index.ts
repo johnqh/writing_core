@@ -105,3 +105,5 @@ export {
   FWM_MAGIC, FWM_FORMAT_VERSION, encodeFwm, decodeFwm, advanceTableFor,
   type FwmInput, type FwmRange, type AdvanceTable,
 } from './fonts/fwm.js';
+export { FONT_ALIASES, aliasFor } from './fonts/aliases.js';
+export { createFontRegistry, type FontRegistryHandle, type CreateFontRegistryOptions } from './fonts/registry.js';
