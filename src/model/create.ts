@@ -103,6 +103,10 @@ export function createDocument(options: CreateDocumentOptions): Y.Doc {
     st.set('timeSeparator', template.smartType.timeSeparator);
     st.set('sortMode', template.smartType.sortMode);
     st.set('dismissed', new Y.Map());
+    // Entity-kind tombstones (spec 01 §5.20): `kind:nameKey` the user explicitly deleted, so
+    // harvesting never recreates it (§7.2). Lives alongside `dismissed`, which does the same job
+    // for the non-entity SmartType lists.
+    st.set('entityTombstones', new Y.Map());
 
     // Revisions.
     const rev = map('revisions');

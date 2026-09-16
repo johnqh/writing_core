@@ -17,6 +17,9 @@ export const bodyElements = (doc: Y.Doc): YMap => doc.getMap<unknown>('elements'
 /** The document's script language (`meta.language`), for case mapping, collation and normalization. */
 export const documentLanguage = (doc: Y.Doc): string => String(doc.getMap('meta').get('language') ?? 'en');
 
+/** `documentLanguage(ctx.doc)`, shared so command modules don't each redefine the same one-liner. */
+export const lang = (ctx: Pick<CommandContext, 'doc'>): string => documentLanguage(ctx.doc);
+
 export function positionAfter(container: YMap, afterId: string | null, ctx: Pick<CommandContext, 'ids'>): string {
   const afterPos = afterId ? String((container.get(afterId) as YMap).get('pos')) : null;
   let next: string | null = null;

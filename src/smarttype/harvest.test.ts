@@ -39,4 +39,27 @@ describe('smartType.rebuild (harvest)', () => {
     h.run('smartType.rebuild', {});
     expect((h.doc.getMap('smartType').get('transitions') as Y.Map<unknown>).has('whip pan to')).toBe(false);
   });
+
+  it('does not recreate an entity the user deleted; explicit re-creation clears the tombstone (review finding A)', () => {
+    const h = commandHarness();
+    h.replaceBody([['st_character', 'MAYA'], ['st_dialogue', 'Hi.']]);
+    h.run('smartType.rebuild', {});
+    const maya = h.model.resolveEntity('character', 'MAYA')!.id;
+    h.run('entity.delete', { entityId: maya });
+    expect(h.model.resolveEntity('character', 'MAYA')).toBeUndefined();
+    expect((h.doc.getMap('smartType').get('entityTombstones') as Y.Map<unknown>).has('character:maya')).toBe(true);
+    // The cue text ("MAYA") is still sitting in the document, so a later debounced harvest must
+    // not silently mint the entity back.
+    h.run('smartType.rebuild', {});
+    expect(h.model.resolveEntity('character', 'MAYA')).toBeUndefined();
+    expect(h.model.entities({ kind: 'character', includeHidden: true })).toHaveLength(0);
+    // Explicitly creating the name again clears the tombstone, so harvesting resumes normally.
+    const r = h.run('entity.create', { kind: 'character', name: 'MAYA' });
+    expect(r.ok).toBe(true);
+    const recreated = h.model.resolveEntity('character', 'MAYA')!.id;
+    expect(recreated).not.toBe(maya);
+    expect((h.doc.getMap('smartType').get('entityTombstones') as Y.Map<unknown>).has('character:maya')).toBe(false);
+    h.run('smartType.rebuild', {});
+    expect(h.model.entities({ kind: 'character' })).toHaveLength(1);
+  });
 });

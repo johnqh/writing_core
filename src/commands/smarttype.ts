@@ -5,7 +5,7 @@ import { lastPosition } from '../model/ymap.js';
 import { STORED_SMARTTYPE_LISTS } from '../schema/vocab.js';
 import { harvest } from '../smarttype/harvest.js';
 import { normalizeKey } from '../smarttype/normalize.js';
-import { documentLanguage } from './element-ops.js';
+import { lang } from './element-ops.js';
 import { defineCommand } from './registry.js';
 import type { CommandContext, CommandSpec } from './types.js';
 
@@ -14,7 +14,6 @@ const List = z.enum(STORED_SMARTTYPE_LISTS);
 const spec = defineCommand;
 const entries = (ctx: CommandContext, list: string) => ctx.doc.getMap<unknown>('smartType').get(list) as Y.Map<Entry>;
 const dismissed = (ctx: CommandContext) => ctx.doc.getMap<unknown>('smartType').get('dismissed') as Y.Map<true>;
-const lang = (ctx: CommandContext) => documentLanguage(ctx.doc);
 
 export const SMARTTYPE_COMMANDS: CommandSpec<never>[] = [
   spec('smartType.addEntry', z.object({ list: List, text: z.string().min(1) }), (ctx, p) => {

@@ -81,6 +81,60 @@ describe('entity commands', () => {
     h.run('entity.removeAlias', { entityId: bob, alias: 'bob' });
     expect(h.model.resolveEntity('character', 'bob')).toBeUndefined();
   });
+
+  it('renaming an entity keeps the old name resolving to it, so existing occurrences stay attached (review finding B)', () => {
+    const h = commandHarness();
+    h.replaceBody([['st_character', 'MAYA'], ['st_dialogue', 'Hi.']]);
+    h.run('smartType.rebuild', {});
+    const maya = h.model.resolveEntity('character', 'MAYA')!.id;
+    // Harvested + not retained: hidden flips true the moment it has zero occurrences, which is
+    // exactly the symptom the probe found after a rename that didn't alias the old name.
+    expect(h.model.entity(maya)).toMatchObject({ hidden: false, origin: 'harvested' });
+    expect(h.model.occurrences(maya).length).toBeGreaterThan(0);
+    h.run('entity.update', { entityId: maya, patch: { name: 'MAYA SMITH' } });
+    expect(h.model.resolveEntity('character', 'MAYA')!.id).toBe(maya);
+    expect(h.model.entity(maya)!.aliases).toContain('MAYA');
+    expect(h.model.occurrences(maya).length).toBeGreaterThan(0);
+    expect(h.model.entity(maya)!.hidden).toBe(false);
+    // Renaming to the same key again (e.g. touching casing/punctuation only) must not pile up
+    // duplicate aliases.
+    h.run('entity.update', { entityId: maya, patch: { name: 'Maya Smith' } });
+    expect(h.model.entity(maya)!.aliases.filter((a) => a === 'MAYA')).toHaveLength(1);
+  });
+
+  it('refuses to delete a location referenced only by scene.locationId unless forced, then clears the field (review finding C)', () => {
+    const h = commandHarness();
+    const [a] = h.replaceBody([['st_scene_heading', 'INT. DINER - NIGHT']]);
+    h.run('entity.create', { kind: 'location', name: 'DINER' });
+    const diner = h.model.resolveEntity('location', 'DINER')!.id;
+    const scene = (h.doc.getMap('elements').get(a!) as Y.Map<unknown>).set('scene', new Y.Map<unknown>());
+    scene.set('locationId', diner);
+    expect(h.run('entity.delete', { entityId: diner })).toMatchObject({ ok: false, reason: 'notApplicable', detail: { locationElementIds: [a] } });
+    expect(h.doc.getMap('entities').has(diner)).toBe(true);
+    h.run('entity.delete', { entityId: diner, force: true });
+    expect(h.doc.getMap('entities').has(diner)).toBe(false);
+    expect(scene.get('locationId')).toBeNull();
+    expect(validateDocument(h.doc).issues).toEqual([]);
+  });
+
+  it('routes tag-mark removal through the write policy under Track Changes, recording a fmt mark and touching the element (review finding D)', () => {
+    const h = commandHarness();
+    const [a] = h.replaceBody([['st_action', 'GUN']]);
+    h.run('entity.create', { kind: 'prop', name: 'GUN' });
+    const gun = h.model.resolveEntity('prop', 'GUN')!.id;
+    const tagId = newId('tag', h.ids);
+    const tag = h.doc.getMap('tags').set(tagId, new Y.Map<unknown>());
+    for (const [k, v] of Object.entries({ id: tagId, categoryId: 'cat_x', entityId: gun, elementId: a, createdBy: 'u1', createdAt: 0 })) tag.set(k, v);
+    h.textMap(a!).format(0, 3, { [`t:${tagId}`]: true });
+    h.doc.getMap('trackChanges').set('enabled', true);
+    h.tick(20_000); // past the edit-throttle window, so touchElement's meta bump is observable
+    h.run('entity.delete', { entityId: gun, force: true });
+    const attrs = (h.delta(a!)[0] as { attributes?: Record<string, unknown> }).attributes;
+    expect(attrs?.[`t:${tagId}`]).toBeUndefined();
+    expect(attrs?.fmt).toMatchObject({ before: { [`t:${tagId}`]: true } });
+    const meta = (h.doc.getMap('elements').get(a!) as Y.Map<unknown>).get('meta') as { editedAt: number; editedBy: string };
+    expect(meta.editedAt).toBe(h.now());
+  });
 });
 
 describe('SmartType list commands', () => {

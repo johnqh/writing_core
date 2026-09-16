@@ -9,15 +9,18 @@ import { textJSONFromPlain } from '../schema/text.js';
 import { ENTITY_KINDS } from '../schema/vocab.js';
 import { harvest } from '../smarttype/harvest.js';
 import { normalizeKey } from '../smarttype/normalize.js';
-import { documentLanguage } from './element-ops.js';
+import { lang } from './element-ops.js';
+import { touchElement, writePolicy } from './marks-policy.js';
 import { defineCommand } from './registry.js';
 import type { CommandContext, CommandResult, CommandSpec } from './types.js';
 
 type YMap = Y.Map<unknown>;
 const spec = <P>(id: string, params: z.ZodType<P>, run: (ctx: CommandContext, p: P) => CommandResult) => defineCommand(id, params, run, { scope: 'entities' });
-const lang = (ctx: CommandContext) => documentLanguage(ctx.doc);
 const entityMap = (ctx: CommandContext, id: string) => ctx.doc.getMap<unknown>('entities').get(id) as YMap | undefined;
 const TEXT_FIELDS = new Set(['bio', 'physicalDescription', 'personality', 'arc', 'setDescription']);
+/** Entity-kind tombstones (spec 01 §5.20): `kind:nameKey` pairs the user explicitly deleted. */
+const tombstones = (ctx: CommandContext) => ctx.doc.getMap<unknown>('smartType').get('entityTombstones') as Y.Map<true>;
+const tombstoneKey = (kind: string, nameKey: string) => `${kind}:${nameKey}`;
 
 function findByKey(ctx: CommandContext, kind: string, key: string): string | null {
   for (const v of ctx.doc.getMap('entities').values()) {
@@ -38,6 +41,9 @@ export const ENTITY_COMMANDS: CommandSpec<never>[] = [
     const key = normalizeKey(p.name, { language: lang(ctx) });
     const existingId = findByKey(ctx, p.kind, key);
     if (existingId) return { ok: false, reason: 'notApplicable', detail: { existingId } };
+    // Explicitly (re-)creating this name clears any tombstone left by a previous entity.delete
+    // (spec 01 §5.20), so harvesting is free to touch it again.
+    tombstones(ctx).delete(tombstoneKey(p.kind, key));
     const id = newId('ent', ctx.ids);
     writeEntity(ctx.doc.getMap('entities'), {
       id, kind: p.kind, name: p.name.trim(),
@@ -78,6 +84,15 @@ export const ENTITY_COMMANDS: CommandSpec<never>[] = [
       const key = normalizeKey(p.patch.name, { language: lang(ctx) });
       const clash = findByKey(ctx, kind, key);
       if (clash && clash !== p.entityId) return { ok: false, reason: 'notApplicable', detail: { existingId: clash } };
+      const oldName = String(e.get('name'));
+      const oldKey = String(e.get('nameKey'));
+      if (oldKey !== key) {
+        // Keep the old name resolving to this entity (mirrors what entity.merge does for the
+        // merged-away name), so cues and occurrences written under the old name still resolve.
+        const aliases = e.get('aliases') as Y.Array<string>;
+        const existing = new Set(aliases.toArray().map((a) => normalizeKey(a, { language: lang(ctx) })));
+        if (!existing.has(oldKey)) aliases.push([oldName]);
+      }
       e.set('name', p.patch.name);
       e.set('nameKey', key);
     }
@@ -132,19 +147,47 @@ export const ENTITY_COMMANDS: CommandSpec<never>[] = [
   }),
 
   spec('entity.delete', z.object({ entityId: idSchema('ent'), force: z.boolean().optional() }), (ctx, p) => {
-    if (!entityMap(ctx, p.entityId)) return { ok: false, reason: 'notFound' };
+    const entity = entityMap(ctx, p.entityId);
+    if (!entity) return { ok: false, reason: 'notFound' };
     const tags = ctx.doc.getMap<unknown>('tags');
     const tagIds = [...tags.entries()].filter(([, v]) => (v as YMap).get('entityId') === p.entityId).map(([k]) => k);
-    if (tagIds.length > 0 && !p.force) return { ok: false, reason: 'notApplicable', detail: { tagIds } };
+    // Mirror entity.merge: a location referenced by elements[*].scene.locationId is a live
+    // reference too (I10), not just tags.
+    const locationElementIds = [...ctx.doc.getMap('elements').entries()]
+      .filter(([, v]) => {
+        const scene = (v as YMap).get('scene');
+        return scene instanceof Y.Map && scene.get('locationId') === p.entityId;
+      })
+      .map(([k]) => k);
+    if ((tagIds.length > 0 || locationElementIds.length > 0) && !p.force) {
+      return { ok: false, reason: 'notApplicable', detail: { tagIds, locationElementIds } };
+    }
+    const policy = writePolicy(ctx);
     for (const tagId of tagIds) {
       const elementId = String((tags.get(tagId) as YMap).get('elementId'));
-      const text = (ctx.doc.getMap<unknown>('elements').get(elementId) as YMap | undefined)?.get('text');
+      const element = ctx.doc.getMap<unknown>('elements').get(elementId) as YMap | undefined;
+      const text = element?.get('text');
       if (text instanceof Y.Text) {
-        for (const m of scanText(text).marks.filter((mk) => mk.key === `t:${tagId}`).reverse()) text.format(m.index, m.length, { [m.key]: null } as Record<string, never>);
+        const key = `t:${tagId}`;
+        for (const m of scanText(text).marks.filter((mk) => mk.key === key).reverse()) {
+          // Route through the write policy exactly like mark.clear's applyFormat, so clearing
+          // the tag mark under Track Changes leaves a fmt marker instead of a silent edit.
+          const attrs: Record<string, unknown> = { [key]: null };
+          if (policy.track) attrs.fmt = { changeId: policy.track.changeId, by: policy.track.by, at: policy.track.at, before: { [key]: m.value ?? null } };
+          text.format(m.index, m.length, attrs as Record<string, never>);
+        }
+        if (element) touchElement(element, policy);
       }
       tags.delete(tagId);
     }
+    for (const elementId of locationElementIds) {
+      const scene = (ctx.doc.getMap<unknown>('elements').get(elementId) as YMap).get('scene') as Y.Map<unknown>;
+      scene.set('locationId', null);
+    }
     for (const v of ctx.doc.getMap('entities').values()) if ((v as YMap).get('mergedInto') === p.entityId) (v as YMap).set('mergedInto', null);
+    // Tombstone the (kind, nameKey) so a later harvest doesn't silently recreate what the user
+    // just deleted (spec 01 §5.20); entity.create clears it on explicit re-creation.
+    tombstones(ctx).set(tombstoneKey(String(entity.get('kind')), String(entity.get('nameKey'))), true);
     ctx.doc.getMap('entities').delete(p.entityId);
     return { ok: true };
   }),

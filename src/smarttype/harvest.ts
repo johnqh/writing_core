@@ -30,6 +30,7 @@ export function harvest(ctx: CommandContext, options: HarvestOptions = {}): Harv
   const language = documentLanguage(doc);
   const st = doc.getMap<unknown>('smartType');
   const dismissed = st.get('dismissed') as YMap;
+  const tombstones = st.get('entityTombstones') as YMap;
   const report: HarvestReport = { createdEntities: [], listCounts: {} };
   const counts: Record<StoredSmartTypeList, Map<string, { text: string; count: number }>> = {
     sceneIntros: new Map(), times: new Map(), extensions: new Map(), transitions: new Map(), soundCues: new Map(),
@@ -53,6 +54,9 @@ export function harvest(ctx: CommandContext, options: HarvestOptions = {}): Harv
       if (e.get('kind') === kind && e.get('nameKey') === key) return e.get('id') as EntityId;
     }
     if (!kinds.includes(kind)) return null;
+    // The user explicitly deleted this (kind, nameKey) — don't let a later debounced harvest
+    // silently mint it back (spec 01 §5.20 entityTombstones); entity.create clears the tombstone.
+    if (tombstones.has(`${kind}:${key}`)) return null;
     const id = newId('ent', ctx.ids);
     const displayName = kind === 'character' ? stripExtension(clean).name.replace(/[.,:;]+$/, '').toLocaleUpperCase(language) : clean;
     writeEntity(doc.getMap('entities'), {
