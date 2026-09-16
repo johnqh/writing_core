@@ -18,6 +18,7 @@ import type { DocumentModel } from '../read-model/open.js';
 import type { ElementView } from '../read-model/views.js';
 import type { NumberLabel, NumberingSpec } from '../schema/template.js';
 import type { NumberMode, StyleRole } from '../schema/vocab.js';
+import { compareLabels } from '../read-model/number-label.js';
 import { styleChain, resolveStyle } from '../template/resolve.js';
 import type { ProductionJSON } from '../schema/document.js';
 import { generateBetween } from './modes.js';
@@ -38,6 +39,16 @@ export interface AssignedNumber {
    * locked-and-stored) is `false`.
    */
   readonly provisional: boolean;
+  /**
+   * True only when `provisional` is true AND the label came from §22.3 step 4's last-resort
+   * prefix fallback (`generateBetween`'s own `gapExhausted` flag), rather than steps 2/3's
+   * ordinary "strictly between P and R" generation. Spec 02 §22.3/§22.4: a step-4 label is not
+   * guaranteed to sort between its neighbours (the `A10A` worked example sorts *before* `P`) and
+   * carries diagnostic `numberGapExhausted` "so the UI can suggest Renumber" — a caller needs to
+   * tell that apart from an ordinary, fully-ordered provisional label. Always `false` when
+   * `provisional` is `false`.
+   */
+  readonly gapExhausted: boolean;
 }
 
 export interface AssignNumbersResult {
@@ -82,6 +93,40 @@ export class NumberGapExhaustedError extends Error {
     this.previous = opts.previous;
     this.next = opts.next;
     this.elementIds = opts.elementIds;
+  }
+}
+
+/**
+ * Guards against a corrupted or hand-edited locked sequence: a stored, locked `num.label` whose
+ * structural `base`/`prefix`/`suffix` does not sort strictly after the previous accepted locked
+ * label in document order. `compareLabels`/`generateBetween` never read `.custom` (spec 02 §23.1's
+ * "the structured base/prefix/suffix fields still carry the label's position"), so a locked
+ * element whose display was blanked out (`custom: ''`) but whose structural position was never
+ * updated to match — or any other out-of-order stored label — would otherwise be silently trusted
+ * as the next gap-fill anchor, producing a provisional label that sorts *before* an earlier locked
+ * one with no error or diagnostic. `assignNumbers` rejects the anchor instead: this is exactly the
+ * class of silent-corruption failure spec 02 §22.3 says the whole section exists to prevent.
+ */
+export class LockedLabelOutOfOrderError extends Error {
+  readonly styleId: StyleId;
+  readonly mode: NumberMode;
+  readonly elementId: ElementId;
+  readonly previous: NumberLabel;
+  readonly stored: NumberLabel;
+
+  constructor(opts: { styleId: StyleId; mode: NumberMode; elementId: ElementId; previous: NumberLabel; stored: NumberLabel }) {
+    super(
+      `assignNumbers: locked style '${opts.styleId}' has a stored label on element '${opts.elementId}' that does ` +
+        `not sort after its predecessor under ${opts.mode} — the locked sequence is out of order (a non-` +
+        'representative anchor, e.g. a blanked custom label whose structural position was never updated) and ' +
+        'cannot be trusted to generate gap-fill labels from (spec 02 §22.3).',
+    );
+    this.name = 'LockedLabelOutOfOrderError';
+    this.styleId = opts.styleId;
+    this.mode = opts.mode;
+    this.elementId = opts.elementId;
+    this.previous = opts.previous;
+    this.stored = opts.stored;
   }
 }
 
@@ -196,7 +241,7 @@ function assignUnlockedGroup(
         // have gotten had it never existed.
         continue;
       }
-      labels.set(el.id, { label: stored, provisional: false });
+      labels.set(el.id, { label: stored, provisional: false, gapExhausted: false });
       if (stored.custom === undefined) {
         // Non-custom manual: "Subsequent unlocked elements continue from label.base + 1."
         next = stored.base + 1;
@@ -210,7 +255,7 @@ function assignUnlockedGroup(
       continue;
     }
 
-    labels.set(el.id, { label: { base: next, prefix: [], suffix: [] }, provisional: false });
+    labels.set(el.id, { label: { base: next, prefix: [], suffix: [] }, provisional: false, gapExhausted: false });
     next += 1;
     bumpConsumed();
   }
@@ -231,15 +276,23 @@ function assignLockedGroup(
 
   const flush = (nextStored: NumberLabel | null): void => {
     if (pending.length === 0) return;
-    let generated: NumberLabel[];
+    let result: { labels: NumberLabel[]; gapExhausted: boolean };
     try {
-      generated = generateBetween(previous, nextStored, pending.length, numbering.suffixMode, numbering.skipIO).labels;
+      result = generateBetween(previous, nextStored, pending.length, numbering.suffixMode, numbering.skipIO);
     } catch (cause) {
-      throw new NumberGapExhaustedError({
-        styleId: owner, mode: numbering.suffixMode, previous, next: nextStored, elementIds: [...pending], cause,
-      });
+      // Only wrap §22.3's genuine "no structural room" refusal — anything else `generateBetween`
+      // throws (e.g. `modes.ts`'s own data-corruption guard for a malformed stored prefix segment)
+      // is a different failure and must not be relabeled as a suggestion to Renumber.
+      if (cause instanceof RangeError && cause.message.includes('no structural room')) {
+        throw new NumberGapExhaustedError({
+          styleId: owner, mode: numbering.suffixMode, previous, next: nextStored, elementIds: [...pending], cause,
+        });
+      }
+      throw cause;
     }
-    for (let i = 0; i < pending.length; i += 1) labels.set(pending[i]!, { label: generated[i]!, provisional: true });
+    for (let i = 0; i < pending.length; i += 1) {
+      labels.set(pending[i]!, { label: result.labels[i]!, provisional: true, gapExhausted: result.gapExhausted });
+    }
     pending = [];
   };
 
@@ -250,12 +303,20 @@ function assignLockedGroup(
       pending.push(el.id);
       continue;
     }
+    // A locked, stored label must sort strictly after the previous accepted anchor — see
+    // `LockedLabelOutOfOrderError`. Checked before `flush` so a non-representative anchor is
+    // rejected outright rather than handed to `generateBetween` as a `P`/`R` pair that no longer
+    // reflects document order (which can otherwise "succeed" via step 4's unconstrained fallback
+    // and silently produce a label that sorts before an earlier locked one).
+    if (previous !== null && compareLabels(stored, previous, numbering.suffixMode) <= 0) {
+      throw new LockedLabelOutOfOrderError({ styleId: owner, mode: numbering.suffixMode, elementId: el.id, previous, stored });
+    }
     flush(stored);
     // §21.2's custom:'' carve-out applies here too: the element is unnumbered (no display), but
     // its structural base/prefix/suffix (the fields `compareLabels`/`generateBetween` read —
     // `custom` never participates there) still marks its true locked position, so a later gap
     // still generates correctly relative to it.
-    if (stored.custom !== '') labels.set(el.id, { label: stored, provisional: false });
+    if (stored.custom !== '') labels.set(el.id, { label: stored, provisional: false, gapExhausted: false });
     previous = stored;
   }
   flush(null);

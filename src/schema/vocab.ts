@@ -21,9 +21,13 @@ export type StyleRole = (typeof STYLE_ROLES)[number];
 /**
  * Spec 01 §3.4.1 role table columns. A scene is an element of a SCENE_ROLE up to the next boundary.
  * `actStart` ends the previous scene without starting one; `actEnd` ends the derived act, not the scene.
+ * `page` is a scene-start role (spec 01 §3.4.1, amended after M2 task 14's review): a graphic-novel
+ * page heading starts its own scene unit for the navigator, index cards, numbering and packets, the
+ * same as `sceneHeading`/`chapter` — `panel` stays out, panels are members of the page's scene, not
+ * scene-starts themselves.
  */
-export const SCENE_ROLES = ['sceneHeading', 'chapter'] as const satisfies readonly StyleRole[];
-export const SCENE_BOUNDARY_ROLES = ['sceneHeading', 'chapter', 'actStart'] as const satisfies readonly StyleRole[];
+export const SCENE_ROLES = ['sceneHeading', 'chapter', 'page'] as const satisfies readonly StyleRole[];
+export const SCENE_BOUNDARY_ROLES = ['sceneHeading', 'chapter', 'page', 'actStart'] as const satisfies readonly StyleRole[];
 export const SPEAKER_ROLES = ['character'] as const satisfies readonly StyleRole[];
 export const SPEECH_MEMBER_ROLES = ['parenthetical', 'dialogue', 'lyrics'] as const satisfies readonly StyleRole[];
 export const NON_PRINTING_ROLES = ['outline', 'synopsis', 'note'] as const satisfies readonly StyleRole[];

@@ -11,7 +11,7 @@ import type { NumberMode } from '../schema/vocab.js';
 import { authoredTemplate, flowTo, rootStyle, styleDef } from '../templates/builtin/authoring.js';
 import { letterPage, sceneHeadingNumbering, standardHeader } from '../templates/shared.js';
 import { inchesToEmu as inch } from '../units.js';
-import { assignNumbers, NumberGapExhaustedError } from './assign.js';
+import { assignNumbers, LockedLabelOutOfOrderError, NumberGapExhaustedError, type AssignedNumber } from './assign.js';
 
 // ─── Fixture template ───────────────────────────────────────────────────────────────────────────
 //
@@ -28,6 +28,8 @@ import { assignNumbers, NumberGapExhaustedError } from './assign.js';
 const label = (base: number, prefix: LabelSegment[] = [], suffix: LabelSegment[] = [], custom?: string): NumberLabel =>
   custom === undefined ? { base, prefix, suffix } : { base, prefix, suffix, custom };
 const letterSeg = (...value: number[]): LabelSegment => ({ kind: 'letters', value });
+const digitsSeg = (value: number): LabelSegment => ({ kind: 'digits', value });
+const assigned = (l: NumberLabel, provisional: boolean, gapExhausted = false): AssignedNumber => ({ label: l, provisional, gapExhausted });
 
 const ST = (slug: string): StyleId => builtinStyleId(`ta_${slug}`);
 
@@ -108,9 +110,9 @@ describe('assignNumbers — unlocked sequential numbering (§21.2)', () => {
     const s2 = add('scene', 'INT. B');
     const s3 = add('scene', 'INT. C');
     const { labels } = assignNumbers(model());
-    expect(labels.get(s1.get('id') as never)).toEqual({ label: label(1), provisional: false });
-    expect(labels.get(s2.get('id') as never)).toEqual({ label: label(2), provisional: false });
-    expect(labels.get(s3.get('id') as never)).toEqual({ label: label(3), provisional: false });
+    expect(labels.get(s1.get('id') as never)).toEqual(assigned(label(1), false));
+    expect(labels.get(s2.get('id') as never)).toEqual(assigned(label(2), false));
+    expect(labels.get(s3.get('id') as never)).toEqual(assigned(label(3), false));
   });
 
   it('parentheticals are never numbered even when the style is configured with numbering enabled', () => {
@@ -171,7 +173,7 @@ describe('assignNumbers — manual unlocked labels (§21.2)', () => {
     const d3 = add('dialogue');
     const { labels } = assignNumbers(model());
     expect(labels.get(d1.get('id') as never)?.label.base).toBe(1);
-    expect(labels.get(d2.get('id') as never)).toEqual({ label: label(50), provisional: false });
+    expect(labels.get(d2.get('id') as never)).toEqual(assigned(label(50), false));
     expect(labels.get(d3.get('id') as never)?.label.base).toBe(51);
   });
 
@@ -183,7 +185,7 @@ describe('assignNumbers — manual unlocked labels (§21.2)', () => {
     const d3 = add('dialogue');
     const { labels } = assignNumbers(model());
     expect(labels.get(d1.get('id') as never)?.label.base).toBe(1);
-    expect(labels.get(d2.get('id') as never)).toEqual({ label: label(999, [], [], 'FIVE'), provisional: false });
+    expect(labels.get(d2.get('id') as never)).toEqual(assigned(label(999, [], [], 'FIVE'), false));
     // "previous sequential value + 1": the auto sequence was at 2 when d2 was processed, so d3
     // continues from 3 — d2's own base (999) is display-only and never feeds the sequence.
     expect(labels.get(d3.get('id') as never)?.label.base).toBe(3);
@@ -233,6 +235,30 @@ describe('assignNumbers — hidden and omitted-body exclusion', () => {
     expect(labels.get(s3.get('id') as never)?.label.base).toBe(3); // unaffected — no shift
     expect(labels.has(bodyDialogue.get('id') as never)).toBe(false); // omitted body excluded
   });
+
+  it("a `page` heading is a scene boundary (spec 01 §3.4.1), so an omitted scene can't run straight through a page heading and swallow the panels after it", () => {
+    // Fix round 1, critical: SCENE_BOUNDARY_ROLES/SCENE_ROLES previously had no `page` role, so
+    // `computeScenes` let a scene run straight through a page heading — in a template mixing
+    // `sceneHeading` and `page` (the shipped graphic-novel builtin genuinely does), an omitted
+    // scene's span continued past the next `page` heading all the way to the next real scene
+    // boundary (or end of document). `panel2` here would have been silently swallowed into the
+    // omitted scene's excluded body — no number, no count, no diagnostic — even though it visibly
+    // sits under its own `page` heading, outside the omitted scene entirely.
+    const { add, model, omitScene } = setup();
+    const scene = add('scene', 'INT. LATER');
+    add('character', 'MAYA');
+    add('dialogue', 'This should never surface.');
+    const page = add('page');
+    const panel2 = add('panel');
+    omitScene(scene);
+    const { labels, counts } = assignNumbers(model());
+    expect(labels.has(scene.get('id') as never)).toBe(true); // the OMITTED placeholder itself
+    // `page` now closes the omitted scene's span — it and everything after it are a fresh,
+    // un-omitted scene of their own, so both are numbered and counted normally.
+    expect(labels.get(page.get('id') as never)?.label.base).toBe(1);
+    expect(labels.get(panel2.get('id') as never)?.label.base).toBe(1);
+    expect(counts.get(page.get('id') as never)?.get(ST('panel'))).toBe(1);
+  });
 });
 
 // ─── §22.3 / §23.2 locked numbering ─────────────────────────────────────────────────────────────
@@ -247,9 +273,9 @@ describe('assignNumbers — locked numbering (§22.3/§23.2)', () => {
     const s3 = add('scene');
     setNum(s3, { label: label(11), locked: true, manual: false });
     const { labels } = assignNumbers(model());
-    expect(labels.get(s1.get('id') as never)).toEqual({ label: label(10), provisional: false });
-    expect(labels.get(s3.get('id') as never)).toEqual({ label: label(11), provisional: false });
-    expect(labels.get(gap.get('id') as never)).toEqual({ label: label(10, [], [letterSeg(1)]), provisional: true });
+    expect(labels.get(s1.get('id') as never)).toEqual(assigned(label(10), false));
+    expect(labels.get(s3.get('id') as never)).toEqual(assigned(label(11), false));
+    expect(labels.get(gap.get('id') as never)).toEqual(assigned(label(10, [], [letterSeg(1)]), true));
   });
 
   it('a trailing gap after the last locked label continues plain integers (R === null)', () => {
@@ -259,7 +285,7 @@ describe('assignNumbers — locked numbering (§22.3/§23.2)', () => {
     setNum(s1, { label: label(10), locked: true, manual: false });
     const tail = add('scene');
     const { labels } = assignNumbers(model());
-    expect(labels.get(tail.get('id') as never)).toEqual({ label: label(11), provisional: true });
+    expect(labels.get(tail.get('id') as never)).toEqual(assigned(label(11), true));
   });
 
   it('refuses with a typed error (not a bare crash) when AB2 has no structural room for a gap', () => {
@@ -285,6 +311,69 @@ describe('assignNumbers — locked numbering (§22.3/§23.2)', () => {
     expect(err.next).toEqual(label(2, [letterSeg(1)]));
     expect(err.elementIds).toEqual([gap.get('id')]);
   });
+
+  it('distinguishes an ordinary provisional gap-fill (steps 2/3) from a §22.3 step-4 gap-exhausted fallback', () => {
+    const { add, setNum, lockStyle, model } = setup();
+    lockStyle('scene');
+    const s1 = add('scene');
+    setNum(s1, { label: label(10), locked: true, manual: false }); // "10"
+    const gap = add('scene');
+    const s3 = add('scene');
+    setNum(s3, { label: label(10, [], [letterSeg(1)]), locked: true, manual: false }); // "10A"
+    const { labels } = assignNumbers(model());
+    // Spec 02 §22.4's own worked vector: 1AB | 10 | 10A | 1 → A10A, "gap exhausted" — steps 2/3
+    // both fail (every candidate between plain 10 and 10A is either equal to 10A or, once
+    // prefixed, sorts before plain P=10 forever), so this is genuinely step 4's last-resort
+    // fallback, not an ordinarily-ordered provisional label.
+    expect(labels.get(gap.get('id') as never)).toEqual(assigned(label(10, [letterSeg(1)], [letterSeg(1)]), true, true));
+  });
+
+  it('rejects a locked stored label that does not sort after its predecessor, instead of silently trusting a non-representative anchor', () => {
+    // Fix round 1, important: a locked, stored label's structural base/prefix/suffix still
+    // anchors later gap-fills even when its display is blanked (`custom: ''`) — see the doc
+    // comment on `LockedLabelOutOfOrderError`. If that anchor's structural position was never
+    // kept in sync with reality (corrupted data, or a client bug), trusting it silently can
+    // generate a provisional label that sorts *before* an earlier, correctly-ordered locked one.
+    // This must be rejected outright rather than produce that corrupted result.
+    const { add, setNum, lockStyle, model } = setup();
+    lockStyle('scene');
+    const s1 = add('scene');
+    setNum(s1, { label: label(10), locked: true, manual: false });
+    const bad = add('scene'); // stored, locked, but structurally *before* s1 — not representative
+    setNum(bad, { label: label(1, [], [], ''), locked: true, manual: true });
+    let caught: unknown;
+    try {
+      assignNumbers(model());
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(LockedLabelOutOfOrderError);
+    const err = caught as LockedLabelOutOfOrderError;
+    expect(err.styleId).toBe(ST('scene'));
+    expect(err.mode).toBe('1AB');
+    expect(err.elementId).toBe(bad.get('id'));
+    expect(err.previous).toEqual(label(10));
+    expect(err.stored).toEqual(label(1, [], [], ''));
+  });
+
+  it('does not relabel a data-corruption guard from modes.ts (a malformed stored prefix segment) as a gap-exhausted refusal', () => {
+    const { add, setNum, lockStyle, model } = setup({ sceneSuffixMode: 'AB2' });
+    lockStyle('scene');
+    add('scene'); // an unstored gap — needed so `flush` has something to generate for
+    const r = add('scene');
+    // AB2/BA2 prefix segments must be `letters` — a `digits` segment here is malformed stored
+    // data, a different failure from "no structural room for a gap".
+    setNum(r, { label: label(2, [digitsSeg(5)]), locked: true, manual: false });
+    let caught: unknown;
+    try {
+      assignNumbers(model());
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).not.toBeInstanceOf(NumberGapExhaustedError);
+    expect(caught).toBeInstanceOf(RangeError);
+    expect((caught as Error).message).toMatch(/letters segment/);
+  });
 });
 
 // ─── §20.2/§21.3 counts ─────────────────────────────────────────────────────────────────────────
@@ -300,5 +389,14 @@ describe('assignNumbers — counts map (§20.2 {count:<StyleId>}, §21.3)', () =
     const { counts } = assignNumbers(model());
     expect(counts.get(page1.get('id') as never)?.get(ST('panel'))).toBe(2);
     expect(counts.get(page2.get('id') as never)?.get(ST('panel'))).toBe(1);
+  });
+
+  it('a style with zero occurrences between two numbered elements is simply absent from the tally (a caller reads a missing entry as zero, e.g. tokens.ts\'s `?? 0`)', () => {
+    const { add, model } = setup();
+    const page1 = add('page'); // no panels before page2
+    add('page');
+    const { counts } = assignNumbers(model());
+    expect(counts.get(page1.get('id') as never)?.has(ST('panel'))).toBe(false);
+    expect(counts.get(page1.get('id') as never)?.get(ST('panel')) ?? 0).toBe(0);
   });
 });

@@ -23,7 +23,7 @@ const ROOT_EXPORTS = [
   'FORMAT_MARKS', 'FWM_FORMAT_VERSION', 'FWM_MAGIC', 'FolderJSON', 'FontFamilyId', 'FontSpec', 'GENERATED_TEMPLATES', 'HARFBUZZ_CORE_VERSION', 'HASH_VERSION',
   'HeaderFooterSpec', 'HexColor', 'I18nKey', 'ID_PREFIXES', 'INTRO_VARIANTS', 'INVARIANT_CODES', 'ImportMeta',
   'JsonValue', 'LAYOUT_ENGINE_VERSION', 'LAYOUT_MODES', 'LINE_SPACING_FACTORS', 'LINE_SPACING_PRESETS', 'LOCALE_SCRIPT_WORDS',
-  'LOCALIZED_TEMPLATE_KEYS', 'LOGICAL_FONT_FAMILIES', 'LabelSegment', 'LaneJSON', 'Lines', 'LocationFields',
+  'LOCALIZED_TEMPLATE_KEYS', 'LOGICAL_FONT_FAMILIES', 'LabelSegment', 'LaneJSON', 'Lines', 'LocationFields', 'LockedLabelOutOfOrderError',
   'COLUMNS', 'MARK_COMMANDS', 'MAX_POSITION_LENGTH', 'MAY_END_ABBREVIATIONS', 'MIGRATION_STEPS', 'MacroAlias', 'MacroRecord', 'MacroSeed',
   'NON_PRINTING_ROLES', 'NOTE_TYPE_SEEDS', 'NUMBER_MODES', 'NUMBER_POSITIONS', 'NoteAnchor', 'NoteJSON',
   'NoteReplyJSON', 'NoteTypeJSON', 'NoteTypeSeed', 'NumberGapExhaustedError', 'NumberLabel', 'NumberingSpec', 'ORIGIN_KINDS', 'OmitRecord',
