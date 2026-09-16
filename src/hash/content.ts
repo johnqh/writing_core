@@ -6,11 +6,15 @@ import { canonicalJSON } from './canonical-json.js';
 import { sha256Hex } from './sha256.js';
 
 export const HASH_VERSION = 1;
-export type ContentHash = `v1:${string}`;
+/** Derived from HASH_VERSION (not a repeated literal) so a version bump cannot silently mislabel output. */
+export type ContentHash = `v${typeof HASH_VERSION}:${string}`;
 
 const HASHED_MARKS = ['b', 'i', 'u', 's', 'sc', 'va'] as const;
 
-const v1 = (payload: string): ContentHash => `v1:${sha256Hex(payload)}`;
+const v1 = (payload: string): ContentHash => `v${HASH_VERSION}:${sha256Hex(payload)}`;
+
+/** True for combining marks (Unicode general category M*): the characters NFC composition can merge into a preceding base character. */
+const isCombiningMark = (ch: string): boolean => /^\p{M}$/u.test(ch);
 
 type Item = { ch: string; attrs: Record<string, unknown> } | { embed: { assetId: string; widthEmu: number; heightEmu: number } };
 
@@ -19,7 +23,9 @@ export function canonicalElementText(text: TextJSON): {
   runs: [number, number, Record<string, unknown>][];
   embeds: { at: number; assetId: string; widthEmu: number; heightEmu: number }[];
 } {
-  // 1. Interleave characters (UTF-16 units) and image embeds in Y.Text index order, dropping tracked deletions.
+  // 1. Interleave code points and image embeds in Y.Text index order, dropping tracked deletions.
+  //    Each run's text is kept RAW here (not normalized) so combining-mark composition can be done
+  //    once below, across run/formatting boundaries.
   const items: Item[] = [];
   const embeds = [...text.embeds].sort((a, b) => a.at - b.at);
   let y = 0;
@@ -37,20 +43,48 @@ export function canonicalElementText(text: TextJSON): {
     const deleted = run.attrs.del !== undefined;
     const hashed: Record<string, unknown> = {};
     for (const k of HASHED_MARKS) if (run.attrs[k] !== undefined && run.attrs[k] !== null) hashed[k] = run.attrs[k];
-    for (const unit of run.text.normalize('NFC')) {
-      if (!deleted) for (let i = 0; i < unit.length; i++) items.push({ ch: unit[i]!, attrs: hashed });
-      y += unit.length;
+    for (const ch of run.text) {
+      if (!deleted) items.push({ ch, attrs: hashed });
+      y += ch.length;
       flush();
     }
   }
   flush();
 
+  // 1b. Compose combining-mark sequences (Unicode NFC) once, over the whole element's visible text.
+  //    Normalizing each run in isolation (the previous approach) cannot compose a base character in
+  //    one run with a combining mark that starts an adjacent run (a formatting boundary splits them
+  //    before normalization ever sees them together), so two visually identical texts could hash
+  //    differently depending on where a bold/italic/etc. boundary happened to fall. Instead, cluster
+  //    each visible "starter" character with any combining marks that immediately follow it — across
+  //    run boundaries — normalize the cluster as one string, and attribute the composed result to the
+  //    starter's attrs (the base character's formatting is what a reader/performer sees).
+  const composed: Item[] = [];
+  for (let i = 0; i < items.length; ) {
+    const it = items[i]!;
+    if (!('ch' in it)) {
+      composed.push(it);
+      i++;
+      continue;
+    }
+    let cluster = it.ch;
+    let j = i + 1;
+    while (j < items.length) {
+      const next = items[j]!;
+      if (!('ch' in next) || !isCombiningMark(next.ch)) break;
+      cluster += next.ch;
+      j++;
+    }
+    for (const ch of cluster.normalize('NFC')) composed.push({ ch, attrs: it.attrs });
+    i = j;
+  }
+
   // 2. Line endings: CRLF and CR become LF.
   const norm: Item[] = [];
-  for (let i = 0; i < items.length; i++) {
-    const it = items[i]!;
+  for (let i = 0; i < composed.length; i++) {
+    const it = composed[i]!;
     if ('ch' in it && it.ch === '\r') {
-      const next = items[i + 1];
+      const next = composed[i + 1];
       if (next && 'ch' in next && next.ch === '\n') continue;
       norm.push({ ch: '\n', attrs: it.attrs });
     } else norm.push(it);
@@ -107,7 +141,7 @@ export function elementContentHash(input: ElementHashInput): ContentHash {
 
 export function sceneContentHash(input: { omitted: boolean; elements: readonly { hash: string; role: StyleRole | null; printable: boolean }[] }): ContentHash {
   const printing = input.elements.filter((e) => e.printable && !(e.role !== null && (NON_PRINTING_ROLES as readonly string[]).includes(e.role)));
-  return v1(`fw-scene-v1\n${input.omitted ? 'omitted\n' : ''}${printing.map((e) => e.hash).join('\n')}`);
+  return v1(`fw-scene-v${HASH_VERSION}\n${input.omitted ? 'omitted\n' : ''}${printing.map((e) => e.hash).join('\n')}`);
 }
 
 export function sliceTextJSON(text: TextJSON, from: number, to: number): TextJSON {
@@ -145,7 +179,7 @@ export function sliceTextJSON(text: TextJSON, from: number, to: number): TextJSO
 }
 
 export function shotContentHash(parts: readonly string[]): ContentHash {
-  return v1(`fw-shot-v1\n${parts.join('\n')}`);
+  return v1(`fw-shot-v${HASH_VERSION}\n${parts.join('\n')}`);
 }
 
 function isTextJSON(v: unknown): v is TextJSON {
@@ -170,7 +204,13 @@ export function entityContentHash(entity: EntityJSON): ContentHash {
   }));
 }
 
-const PACKET_STRIP = new Set(['generatedAt', 'hash', 'url', 'signedUrl', 'urlExpiresAt']);
+// Spec 11 §4.2/§7.2: packet-envelope-level `generatedAt`/`hash`, plus every signed-URL field on an
+// AssetSummary (`previewUrl`, `originalUrl`) and its expiry (`urlExpiresAt`) — these are re-minted on
+// every fetch, so a packet re-fetched with fresh URLs must hash the same. (`url`/`signedUrl` do not
+// exist anywhere in spec 11's packet or AssetSummary shapes — §7.2 — and were a bug: stripping them
+// left the real field names `previewUrl`/`originalUrl` unstripped, so a re-fetched packet hashed
+// differently every time and staleness comparisons could never report "fresh".)
+const PACKET_STRIP = new Set(['generatedAt', 'hash', 'previewUrl', 'originalUrl', 'urlExpiresAt']);
 
 function stripPacket(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(stripPacket);
