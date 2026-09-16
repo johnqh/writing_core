@@ -32,6 +32,13 @@ export * from './smarttype/normalize.js';
 // ─── Migrations ─────────────────────────────────────────────────────────────
 export * from './migrations/index.js';
 
+// ─── Commands ───────────────────────────────────────────────────────────────
+export * from './commands/origin.js';
+export * from './commands/types.js';
+export * from './commands/registry.js';
+export * from './commands/positions.js';
+export * from './commands/execute.js';
+
 // ─── Schema ─────────────────────────────────────────────────────────────────
 export * from './schema/vocab.js';
 export * from './schema/primitives.js';
