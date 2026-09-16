@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
+import * as ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 /**
@@ -8,172 +9,55 @@ import { describe, expect, it } from 'vitest';
  * least one of them, and the failure only shows up on the platform nobody
  * tested. `tsconfig.json` (lib ES2022, `types: []`, no DOM lib) is the first
  * line of defence: a bare `window`, `document`, `Buffer` etc. is already a
- * type error there. This guard is the second line — it catches the escape
- * hatches typechecking can't see, such as `globalThis.window` or a dynamic
- * `import('node:fs')`, by reading every shipping source file as text.
+ * type error there. This guard is the second line, and it parses.
+ *
+ * **The guard parses; it does not scan lines** (spec 02 §1.1). Three
+ * successive line-based designs were defeated by review — `file:line`
+ * pairs, a marker on the line before the call, then same-line binding with a
+ * quote-aware text scanner — the last by four bypasses that needed no marker
+ * at all, all sharing one cause: a line scanner cannot distinguish code from
+ * string, comment and regex, so every patch relocated the ambiguity instead
+ * of removing it.
+ *   1. `/* platform-free-allow-clock: x *\/ const t = Date.now();` — a line
+ *      beginning `/*` was skipped wholesale by a pre-existing heuristic, so
+ *      the real call was never scanned at all.
+ *   2. `const t = 2\n  * Date.now();` — the continuation line trims to
+ *      `* Date.now();`, and the same heuristic (there to skip JSDoc
+ *      continuation lines) skipped it too.
+ *   3. `const r = /[a//b]/; const t = Date.now();` — a regex character
+ *      class containing `//` needs no escape; the quote-aware scan (which
+ *      never modelled regex literals) truncated the line there, hiding the
+ *      real call that followed.
+ *   4. The same regex trick with the real call *before* it: a marker past
+ *      the false truncation point exempted a call it had no comment
+ *      relationship to.
+ * Bugs 1 and 2 belong to *every* forbidden-API rule this guard has, not
+ * only the clock — `Intl` hides behind the same skipped lines. `typescript`
+ * is already a devDependency; this guard now walks the real AST (`ts.
+ * createSourceFile`) for every forbidden call, and reads a clock exemption
+ * from the genuine comment ranges the compiler attaches to the call's own
+ * statement, not from line text. A parser has no notion of "line starts
+ * with `*`" and no string/comment/regex ambiguity, so this closes all four
+ * bypasses (and the false positive from round 3's own quote tracker
+ * desyncing on a stray `'` inside a regex) in one move, for every rule.
  */
 const SRC = join(import.meta.dirname, '..');
 
-const CLOCK_REASON = 'host clock — forbidden except beside a platform-free-allow-clock marker (spec 02 §1.1)';
-
 /**
- * The exemption for a clock call is a marker bound to the call's own line, as a
- * trailing comment, and nowhere else (spec 02 §1.1). Two weaker designs were tried
- * and both failed the same way — an exemption that identifies a *position* rather
- * than a *call*:
- *   - `file:line` pairs — an unrelated edit shifts a seam off its listed line (the
- *     guard reddens on correct code), and a *new* call landing on the listed line
- *     passes silently.
- *   - a marker on the line before the call (fix round 2) — inserting a new clock
- *     call directly between a marker and the seam it was written for hands the
- *     exemption to the new call and pushes the real seam out of the window. Worse,
- *     it also runs the other direction: a *trailing* marker on one call exempted the
- *     very next line too, since that next line's "line before" was the marked one —
- *     so any unrelated clock call following a marked one was silently exempted with
- *     no insertion at all.
- * Same-line binding removes the window entirely: an inserted line is never marked,
- * because the marker is physically part of the one line it exempts. There is no
- * "previous line" or "next line" fallback anywhere in this file's clock logic.
- *
- * The marker is matched only in the line's *genuine* comment text — the same
- * quote-aware scan `stripTrailingComment` already does for the forbidden-pattern
- * check — so it cannot be smuggled inside a string, template or regex literal.
+ * The clock exemption is a `platform-free-allow-clock:` marker that must
+ * *trail* the offending call — physically read from the comment range(s)
+ * following the call's own statement/element in the source text (via
+ * `ts.getTrailingCommentRanges`, the same API the compiler itself uses for
+ * comment attachment), never from "the same line" as raw text. A leading
+ * comment on the same line, or a comment trailing some other statement that
+ * merely shares a line with the call, both fail to exempt anything — spec
+ * 02 §1.1 records both as historical bypasses of the previous, line-based
+ * design. A marker that never validly trails any clock call is itself a
+ * guard failure (stale-marker rule): it exempts nothing, so it must not sit
+ * in the tree looking like it does.
  */
 const CLOCK_MARKER = 'platform-free-allow-clock:';
-
-const DATE_NOW_PATTERN = /\bDate\.now\(\)/;
-const NEW_DATE_NO_ARG_PATTERN = /\bnew Date\(\s*\)/;
-const CLOCK_CALL_PATTERNS: readonly RegExp[] = [DATE_NOW_PATTERN, NEW_DATE_NO_ARG_PATTERN];
-
-const FORBIDDEN: ReadonlyArray<{ pattern: RegExp; reason: string }> = [
-  { pattern: /\bglobalThis\.(window|document|navigator|process|Buffer|Bun|localStorage)/, reason: 'globalThis escape hatch' },
-  { pattern: /\bimport\(\s*['"]node:/, reason: 'dynamic Node built-in import' },
-  { pattern: /from ['"]node:/, reason: 'Node built-in' },
-  { pattern: /\brequire\(/, reason: 'CommonJS' },
-  { pattern: /\bimport\.meta\b/, reason: 'unsupported by Hermes/Metro' },
-  { pattern: /\bprocess\.env\b/, reason: 'host environment' },
-  { pattern: /\bBuffer\./, reason: 'Node global' },
-  { pattern: /\bBun\./, reason: 'Bun global' },
-  { pattern: /\blocalStorage\b/, reason: 'browser storage' },
-  { pattern: /\bnavigator\./, reason: 'browser global' },
-  {
-    pattern: /\bwindow\.(document|location|addEventListener|removeEventListener|navigator|localStorage|sessionStorage|innerWidth|innerHeight|requestAnimationFrame|getComputedStyle)\b/,
-    reason: 'browser global',
-  },
-  {
-    pattern: /\bdocument\.(createElement|getElementById|querySelector|querySelectorAll|body|head|addEventListener|fonts|activeElement)\b/,
-    reason: 'DOM global',
-  },
-  // `toLocaleUpperCase()`, `toLocaleLowerCase()`, `toLocaleString()` and `localeCompare(` called
-  // with NO argument fall back to the host's default locale, which this platform-free package
-  // must never depend on (see src/smarttype/normalize.ts for the ASCII-vs-locale distinction).
-  // Called *with* an explicit locale argument (e.g. `s.toLocaleLowerCase(language)`) is fine and
-  // must not be flagged, so each pattern requires a `)` immediately after the opening `(`.
-  { pattern: /\.toLocaleUpperCase\(\s*\)/, reason: 'locale-dependent case fold with no explicit locale' },
-  { pattern: /\.toLocaleLowerCase\(\s*\)/, reason: 'locale-dependent case fold with no explicit locale' },
-  { pattern: /\.toLocaleString\(\s*\)/, reason: 'locale-dependent formatting with no explicit locale' },
-  { pattern: /\.localeCompare\(\s*\)/, reason: 'locale-dependent comparison with no argument' },
-  { pattern: /\bnew Intl\./, reason: 'host-locale-dependent Intl API' },
-  // A clock is a host dependency of exactly the same kind as a host locale (spec 02
-  // §1.1's "no ambient inputs" rule): `Date.now()` and no-argument `new Date()` read
-  // the *current* time from the host, so the same input can render differently run
-  // to run. `new Date(epochMs)` — an explicit, caller-supplied epoch — is fine and
-  // must not be flagged (used by src/template/locale-data.ts to format an injected
-  // `LocaleDataPort` argument), so this pattern requires a `)` immediately after the
-  // opening `(`, same convention as the `toLocale*` patterns above. The two legitimate
-  // ambient-clock reads in this package (`IdSource.now`'s default, `createDocument`'s
-  // `options.clock` default) are *defaults of injectable seams* that tests and
-  // rehearsal freeze — not violations — and are exempted below by a
-  // `platform-free-allow-clock:` marker at the call site, never by remembering where
-  // the call happens to live.
-  { pattern: DATE_NOW_PATTERN, reason: CLOCK_REASON },
-  { pattern: NEW_DATE_NO_ARG_PATTERN, reason: CLOCK_REASON },
-];
-
-/** `${lineNumber} ...` → the 1-based line number, as `findViolations` formats each entry. */
-function violationLineNumber(violation: string): number {
-  const match = /^(\d+) /.exec(violation);
-  return match ? Number(match[1]) : -1;
-}
-
-/**
- * The genuine comment text on `line` — everything `stripTrailingComment` (defined
- * below; hoisted, so the forward reference is safe) strips off as a real `//`
- * comment, not whatever a plain substring search would find. A marker mentioned only
- * inside a string, template or regex literal has no comment portion to appear in, so
- * it grants no exemption.
- */
-function commentPortion(line: string): string {
-  const code = stripTrailingComment(line);
-  return line.slice(code.length);
-}
-
-function lineHasClockMarker(line: string): boolean {
-  return commentPortion(line).includes(CLOCK_MARKER);
-}
-
-/** The text after `platform-free-allow-clock:` in `line`'s genuine comment, trimmed — '' when there is no marker or no reason. */
-function markerReason(line: string): string {
-  const comment = commentPortion(line);
-  const idx = comment.indexOf(CLOCK_MARKER);
-  return idx === -1 ? '' : comment.slice(idx + CLOCK_MARKER.length).trim();
-}
-
-/** Tests the clock-call patterns against `line`'s *code* only, so a reason string that happens to mention "Date.now()" in prose can't be mistaken for a call. */
-function lineHasClockCall(line: string): boolean {
-  const code = stripTrailingComment(line);
-  return CLOCK_CALL_PATTERNS.some((p) => p.test(code));
-}
-
-/**
- * True when the clock call on `lines[callLine0]` (0-based) carries a genuine
- * `platform-free-allow-clock:` marker as a trailing comment on that *exact* line —
- * no other line ever counts (spec 02 §1.1: same-line binding is what makes the
- * exemption identify a call instead of a position).
- */
-function isMarkedClockCall(lines: readonly string[], callLine0: number): boolean {
-  return lineHasClockMarker(lines[callLine0] ?? '');
-}
-
-/**
- * True when the marker on `lines[markerLine0]` (0-based) is valid: it names a
- * non-empty reason, and there is a clock call on that exact same line. A marker that
- * fails either check is stale — it exempts nothing, so it must not be allowed to sit
- * in the tree looking like it does (spec 02 §1.1's stale-marker rule).
- */
-function isValidClockMarker(lines: readonly string[], markerLine0: number): boolean {
-  const line = lines[markerLine0] ?? '';
-  return markerReason(line).length > 0 && lineHasClockCall(line);
-}
-
-/**
- * One file's platform-free violations: every `FORBIDDEN` pattern, with the marker
- * rule applied to clock violations specifically — an ambient `Date.now()`/`new Date()`
- * with no same-line marker is kept, one with a valid same-line marker is dropped, and
- * any marker that is itself stale (§1.1: no reason, or no clock call on its own line)
- * is reported even where some other call nearby is otherwise fine. Factored out of
- * the repo-wide test so it can also be driven directly against small fixtures below,
- * proving each required clock-marker behaviour — including the two adversarial
- * probes that defeated the previous ("marker on the line before") design — as
- * permanent tests, not one-off manual checks.
- */
-function findGuardViolations(relPath: string, fileText: string): string[] {
-  const violations: string[] = [];
-  const lines = fileText.split('\n');
-  for (const violation of findViolations(fileText)) {
-    if (violation.includes(CLOCK_REASON)) {
-      const lineNum = violationLineNumber(violation);
-      if (lineNum > 0 && isMarkedClockCall(lines, lineNum - 1)) continue;
-    }
-    violations.push(`${relPath}:${violation}`);
-  }
-  lines.forEach((line, idx) => {
-    if (lineHasClockMarker(line) && !isValidClockMarker(lines, idx)) {
-      violations.push(`${relPath}:${idx + 1} stale platform-free-allow-clock marker (needs a reason and a clock call on this exact line): ${line.trim()}`);
-    }
-  });
-  return violations;
-}
+const CLOCK_REASON = 'host clock — forbidden except beside a platform-free-allow-clock marker (spec 02 §1.1)';
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -183,326 +67,540 @@ function sourceFiles(dir: string): string[] {
   });
 }
 
-/**
- * Strips a trailing `//` comment from a line, so a violation mentioned only
- * in prose (`// see window.location for context`) doesn't get flagged,
- * while a `//` inside a string literal (e.g. a protocol-relative URL like
- * `'//cdn.example.com'`) is left alone — otherwise the rest of the line,
- * including a real violation after the string, would silently go
- * unscanned. Walks the line tracking whether it is inside a `'`, `"` or
- * backtick string (honouring `\` escapes); only a `//` seen outside any
- * such string is treated as a comment start.
- *
- * This is still a single-line, best-effort scan, not a real tokenizer:
- * quote tracking does not carry across lines (a multi-line template
- * literal is not modelled), and a regex literal containing an unescaped
- * `//` (e.g. `/a\/\/b/`) is not recognised as a literal — the `/` and `/`
- * delimiters aren't tracked as a quote type, so such a line would still be
- * truncated at that `//`. Acceptable for a guard whose job is to catch real
- * host-API usage in this repo's source, not to fully parse the language.
- */
-function stripTrailingComment(line: string): string {
-  let quote: string | null = null;
-  for (let i = 0; i < line.length; i += 1) {
-    const ch = line[i];
-    if (quote) {
-      if (ch === '\\') {
-        i += 1; // skip the escaped character, whatever it is
-        continue;
-      }
-      if (ch === quote) quote = null;
-      continue;
-    }
-    if (ch === "'" || ch === '"' || ch === '`') {
-      quote = ch;
-      continue;
-    }
-    if (ch === '/' && line[i + 1] === '/') {
-      return line.slice(0, i);
-    }
-  }
-  return line;
+// ─── AST predicates ─────────────────────────────────────────────────────────
+
+function isIdent(node: ts.Node | undefined, name: string): boolean {
+  return !!node && ts.isIdentifier(node) && node.text === name;
+}
+
+/** `objName.<anything>` — a property access whose base is the bare identifier `objName`. */
+function isPropAccessOf(node: ts.Node, objName: string): node is ts.PropertyAccessExpression {
+  return ts.isPropertyAccessExpression(node) && isIdent(node.expression, objName);
 }
 
 /**
- * Pure scanner: given one file's full text, returns one message per
- * violating line as `${lineNumber} ${reason}: ${trimmedLine}`. Exercised
- * directly against fixtures below, and used by the repo-wide guard test
- * further down (which prefixes each message with the relative file path).
+ * True when `node` (an Identifier) is used as a bare value reference — not a
+ * declaration name (`const localStorage = …`, a parameter, a binding) and
+ * not the member name of a property access (`x.localStorage`, where
+ * `localStorage` is someone's own property, not the global). Scoped to what
+ * this guard actually needs: distinguishing a real global reference from
+ * the two most plausible false-positive shapes, not full scope analysis.
  */
-function findViolations(fileText: string): string[] {
-  const violations: string[] = [];
-  fileText.split('\n').forEach((rawLine, i) => {
-    const trimmed = rawLine.trimStart();
-    if (trimmed.startsWith('*') || trimmed.startsWith('/*')) return;
-    const line = stripTrailingComment(rawLine);
-    for (const { pattern, reason } of FORBIDDEN) {
-      if (pattern.test(line)) violations.push(`${i + 1} ${reason}: ${line.trim()}`);
+function isPlainReference(node: ts.Identifier): boolean {
+  const p: ts.Node | undefined = node.parent;
+  if (!p) return true;
+  if (ts.isPropertyAccessExpression(p) && p.name === node) return false;
+  if (ts.isVariableDeclaration(p) && p.name === node) return false;
+  if (ts.isParameter(p) && p.name === node) return false;
+  if (ts.isBindingElement(p) && p.name === node) return false;
+  if (ts.isFunctionDeclaration(p) && p.name === node) return false;
+  if (ts.isClassDeclaration(p) && p.name === node) return false;
+  if (ts.isPropertyAssignment(p) && p.name === node) return false;
+  if (ts.isPropertySignature(p) && p.name === node) return false;
+  if (ts.isMethodDeclaration(p) && p.name === node) return false;
+  if (ts.isImportSpecifier(p) && (p.name === node || p.propertyName === node)) return false;
+  return true;
+}
+
+const GLOBALTHIS_MEMBERS = new Set(['window', 'document', 'navigator', 'process', 'Buffer', 'Bun', 'localStorage']);
+const WINDOW_MEMBERS = new Set([
+  'document', 'location', 'addEventListener', 'removeEventListener', 'navigator', 'localStorage', 'sessionStorage',
+  'innerWidth', 'innerHeight', 'requestAnimationFrame', 'getComputedStyle',
+]);
+const DOCUMENT_MEMBERS = new Set(['createElement', 'getElementById', 'querySelector', 'querySelectorAll', 'body', 'head', 'addEventListener', 'fonts', 'activeElement']);
+const LOCALE_ZERO_ARG_METHODS: ReadonlyArray<readonly [string, string]> = [
+  ['toLocaleUpperCase', 'locale-dependent case fold with no explicit locale'],
+  ['toLocaleLowerCase', 'locale-dependent case fold with no explicit locale'],
+  ['toLocaleString', 'locale-dependent formatting with no explicit locale'],
+  ['localeCompare', 'locale-dependent comparison with no argument'],
+];
+
+interface AstMatcher {
+  reason: string;
+  test: (node: ts.Node) => boolean;
+}
+
+/** Every forbidden-API rule this guard has ever had, now expressed over AST node shapes instead of text patterns. */
+const NON_CLOCK_MATCHERS: readonly AstMatcher[] = [
+  { reason: 'globalThis escape hatch', test: (n) => isPropAccessOf(n, 'globalThis') && GLOBALTHIS_MEMBERS.has(n.name.text) },
+  {
+    reason: 'dynamic Node built-in import',
+    test: (n) =>
+      ts.isCallExpression(n) &&
+      n.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      n.arguments.length > 0 &&
+      ts.isStringLiteralLike(n.arguments[0]!) &&
+      n.arguments[0]!.text.startsWith('node:'),
+  },
+  {
+    reason: 'Node built-in',
+    test: (n) => {
+      const spec = ts.isImportDeclaration(n) ? n.moduleSpecifier : ts.isExportDeclaration(n) ? n.moduleSpecifier : undefined;
+      return !!spec && ts.isStringLiteral(spec) && spec.text.startsWith('node:');
+    },
+  },
+  { reason: 'CommonJS', test: (n) => ts.isCallExpression(n) && isIdent(n.expression, 'require') },
+  { reason: 'unsupported by Hermes/Metro', test: (n) => ts.isMetaProperty(n) && n.keywordToken === ts.SyntaxKind.ImportKeyword && n.name.text === 'meta' },
+  { reason: 'host environment', test: (n) => isPropAccessOf(n, 'process') && n.name.text === 'env' },
+  { reason: 'Node global', test: (n) => isPropAccessOf(n, 'Buffer') },
+  { reason: 'Bun global', test: (n) => isPropAccessOf(n, 'Bun') },
+  { reason: 'browser storage', test: (n) => ts.isIdentifier(n) && n.text === 'localStorage' && isPlainReference(n) },
+  { reason: 'browser global', test: (n) => isPropAccessOf(n, 'navigator') },
+  { reason: 'browser global', test: (n) => isPropAccessOf(n, 'window') && WINDOW_MEMBERS.has(n.name.text) },
+  { reason: 'DOM global', test: (n) => isPropAccessOf(n, 'document') && DOCUMENT_MEMBERS.has(n.name.text) },
+  ...LOCALE_ZERO_ARG_METHODS.map(
+    ([method, reason]): AstMatcher => ({
+      reason,
+      test: (n) => ts.isCallExpression(n) && ts.isPropertyAccessExpression(n.expression) && n.expression.name.text === method && n.arguments.length === 0,
+    }),
+  ),
+  {
+    reason: 'host-locale-dependent Intl API',
+    test: (n) => ts.isNewExpression(n) && ts.isPropertyAccessExpression(n.expression) && isIdent(n.expression.expression, 'Intl'),
+  },
+];
+
+/** `Date.now()` and no-argument `new Date()` — handled separately because they alone can be exempted by a marker. */
+const CLOCK_MATCHERS: readonly AstMatcher[] = [
+  {
+    reason: CLOCK_REASON,
+    test: (n) => ts.isCallExpression(n) && isPropAccessOf(n.expression, 'Date') && n.expression.name.text === 'now' && n.arguments.length === 0,
+  },
+  { reason: CLOCK_REASON, test: (n) => ts.isNewExpression(n) && isIdent(n.expression, 'Date') && (n.arguments === undefined || n.arguments.length === 0) },
+];
+
+// ─── Comment handling (real comment ranges, never line text) ───────────────
+
+/**
+ * Walks up from `node` to the nearest ancestor that is a direct statement,
+ * object-literal property, or class/interface member — the smallest unit
+ * whose own `.end` is a meaningful place to look for a trailing comment.
+ * Scoped to the container kinds this repo's forbidden calls actually appear
+ * in; an exotic position (inside an array literal element, say) falls back
+ * to a higher ancestor, which only risks a spurious "unmarked" report for a
+ * marker placed somewhere this guard doesn't specifically look — the safe
+ * direction, never a silent bypass.
+ */
+function enclosingElement(node: ts.Node): ts.Node {
+  let current = node;
+  while (
+    current.parent &&
+    !ts.isSourceFile(current.parent) &&
+    !ts.isBlock(current.parent) &&
+    !ts.isModuleBlock(current.parent) &&
+    !ts.isObjectLiteralExpression(current.parent) &&
+    !ts.isClassDeclaration(current.parent) &&
+    !ts.isClassExpression(current.parent) &&
+    !ts.isInterfaceDeclaration(current.parent)
+  ) {
+    current = current.parent;
+  }
+  return current;
+}
+
+/**
+ * Real trailing comment ranges starting right after `endPos`, skipping at
+ * most one list-separator or statement-terminator character first — a list
+ * element's own `.end` (an object-literal property, say) does not include
+ * its trailing `,`, so `now: () => Date.now(), // marker` needs the comma
+ * skipped before `ts.getTrailingCommentRanges` can see the comment; a
+ * statement's `.end` already includes its `;`, so the skip is a no-op there.
+ */
+function trailingCommentRangesAfter(fullText: string, endPos: number): readonly ts.CommentRange[] {
+  let pos = endPos;
+  while (pos < fullText.length && (fullText[pos] === ',' || fullText[pos] === ';')) pos += 1;
+  return ts.getTrailingCommentRanges(fullText, pos) ?? [];
+}
+
+/** `platform-free-allow-clock:` plus its reason from one comment's raw text (a `//` line comment or a block comment), or null if absent. */
+function markerInfo(commentText: string): { reason: string } | null {
+  const idx = commentText.indexOf(CLOCK_MARKER);
+  if (idx === -1) return null;
+  const rest = commentText.slice(idx + CLOCK_MARKER.length).replace(/\*\/\s*$/, '');
+  return { reason: rest.trim() };
+}
+
+/** The marker (if any) genuinely trailing `node`'s enclosing statement/element — real comment ranges, not line text. */
+function findMarkerFor(node: ts.Node, fullText: string): { pos: number; reason: string } | null {
+  for (const range of trailingCommentRangesAfter(fullText, enclosingElement(node).end)) {
+    const info = markerInfo(fullText.slice(range.pos, range.end));
+    if (info) return { pos: range.pos, reason: info.reason };
+  }
+  return null;
+}
+
+/**
+ * Every comment in the file. A comment on its own line is leading trivia of
+ * whatever real token follows it; a comment sharing a line with preceding
+ * code — every marker this guard cares about — is the *trailing* comment of
+ * whatever precedes it instead (confirmed directly against the compiler:
+ * `getLeadingCommentRanges` returns nothing for a same-line trailing
+ * comment, only `getTrailingCommentRanges` finds it). So this walks every
+ * node and asks for *both* the leading ranges at its full-start and the
+ * trailing ranges at its end, deduped by position — between the two, every
+ * comment in the file is found by at least one node. Used only to find
+ * markers that don't validly trail any clock call (the stale-marker check)
+ * — detection itself never needs this, since `ts.createSourceFile` already
+ * correctly tokenizes string, template and regex literals as opaque single
+ * tokens, so a `//` or marker text inside one is never trivia and is never
+ * returned here.
+ */
+function collectComments(sourceFile: ts.SourceFile, fullText: string): ReadonlyArray<{ pos: number; text: string }> {
+  const seen = new Set<number>();
+  const out: Array<{ pos: number; text: string }> = [];
+  const record = (ranges: readonly ts.CommentRange[] | undefined): void => {
+    if (!ranges) return;
+    for (const r of ranges) {
+      if (seen.has(r.pos)) continue;
+      seen.add(r.pos);
+      out.push({ pos: r.pos, text: fullText.slice(r.pos, r.end) });
     }
-  });
+  };
+  const visit = (node: ts.Node): void => {
+    record(ts.getLeadingCommentRanges(fullText, node.getFullStart()));
+    record(ts.getTrailingCommentRanges(fullText, node.getEnd()));
+    node.forEachChild(visit);
+  };
+  visit(sourceFile);
+  record(ts.getLeadingCommentRanges(fullText, sourceFile.endOfFileToken.getFullStart()));
+  return out;
+}
+
+// ─── The guard itself ────────────────────────────────────────────────────────
+
+/**
+ * One substring per rule (and the marker), each a *necessary* prerequisite
+ * for that rule to ever match: every identifier and keyword a matcher looks
+ * for must appear verbatim in the source text for the parser to produce a
+ * token for it at all, so a file containing none of these cannot possibly
+ * contain any violation or marker. This is not a semantic heuristic — it
+ * decides nothing about code vs. string vs. comment vs. regex, only whether
+ * full parsing is worth attempting — so it cannot reintroduce any of the
+ * four bypasses; it can only ever over-trigger (parse a file that turns out
+ * clean), never under-trigger. Exists because this package ships several
+ * multi-hundred-KB generated data tables (dictionaries, font metrics) that
+ * are pure data and can never contain a forbidden call — parsing 13+ MB of
+ * source on every guard run is the dominant cost this guard has, once
+ * per-file text scanning stopped being the alternative.
+ */
+const TRIGGER_SUBSTRINGS: readonly string[] = [
+  'globalThis', 'node:', 'require(', 'import.meta', 'process', 'Buffer', 'Bun', 'localStorage',
+  'navigator', 'window', 'document', 'toLocaleUpperCase', 'toLocaleLowerCase', 'toLocaleString',
+  'localeCompare', 'Intl', 'Date', CLOCK_MARKER,
+];
+
+function mightHaveViolations(fileText: string): boolean {
+  return TRIGGER_SUBSTRINGS.some((s) => fileText.includes(s));
+}
+
+/**
+ * One file's platform-free violations, found by walking its real AST: every
+ * `NON_CLOCK_MATCHERS` hit is reported unconditionally; every
+ * `CLOCK_MATCHERS` hit is reported unless a valid `platform-free-allow-clock:`
+ * marker genuinely trails it (§1.1); every such marker that never validly
+ * trails a clock call is reported as stale. `ts.createSourceFile` recovers
+ * from syntax errors rather than throwing, so this never crashes on a
+ * fixture.
+ */
+function findGuardViolations(relPath: string, fileText: string): string[] {
+  if (!mightHaveViolations(fileText)) return [];
+  const sourceFile = ts.createSourceFile(relPath, fileText, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
+  const lines = fileText.split('\n');
+  const lineTextAt = (line0: number): string => (lines[line0] ?? '').trim();
+  const lineOf = (pos: number): number => sourceFile.getLineAndCharacterOfPosition(pos).line;
+
+  const violations: string[] = [];
+  // comment.pos -> its reason text, for every marker `findMarkerFor` actually found
+  // trailing some clock call — recorded whether or not the reason is non-empty, so a
+  // reason-less marker still suppresses the raw "unmarked call" report (there was a
+  // marker attempt) while the stale-marker pass below reports the real problem once,
+  // not the same mistake twice under two different messages.
+  const markerReasonByPos = new Map<number, string>();
+
+  const visitNonClock = (node: ts.Node): void => {
+    for (const m of NON_CLOCK_MATCHERS) {
+      if (m.test(node)) violations.push(`${relPath}:${lineOf(node.getStart(sourceFile)) + 1} ${m.reason}: ${lineTextAt(lineOf(node.getStart(sourceFile)))}`);
+    }
+    node.forEachChild(visitNonClock);
+  };
+  visitNonClock(sourceFile);
+
+  const visitClock = (node: ts.Node): void => {
+    for (const m of CLOCK_MATCHERS) {
+      if (!m.test(node)) continue;
+      const marker = findMarkerFor(node, fileText);
+      if (marker) {
+        markerReasonByPos.set(marker.pos, marker.reason);
+        continue;
+      }
+      const line0 = lineOf(node.getStart(sourceFile));
+      violations.push(`${relPath}:${line0 + 1} ${m.reason}: ${lineTextAt(line0)}`);
+    }
+    node.forEachChild(visitClock);
+  };
+  visitClock(sourceFile);
+
+  for (const comment of collectComments(sourceFile, fileText)) {
+    if (!comment.text.includes(CLOCK_MARKER)) continue;
+    const reason = markerReasonByPos.get(comment.pos);
+    const isValid = reason !== undefined && reason.length > 0;
+    if (isValid) continue;
+    const line0 = lineOf(comment.pos);
+    violations.push(
+      `${relPath}:${line0 + 1} stale platform-free-allow-clock marker (needs a reason and to trail a clock call as a same-line comment): ${lineTextAt(line0)}`,
+    );
+  }
+
   return violations;
 }
 
-describe('findViolations', () => {
+// ─── Tests ──────────────────────────────────────────────────────────────────
+
+describe('findGuardViolations: forbidden APIs (walked over the real AST)', () => {
   it('flags globalThis.window / .document / .process / etc.', () => {
-    expect(findViolations(`const w = globalThis.window;`)).toHaveLength(1);
+    expect(findGuardViolations('f.ts', 'const w = globalThis.window;')).toHaveLength(1);
   });
 
   it('flags a dynamic import of a node: built-in', () => {
-    expect(findViolations(`const fs = await import('node:fs');`)).toHaveLength(1);
+    expect(findGuardViolations('f.ts', "const fs = await import('node:fs');")).toHaveLength(1);
   });
 
   it('flags a static import from a node: built-in', () => {
-    expect(findViolations(`import { readFileSync } from 'node:fs';`)).toHaveLength(1);
+    expect(findGuardViolations('f.ts', "import { readFileSync } from 'node:fs';")).toHaveLength(1);
+  });
+
+  it('flags a static export ... from a node: built-in', () => {
+    expect(findGuardViolations('f.ts', "export { readFileSync } from 'node:fs';")).toHaveLength(1);
   });
 
   it('flags require(...)', () => {
-    expect(findViolations(`const fs = require('fs');`)).toHaveLength(1);
+    expect(findGuardViolations('f.ts', "const fs = require('fs');")).toHaveLength(1);
   });
 
   it('flags import.meta', () => {
-    expect(findViolations(`const dir = import.meta.dirname;`)).toHaveLength(1);
+    expect(findGuardViolations('f.ts', 'const dir = import.meta.dirname;')).toHaveLength(1);
   });
 
   it('flags process.env', () => {
-    expect(findViolations(`const key = process.env.API_KEY;`)).toHaveLength(1);
+    expect(findGuardViolations('f.ts', 'const key = process.env.API_KEY;')).toHaveLength(1);
   });
 
   it('flags Buffer.<member>', () => {
-    expect(findViolations(`const b = Buffer.from('x');`)).toHaveLength(1);
+    expect(findGuardViolations('f.ts', "const b = Buffer.from('x');")).toHaveLength(1);
   });
 
   it('flags Bun.<member>', () => {
-    expect(findViolations(`const f = Bun.file('x');`)).toHaveLength(1);
+    expect(findGuardViolations('f.ts', "const f = Bun.file('x');")).toHaveLength(1);
   });
 
-  it('flags localStorage', () => {
-    expect(findViolations(`localStorage.setItem('a', 'b');`)).toHaveLength(1);
+  it('flags localStorage used as a value', () => {
+    expect(findGuardViolations('f.ts', "localStorage.setItem('a', 'b');")).toHaveLength(1);
   });
 
   it('flags navigator.<member>', () => {
-    expect(findViolations(`navigator.clipboard.writeText('x');`)).toHaveLength(1);
+    expect(findGuardViolations('f.ts', "navigator.clipboard.writeText('x');")).toHaveLength(1);
   });
 
   it('flags window.<real browser member>', () => {
-    expect(findViolations(`window.location.href = '/x';`)).toHaveLength(1);
+    expect(findGuardViolations('f.ts', "window.location.href = '/x';")).toHaveLength(1);
   });
 
   it('flags document.<real DOM member>', () => {
-    expect(findViolations(`document.getElementById('app');`)).toHaveLength(1);
+    expect(findGuardViolations('f.ts', "document.getElementById('app');")).toHaveLength(1);
   });
 
   it('does not flag a local variable named window used as an ordinary layout term', () => {
-    expect(findViolations(`const window = { start: 0 }; window.start;`)).toEqual([]);
-  });
-
-  it('does not flag a forbidden term mentioned only in a trailing comment', () => {
-    expect(findViolations(`const x = 1; // window.location`)).toEqual([]);
-  });
-
-  it('still flags a violation after a string literal containing an unescaped //', () => {
-    expect(findViolations(`const cdn = '//cdn.example.com'; require('utils');`)).toHaveLength(1);
-  });
-
-  it('still flags a violation after a short string literal containing //', () => {
-    expect(findViolations(`const s = 'a//b'; require('utils');`)).toHaveLength(1);
+    expect(findGuardViolations('f.ts', 'const window = { start: 0 }; window.start;')).toEqual([]);
   });
 
   it('flags toLocaleUpperCase() called with no locale argument', () => {
-    expect(findViolations(`const s = x.toLocaleUpperCase();`)).toHaveLength(1);
+    expect(findGuardViolations('f.ts', 'const s = x.toLocaleUpperCase();')).toHaveLength(1);
   });
 
   it('does not flag toLocaleUpperCase(locale) called with an explicit locale', () => {
-    expect(findViolations(`const s = x.toLocaleUpperCase('en');`)).toEqual([]);
+    expect(findGuardViolations('f.ts', "const s = x.toLocaleUpperCase('en');")).toEqual([]);
   });
 
   it('flags toLocaleLowerCase() called with no locale argument', () => {
-    expect(findViolations(`const s = x.toLocaleLowerCase();`)).toHaveLength(1);
+    expect(findGuardViolations('f.ts', 'const s = x.toLocaleLowerCase();')).toHaveLength(1);
   });
 
   it('does not flag toLocaleLowerCase(language) called with an explicit locale', () => {
-    expect(findViolations(`const s = x.toLocaleLowerCase(language);`)).toEqual([]);
+    expect(findGuardViolations('f.ts', 'const s = x.toLocaleLowerCase(language);')).toEqual([]);
   });
 
   it('flags toLocaleString() called with no locale argument', () => {
-    expect(findViolations(`const s = n.toLocaleString();`)).toHaveLength(1);
+    expect(findGuardViolations('f.ts', 'const s = n.toLocaleString();')).toHaveLength(1);
   });
 
   it('does not flag toLocaleString(locale) called with an explicit locale', () => {
-    expect(findViolations(`const s = n.toLocaleString('en-US');`)).toEqual([]);
+    expect(findGuardViolations('f.ts', "const s = n.toLocaleString('en-US');")).toEqual([]);
   });
 
   it('flags localeCompare() called with no argument', () => {
-    expect(findViolations(`const c = a.localeCompare();`)).toHaveLength(1);
+    expect(findGuardViolations('f.ts', 'const c = a.localeCompare();')).toHaveLength(1);
   });
 
   it('does not flag localeCompare(b) called with an argument', () => {
-    expect(findViolations(`const c = a.localeCompare(b);`)).toEqual([]);
+    expect(findGuardViolations('f.ts', 'const c = a.localeCompare(b);')).toEqual([]);
   });
 
   it('flags bare `new Intl.` usage', () => {
-    expect(findViolations(`const f = new Intl.Collator('en');`)).toHaveLength(1);
+    expect(findGuardViolations('f.ts', "const f = new Intl.Collator('en');")).toHaveLength(1);
   });
 
-  it('does not flag a real violation only when it is truly in a trailing comment, even next to a // in a string', () => {
-    expect(findViolations(`const u = 'https://x.y'; // window.location`)).toEqual([]);
+  it('flags Date.now() with no marker', () => {
+    expect(findGuardViolations('f.ts', 'const t = Date.now();')).toHaveLength(1);
   });
 
-  it('flags Date.now()', () => {
-    expect(findViolations(`const t = Date.now();`)).toHaveLength(1);
-  });
-
-  it('flags new Date() with no argument', () => {
-    expect(findViolations(`const d = new Date();`)).toHaveLength(1);
+  it('flags new Date() with no argument and no marker', () => {
+    expect(findGuardViolations('f.ts', 'const d = new Date();')).toHaveLength(1);
   });
 
   it('does not flag new Date(epochMs) with an explicit, caller-supplied epoch', () => {
-    expect(findViolations(`const d = new Date(epochMs);`)).toEqual([]);
+    expect(findGuardViolations('f.ts', 'const d = new Date(epochMs);')).toEqual([]);
+  });
+
+  it('an empty file has no violations', () => {
+    expect(findGuardViolations('f.ts', '')).toEqual([]);
   });
 });
 
 describe('clock guard: platform-free-allow-clock marker (spec 02 §1.1)', () => {
-  // Behaviour 1: an ambient call with no marker fails, naming file and line.
-  it('an ambient clock call with no marker fails, naming the file and line', () => {
-    const fileText = ['line one', 'const t = Date.now();', 'line three'].join('\n');
-    expect(findGuardViolations('some/file.ts', fileText)).toEqual([`some/file.ts:2 ${CLOCK_REASON}: const t = Date.now();`]);
+  it('a marker trailing the call on the same line, after a statement terminator, passes', () => {
+    const fileText = 'const t = Date.now(); // platform-free-allow-clock: legit reason';
+    expect(findGuardViolations('f.ts', fileText)).toEqual([]);
   });
 
-  it('an ambient new Date() with no marker also fails', () => {
-    const fileText = 'const d = new Date();';
-    expect(findGuardViolations('some/file.ts', fileText)).toEqual([`some/file.ts:1 ${CLOCK_REASON}: const d = new Date();`]);
+  it('a marker trailing the call on the same line, after a list-separator comma, passes', () => {
+    const fileText = 'const o = { now: () => Date.now(), // platform-free-allow-clock: legit reason\n  x: 1 };';
+    expect(findGuardViolations('f.ts', fileText)).toEqual([]);
   });
 
-  // Behaviour 2: both legitimate seams pass — same-line trailing marker only.
-  it('a marker trailing the call on the same line passes', () => {
-    const fileText = 'now: () => Date.now(), // platform-free-allow-clock: IdSource.now default — ULID timestamps';
-    expect(findGuardViolations('ids/id-source.ts', fileText)).toEqual([]);
-  });
-
-  it('two clock calls on one marked line are both exempt (accepted consequence — requires deliberately writing them that way)', () => {
+  it('two clock calls on one marked statement are both exempt (accepted consequence — requires deliberately writing them that way)', () => {
     const fileText = 'const a = Date.now(), b = new Date(); // platform-free-allow-clock: both intentional, same seam';
-    expect(findGuardViolations('some/file.ts', fileText)).toEqual([]);
+    expect(findGuardViolations('f.ts', fileText)).toEqual([]);
   });
 
-  it('a marker on the line *before* the call no longer exempts it (fix round 2\'s design, now rejected) — both the marker and the call are reported', () => {
-    const fileText = [
-      '// platform-free-allow-clock: options.clock default — freezable by callers',
-      'const clock = options.clock ?? (() => Date.now());',
-    ].join('\n');
-    const violations = findGuardViolations('model/create.ts', fileText);
+  it('a marker on the line before the call (round 2\'s rejected design) does not exempt it — both the marker and the call are reported', () => {
+    const fileText = ['// platform-free-allow-clock: options.clock default', 'const clock = options.clock ?? (() => Date.now());'].join('\n');
+    const violations = findGuardViolations('f.ts', fileText);
     expect(violations).toHaveLength(2);
-    expect(violations.some((v) => v.includes('stale platform-free-allow-clock marker') && v.startsWith('model/create.ts:1'))).toBe(true);
-    expect(violations.some((v) => v.includes(CLOCK_REASON) && v.startsWith('model/create.ts:2'))).toBe(true);
+    expect(violations.some((v) => v.includes('stale platform-free-allow-clock marker') && v.startsWith('f.ts:1'))).toBe(true);
+    expect(violations.some((v) => v.includes(CLOCK_REASON) && v.startsWith('f.ts:2'))).toBe(true);
   });
 
-  // Behaviour 3: a marker with no clock call on its own exact line fails.
-  it('a marker with no clock call on the same line is a stale-marker failure, even when a call sits on the very next line', () => {
-    const fileText = ['// platform-free-allow-clock: nothing clock-related on this line', 'const t = Date.now();'].join('\n');
-    const violations = findGuardViolations('some/file.ts', fileText);
-    // Both wrong: the marker is stale (no call on ITS line), and the call is unmarked (no marker on ITS line).
-    expect(violations).toHaveLength(2);
-    expect(violations.some((v) => v.includes('stale platform-free-allow-clock marker'))).toBe(true);
-    expect(violations.some((v) => v.includes(CLOCK_REASON) && v.startsWith('some/file.ts:2'))).toBe(true);
-  });
-
-  it('a marker with no reason text is also invalid, even sitting right next to a real call on the same line', () => {
+  it('a marker with no reason text is invalid, even trailing a real call', () => {
     const fileText = 'const t = Date.now(); // platform-free-allow-clock:';
-    const violations = findGuardViolations('some/file.ts', fileText);
+    const violations = findGuardViolations('f.ts', fileText);
     expect(violations).toHaveLength(1);
     expect(violations[0]).toContain('stale platform-free-allow-clock marker');
   });
 
-  // The marker must be matched in genuine comment text, not smuggled into a literal.
-  // (The whole line — literal included — is what findViolations reports, since the
-  // line has no genuine `//` comment at all; these assert the violation survives,
-  // not its exact text.)
-  it('a marker inside a string literal grants no exemption', () => {
-    const fileText = "const s = 'platform-free-allow-clock: fake reason'; const t = Date.now();";
-    const violations = findGuardViolations('some/file.ts', fileText);
+  it('a marker with no clock call anywhere is stale', () => {
+    const fileText = '// platform-free-allow-clock: nothing clock-related follows\nconst x = 1;';
+    const violations = findGuardViolations('f.ts', fileText);
     expect(violations).toHaveLength(1);
-    expect(violations[0]).toContain('some/file.ts:1');
-    expect(violations[0]).toContain(CLOCK_REASON);
-    expect(violations[0]).toContain('Date.now()');
+    expect(violations[0]).toContain('stale platform-free-allow-clock marker');
   });
 
-  it('a marker inside a template literal grants no exemption', () => {
-    const fileText = 'const s = `platform-free-allow-clock: fake reason`; const t = Date.now();';
-    const violations = findGuardViolations('some/file.ts', fileText);
-    expect(violations).toHaveLength(1);
-    expect(violations[0]).toContain('some/file.ts:1');
-    expect(violations[0]).toContain(CLOCK_REASON);
-    expect(violations[0]).toContain('Date.now()');
+  it('block comments work as trailing markers too', () => {
+    const fileText = 'const t = Date.now(); /* platform-free-allow-clock: legit reason */';
+    expect(findGuardViolations('f.ts', fileText)).toEqual([]);
   });
 
-  it('a marker inside a regex literal grants no exemption (it is code, not comment text, at all)', () => {
-    const fileText = 'const r = /platform-free-allow-clock: fake reason/; const t = new Date();';
-    const violations = findGuardViolations('some/file.ts', fileText);
-    expect(violations).toHaveLength(1);
-    expect(violations[0]).toContain('some/file.ts:1');
-    expect(violations[0]).toContain(CLOCK_REASON);
-    expect(violations[0]).toContain('new Date()');
-  });
-
-  // Round 2's own regression tests, still required to hold: a genuine same-line
-  // trailing marker is immune to unrelated edits elsewhere in the file.
-  it('an unrelated edit above the seam does not affect its own same-line marker', () => {
+  // Round 2/3 regressions: a genuine same-line trailing marker survives unrelated
+  // edits elsewhere in the file, and never exempts a call it doesn't trail.
+  it('an unrelated edit above the seam does not affect its own trailing marker', () => {
     const fileText = [
       '// a totally unrelated comment inserted above the seam',
       '// another unrelated line, pushing everything further down',
       'now: () => Date.now(), // platform-free-allow-clock: IdSource.now default',
     ].join('\n');
-    expect(findGuardViolations('ids/id-source.ts', fileText)).toEqual([]);
+    expect(findGuardViolations('f.ts', `({${fileText}\n});`)).toEqual([]);
   });
 
-  it('a new unmarked Date.now() inserted anywhere else in the file is still caught, while the legitimate marked seam still passes', () => {
-    const fileText = [
-      '// unrelated comment inserted above, shifting everything down',
-      'export function newHelper() {',
-      '  return Date.now(); // no marker on this call — must be caught',
-      '}',
-      '',
-      'now: () => Date.now(), // platform-free-allow-clock: IdSource.now default — legitimate seam',
-    ].join('\n');
-    const violations = findGuardViolations('ids/id-source.ts', fileText);
-    expect(violations).toHaveLength(1);
-    expect(violations[0]).toContain('ids/id-source.ts:3 ');
-    expect(violations[0]).toContain('return Date.now()');
-  });
-
-  // The reviewer's round-3 probe, reproduced verbatim (a marker on the line before a
-  // call — round 2's design — with a new unmarked call inserted between the marker
-  // and the seam it was meant for). Round 2 reported only the real seam, silently
-  // absorbing the inserted call and losing the real one out the other side of the
-  // window. Same-line binding has no window to exploit: all three lines come back
-  // wrong, and in particular the inserted call is now caught rather than absorbed.
-  it("reproduces the reviewer's round-3 probe: an inserted unmarked call between a marker and its intended seam is caught, not absorbed", () => {
-    const fileText = [
-      '// platform-free-allow-clock: legit seam reason',
-      'const inserted = Date.now();',
-      'const real = clock ?? (() => Date.now());',
-    ].join('\n');
-    const violations = findGuardViolations('some/file.ts', fileText);
-    expect(violations).toHaveLength(3);
-    // The marker itself is stale — no call on its own line.
-    expect(violations.some((v) => v.includes('stale platform-free-allow-clock marker') && v.startsWith('some/file.ts:1'))).toBe(true);
-    // The inserted call: caught, not silently exempted (this is the bug round 2 had).
-    expect(violations.some((v) => v.includes(CLOCK_REASON) && v.startsWith('some/file.ts:2') && v.includes('inserted'))).toBe(true);
-    // The real seam: also caught, because it was never given its own marker under
-    // the old (now-rejected) leading-comment convention — correctly so, since a
-    // marker one line away is no longer a valid exemption for anything.
-    expect(violations.some((v) => v.includes(CLOCK_REASON) && v.startsWith('some/file.ts:3') && v.includes('real'))).toBe(true);
-  });
-
-  // The reviewer's second round-3 probe: no insertion at all, just a trailing-marked
-  // call immediately followed by an unrelated one. Round 2's "previous line" window
-  // treated the unrelated call's "line before" as marked and exempted it too.
   it('a trailing-marked call immediately followed by an unrelated clock call does not exempt the second one', () => {
     const fileText = [
       'const real = clock ?? (() => Date.now()); // platform-free-allow-clock: legit seam reason',
       'const unrelated = Date.now();',
     ].join('\n');
-    const violations = findGuardViolations('some/file.ts', fileText);
-    expect(violations).toEqual([`some/file.ts:2 ${CLOCK_REASON}: const unrelated = Date.now();`]);
+    const violations = findGuardViolations('f.ts', fileText);
+    expect(violations).toEqual([`f.ts:2 ${CLOCK_REASON}: const unrelated = Date.now();`]);
+  });
+
+  it("reproduces the round-3 reviewer probe verbatim: a marker before the call, with an unrelated call inserted between, catches all three lines", () => {
+    const fileText = [
+      '// platform-free-allow-clock: legit seam reason',
+      'const inserted = Date.now();',
+      'const real = clock ?? (() => Date.now());',
+    ].join('\n');
+    const violations = findGuardViolations('f.ts', fileText);
+    expect(violations).toHaveLength(3);
+    expect(violations.some((v) => v.includes('stale platform-free-allow-clock marker') && v.startsWith('f.ts:1'))).toBe(true);
+    expect(violations.some((v) => v.includes(CLOCK_REASON) && v.startsWith('f.ts:2') && v.includes('inserted'))).toBe(true);
+    expect(violations.some((v) => v.includes(CLOCK_REASON) && v.startsWith('f.ts:3') && v.includes('real'))).toBe(true);
+  });
+});
+
+describe('fix round 4: the AST closes four bypasses that needed no marker at all', () => {
+  it('bypass 1 — a leading block-comment marker on the same line does not exempt the call; both the call and the orphaned marker are caught', () => {
+    const fileText = '/* platform-free-allow-clock: x */ const t = Date.now();';
+    const violations = findGuardViolations('f.ts', fileText);
+    expect(violations).toHaveLength(2);
+    expect(violations.some((v) => v.includes(CLOCK_REASON) && v.includes('Date.now()'))).toBe(true);
+    expect(violations.some((v) => v.includes('stale platform-free-allow-clock marker'))).toBe(true);
+  });
+
+  it("bypass 2 — a call on a continuation line that trims to start with '*' is still found (no 'skip JSDoc continuation' heuristic exists to fool)", () => {
+    const fileText = 'const t = 2\n  * Date.now();';
+    const violations = findGuardViolations('f.ts', fileText);
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toBe(`f.ts:2 ${CLOCK_REASON}: * Date.now();`);
+  });
+
+  it('bypass 3 — a regex character class containing // does not hide a real call that follows it on the same line', () => {
+    const fileText = 'const r = /[a//b]/; const t = Date.now();';
+    const violations = findGuardViolations('f.ts', fileText);
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toContain(CLOCK_REASON);
+    expect(violations[0]).toContain('Date.now()');
+  });
+
+  it('bypass 4 — a marker past a regex, with no comment relationship to an earlier call on the same line, does not exempt it; both are caught', () => {
+    const fileText = 'const t = Date.now(); const r = /[a//b]/; // platform-free-allow-clock: not really for the call above';
+    const violations = findGuardViolations('f.ts', fileText);
+    expect(violations).toHaveLength(2);
+    expect(violations.some((v) => v.includes(CLOCK_REASON) && v.includes('const t = Date.now()'))).toBe(true);
+    expect(violations.some((v) => v.includes('stale platform-free-allow-clock marker'))).toBe(true);
+  });
+
+  // A parser has no string/comment ambiguity at all, so these — round 3's own
+  // closed gap — hold structurally now, not as a patched special case.
+  it('a marker inside a string literal is not a comment and grants no exemption', () => {
+    const fileText = "const s = 'platform-free-allow-clock: fake reason'; const t = Date.now();";
+    const violations = findGuardViolations('f.ts', fileText);
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toContain(CLOCK_REASON);
+  });
+
+  it('a marker inside a template literal is not a comment and grants no exemption', () => {
+    const fileText = 'const s = `platform-free-allow-clock: fake reason`; const t = Date.now();';
+    const violations = findGuardViolations('f.ts', fileText);
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toContain(CLOCK_REASON);
+  });
+
+  it('a marker inside a regex literal is not a comment and grants no exemption', () => {
+    const fileText = 'const r = /platform-free-allow-clock: fake reason/; const t = new Date();';
+    const violations = findGuardViolations('f.ts', fileText);
+    expect(violations).toHaveLength(1);
+    expect(violations[0]).toContain(CLOCK_REASON);
+  });
+
+  it("a stray ' inside a regex no longer desyncs anything (round 3's quote-tracker false positive) — a correctly marked, unrelated seam elsewhere still passes", () => {
+    const fileText = ["const re = /it's a regex/;", 'const t = Date.now(); // platform-free-allow-clock: legit reason'].join('\n');
+    expect(findGuardViolations('f.ts', fileText)).toEqual([]);
   });
 });
 
