@@ -227,6 +227,88 @@
     "hash": "v1:d0693198684cb17ec652d08781fdbb3b31d311f6dde7d9fde63a6c8981e095c0"
   },
   {
+    "name": "outline-template scene keeps its printable outline body",
+    "fn": "scene",
+    "input": {
+      "omitted": false,
+      "elements": [
+        {
+          "input": {
+            "role": "sceneHeading",
+            "style": "st_scene_heading",
+            "text": {
+              "plain": "INT. DINER - NIGHT",
+              "runs": [
+                {
+                  "text": "INT. DINER - NIGHT",
+                  "attrs": {}
+                }
+              ],
+              "embeds": []
+            },
+            "dual": null
+          },
+          "printable": true
+        },
+        {
+          "input": {
+            "role": "outline",
+            "style": "st_outline_1",
+            "text": {
+              "plain": "ACT ONE",
+              "runs": [
+                {
+                  "text": "ACT ONE",
+                  "attrs": {}
+                }
+              ],
+              "embeds": []
+            },
+            "dual": null
+          },
+          "printable": true
+        },
+        {
+          "input": {
+            "role": "synopsis",
+            "style": "st_summary",
+            "text": {
+              "plain": "Maya waits for the call.",
+              "runs": [
+                {
+                  "text": "Maya waits for the call.",
+                  "attrs": {}
+                }
+              ],
+              "embeds": []
+            },
+            "dual": null
+          },
+          "printable": true
+        },
+        {
+          "input": {
+            "role": "note",
+            "style": "st_note",
+            "text": {
+              "plain": "check this",
+              "runs": [
+                {
+                  "text": "check this",
+                  "attrs": {}
+                }
+              ],
+              "embeds": []
+            },
+            "dual": null
+          },
+          "printable": false
+        }
+      ]
+    },
+    "hash": "v1:1c8b6661cdb6e99f7bc0095f052bb32d86387235fb47328b91351eec6b19a64a"
+  },
+  {
     "name": "partial shot range",
     "fn": "shot",
     "input": {

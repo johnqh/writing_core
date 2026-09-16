@@ -531,7 +531,7 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
       const key = `${scene.omitted}:${scene.elementIds.map((id) => `${id}.${model.textVersion(id)}.${model.attrsVersion(id)}`).join(',')}:${model.template().revision}`;
       return memoHash(`scene:${sceneId}`, key, () => sceneContentHash({
         omitted: scene.omitted,
-        elements: scene.elementIds.map((id) => ({ hash: model.elementContentHash(id), role: model.element(id)!.role, printable: model.resolveStyle(id).printable })),
+        elements: scene.elementIds.map((id) => ({ hash: model.elementContentHash(id), printable: model.resolveStyle(id).printable })),
       }));
     },
     entityContentHash(entityId) {

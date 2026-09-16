@@ -23,6 +23,21 @@ const inputs: HashVectorInput[] = [
     },
   },
   {
+    // Spec 11 §4.2: exclusion is by the style's `printable` flag only. In the text-outline template
+    // the outline/summary styles are the printed body (printable: true) and only `note` is
+    // printable: false — so this vector must differ from the same scene with its body removed.
+    name: 'outline-template scene keeps its printable outline body', fn: 'scene',
+    input: {
+      omitted: false,
+      elements: [
+        { input: { role: 'sceneHeading', style: 'st_scene_heading', text: T('INT. DINER - NIGHT'), dual: null }, printable: true },
+        { input: { role: 'outline', style: 'st_outline_1', text: T('ACT ONE'), dual: null }, printable: true },
+        { input: { role: 'synopsis', style: 'st_summary', text: T('Maya waits for the call.'), dual: null }, printable: true },
+        { input: { role: 'note', style: 'st_note', text: T('check this'), dual: null }, printable: false },
+      ],
+    },
+  },
+  {
     name: 'partial shot range', fn: 'shot',
     input: {
       elements: [

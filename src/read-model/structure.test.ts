@@ -8,6 +8,7 @@ import { insertElementRecord } from '../model/element-record.js';
 import { writeEntity } from '../model/json.js';
 import type { StyleRole } from '../schema/vocab.js';
 import { screenplayStandard } from '../templates/builtin/screenplay-standard.js';
+import { textOutline } from '../templates/builtin/text-outline.js';
 import { formatNumberLabel } from './number-label.js';
 import { computeOutlineTree, computeScenes, type StructureInput } from './structure.js';
 import { openDocument } from './open.js';
@@ -23,8 +24,8 @@ const meta = { createdBy: 'u', createdAt: 0, editedBy: 'u', editedAt: 0 };
  * a regression that falls back to insertion order would still pass if the fixture
  * happened to be pre-sorted, so we deliberately scramble it here.
  */
-function script(rows: [string, string][]) {
-  const doc = createDocument({ template: screenplayStandard, uid: 'u', ids });
+function script(rows: [string, string][], template = screenplayStandard) {
+  const doc = createDocument({ template, uid: 'u', ids });
   const elements = doc.getMap('elements');
   for (const k of [...elements.keys()]) elements.delete(k);
   const seeds = rows.map(([style, text], i) => ({
@@ -309,5 +310,35 @@ describe('content hashes on the model', () => {
     expect(model.sceneContentHash(idOf(0) as never)).toBe(before);
     (made[1]!.get('text') as Y.Text).insert(3, ' Now.');
     expect(model.sceneContentHash(idOf(0) as never)).not.toBe(before);
+  });
+
+  it('covers an outline scene body, whose styles are printable outline/synopsis roles', () => {
+    // Spec 11 §4.2: the scene hash excludes elements whose STYLE is printable:false. In
+    // text-outline the outline/summary styles are the printed body (only `note` is
+    // printable:false), so deleting them must change the scene hash.
+    const { model, doc, idOf } = script([
+      ['st_scene_heading', 'INT. DINER - NIGHT'],
+      ['st_outline_1', 'ACT ONE'],
+      ['st_summary', 'Maya waits for the call.'],
+      ['st_note', 'check this'],
+    ], textOutline);
+    const withBody = model.sceneContentHash(idOf(0) as never);
+    doc.transact(() => {
+      doc.getMap('elements').delete(idOf(1));
+      doc.getMap('elements').delete(idOf(2));
+    });
+    expect(model.elements()).toHaveLength(2);
+    expect(model.sceneContentHash(idOf(0) as never)).not.toBe(withBody);
+  });
+
+  it('still ignores a printable:false note in an outline scene', () => {
+    const { model, doc, idOf } = script([
+      ['st_scene_heading', 'INT. DINER - NIGHT'],
+      ['st_summary', 'Maya waits for the call.'],
+      ['st_note', 'check this'],
+    ], textOutline);
+    const before = model.sceneContentHash(idOf(0) as never);
+    doc.transact(() => doc.getMap('elements').delete(idOf(2)));
+    expect(model.sceneContentHash(idOf(0) as never)).toBe(before);
   });
 });

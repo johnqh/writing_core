@@ -1,7 +1,7 @@
 import { BUILTIN_STYLE_RE } from '../ids/ids.js';
 import type { EntityJSON } from '../schema/entities.js';
 import type { TextJSON } from '../schema/text.js';
-import { NON_PRINTING_ROLES, type StyleRole } from '../schema/vocab.js';
+import type { StyleRole } from '../schema/vocab.js';
 import { canonicalJSON } from './canonical-json.js';
 import { sha256Hex } from './sha256.js';
 
@@ -139,8 +139,15 @@ export function elementContentHash(input: ElementHashInput): ContentHash {
   }));
 }
 
-export function sceneContentHash(input: { omitted: boolean; elements: readonly { hash: string; role: StyleRole | null; printable: boolean }[] }): ContentHash {
-  const printing = input.elements.filter((e) => e.printable && !(e.role !== null && (NON_PRINTING_ROLES as readonly string[]).includes(e.role)));
+/**
+ * Spec 11 §4.2. Exclusion is by the element style's resolved `printable` flag ALONE — never by
+ * role. The built-in *script* templates set `printable: false` on their outline/synopsis/note
+ * styles, which is where the "non-printing roles" shorthand came from; the text-outline template
+ * does not, because there those styles are the printed body. Filtering on the role as well made
+ * every outline scene hash identically with its entire body deleted.
+ */
+export function sceneContentHash(input: { omitted: boolean; elements: readonly { hash: string; printable: boolean }[] }): ContentHash {
+  const printing = input.elements.filter((e) => e.printable);
   return v1(`fw-scene-v${HASH_VERSION}\n${input.omitted ? 'omitted\n' : ''}${printing.map((e) => e.hash).join('\n')}`);
 }
 
@@ -240,7 +247,7 @@ export function computeHashVector(v: HashVectorInput): ContentHash {
     case 'scene':
       return sceneContentHash({
         omitted: v.input.omitted,
-        elements: v.input.elements.map((e) => ({ hash: elementContentHash(e.input), role: e.input.role, printable: e.printable })),
+        elements: v.input.elements.map((e) => ({ hash: elementContentHash(e.input), printable: e.printable })),
       });
     case 'shot': {
       const first = v.input.first;

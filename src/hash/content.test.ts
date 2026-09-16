@@ -97,19 +97,29 @@ describe('scene, shot, entity and packet hashes', () => {
   const a = el(T('A'));
   const b = el(T('B'));
   it('scene hash covers printing elements and omission', () => {
-    const s = sceneContentHash({ omitted: false, elements: [{ hash: a, role: 'sceneHeading', printable: true }, { hash: b, role: 'action', printable: true }] });
-    expect(sceneContentHash({ omitted: false, elements: [{ hash: a, role: 'sceneHeading', printable: true }, { hash: el(T('note')), role: 'note', printable: false }, { hash: b, role: 'action', printable: true }] })).toBe(s);
-    expect(sceneContentHash({ omitted: true, elements: [{ hash: a, role: 'sceneHeading', printable: true }, { hash: b, role: 'action', printable: true }] })).not.toBe(s);
+    const s = sceneContentHash({ omitted: false, elements: [{ hash: a, printable: true }, { hash: b, printable: true }] });
+    expect(sceneContentHash({ omitted: false, elements: [{ hash: a, printable: true }, { hash: el(T('note')), printable: false }, { hash: b, printable: true }] })).toBe(s);
+    expect(sceneContentHash({ omitted: true, elements: [{ hash: a, printable: true }, { hash: b, printable: true }] })).not.toBe(s);
   });
-  it('excludes a printing-role element whose style is printable:false, independently of NON_PRINTING_ROLES', () => {
-    // 'action' is not in NON_PRINTING_ROLES, so this exercises the `printable` flag itself, not the
-    // role-based exclusion covered above.
-    const s = sceneContentHash({ omitted: false, elements: [{ hash: a, role: 'sceneHeading', printable: true }, { hash: b, role: 'action', printable: true }] });
+  it('excludes a printing-role element whose style is printable:false', () => {
+    const s = sceneContentHash({ omitted: false, elements: [{ hash: a, printable: true }, { hash: b, printable: true }] });
     const withUnprintableAction = sceneContentHash({
       omitted: false,
-      elements: [{ hash: a, role: 'sceneHeading', printable: true }, { hash: el(T('hidden')), role: 'action', printable: false }, { hash: b, role: 'action', printable: true }],
+      elements: [{ hash: a, printable: true }, { hash: el(T('hidden')), printable: false }, { hash: b, printable: true }],
     });
     expect(withUnprintableAction).toBe(s);
+  });
+  it('INCLUDES outline/synopsis/note-role elements whose style is printable (spec 11 §4.2)', () => {
+    // In the text-outline template the outline and synopsis styles ARE the printed body. Excluding
+    // them by role (rather than by `printable`) let an outline scene hash identically with its whole
+    // body deleted.
+    const heading = { hash: a, printable: true } as const;
+    const empty = sceneContentHash({ omitted: false, elements: [heading] });
+    const withBody = sceneContentHash({
+      omitted: false,
+      elements: [heading, { hash: el(T('Act one'), { role: 'outline' }), printable: true }, { hash: el(T('Maya arrives.'), { role: 'synopsis' }), printable: true }],
+    });
+    expect(withBody).not.toBe(empty);
   });
   it('slices text for partial shot ranges', () => {
     expect(sliceTextJSON(T('Hello world', { b: true }), 6, 11)).toEqual(T('world', { b: true }));
