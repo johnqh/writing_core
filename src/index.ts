@@ -116,6 +116,9 @@ export { resolveParagraphLevel, bidiLevels, reorderVisual, mirrorChar } from './
 export { wordBoundaries } from './text/words.js';
 export { sentenceBoundaries, sentenceEnds, ABBREVIATIONS, MAY_END_ABBREVIATIONS } from './text/sentences.js';
 export { loadDictionary } from './text/dict.js';
+export { upperCaseWithMap } from './text/casing.js';
+export { smallCapsRuns, type SmallCapsRun } from './text/smallcaps.js';
+export { TAB_STOP_EMU, tabAdvance, specialCharWidth, embedWidth, type TabStops, type EmbedSize } from './text/special.js';
 
 // ─── Fonts ──────────────────────────────────────────────────────────────────
 // (`FaceId`/`FontFaceMetrics` are already exported above from `./layout/types.js`; this

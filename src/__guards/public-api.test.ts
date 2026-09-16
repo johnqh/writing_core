@@ -60,6 +60,7 @@ const ROOT_EXPORTS = [
   'shiftTabAction', 'shotContentHash', 'sizeEmuFromPoints', 'sliceTextJSON', 'standardHeader', 'standardTitlePageSeeds',
   'stripExtension', 'styleDef', 'tabAction', 'templateHash', 'textJSONFromPlain', 'textJSONToDelta', 'textOutline',
   'titleFromKey', 'tofuFace', 'toPortablePos', 'treatment', 'validateDocument', 'validateTemplate', 'verticalDrama', 'wordBoundaries', 'wordBreakProperty',
+  'upperCaseWithMap', 'smallCapsRuns', 'TAB_STOP_EMU', 'tabAdvance', 'specialCharWidth', 'embedWidth',
 ].sort();
 
 // Sorted, committed snapshot of every value `../internal.js` exports. Regenerate the same way,
