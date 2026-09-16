@@ -109,8 +109,13 @@ function rehearse(req: BatchRequest, prepared: Prepared[], clock: () => number):
   const replica = new Y.Doc({ gc: false });
   Y.applyUpdate(replica, Y.encodeStateAsUpdate(req.doc));
   const model = openDocument(replica, req.model.deps);
+  // Rehearsal mints ids too (a command's `run` may call `ctx.ids`, and `run()` always
+  // mints one `changeId`). Forking here means the rehearsal pass draws from a throwaway
+  // copy of the id stream, so it can never advance `req.ids`: the real apply that follows
+  // mints exactly the ids it would have minted had rehearsal not run at all.
+  const rehearsalReq: BatchRequest = { ...req, ids: req.ids.fork() };
   try {
-    return run(req, replica, model, prepared, clock);
+    return run(rehearsalReq, replica, model, prepared, clock);
   } finally {
     model.dispose();
     replica.destroy();

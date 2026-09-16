@@ -2,7 +2,7 @@ import * as Y from 'yjs';
 import { z } from 'zod/v4';
 import { describe, expect, it } from 'vitest';
 import { createSeededIdSource } from '../ids/id-source.js';
-import type { ElementId } from '../ids/ids.js';
+import { newId, type ElementId } from '../ids/ids.js';
 import { createDocument } from '../model/create.js';
 import { openDocument } from '../read-model/open.js';
 import { screenplayStandard } from '../templates/builtin/screenplay-standard.js';
@@ -73,6 +73,22 @@ registerCommand({
     clockSeen.push(ctx.clock());
     return { ok: true };
   },
+});
+
+// Mints an id from ctx.ids and records it, without otherwise touching the doc — used to
+// prove a rehearsal pass never advances the real IdSource's stream (queued ruling C).
+let mintedId = '';
+registerCommand({
+  id: 'test.mintId', params: z.object({}), scope: 'document', mutates: true, requires: ['write'], undo: 'normal',
+  labelKey: 'writing.command.test.mintId', fastPath: true, isEnabled: () => ({ enabled: true }),
+  run(ctx) {
+    mintedId = newId('el', ctx.ids);
+    return { ok: true };
+  },
+});
+registerCommand({
+  id: 'test.noop', params: z.object({}), scope: 'document', mutates: false, requires: [], undo: 'none',
+  labelKey: 'writing.command.test.noop', isEnabled: () => ({ enabled: true }), run: () => ({ ok: true }),
 });
 
 function setup() {
@@ -187,5 +203,41 @@ describe('single-command rehearsal (fastPath)', () => {
     fastAppendRunCount = 0;
     executeCommand({ ...base, command: { id: 'test.fastAppend', params: { elementId: id, text: 'F' } } });
     expect(fastAppendRunCount).toBe(1);
+  });
+});
+
+describe('rehearsal and the id stream (queued ruling C)', () => {
+  it('a seeded IdSource assigns a command the same id whether or not it is rehearsed', () => {
+    const actorForTest = actor;
+
+    // Path 1: a single fastPath command — no rehearsal at all.
+    const idsSolo = createSeededIdSource(4242);
+    const docSolo = createDocument({ template: screenplayStandard, uid: 'u', ids: idsSolo });
+    const modelSolo = openDocument(docSolo, { ids: idsSolo, clock: () => 0, locale: 'en' });
+    const originsSolo = createSessionOrigins(actorForTest);
+    mintedId = '';
+    executeCommand({
+      doc: docSolo, model: modelSolo, actor: actorForTest, origin: originsSolo.make('local-command'),
+      capabilities: new Set(['write'] as const), ids: idsSolo, command: { id: 'test.mintId', params: {} },
+    });
+    const idWithoutRehearsal = mintedId;
+    expect(idWithoutRehearsal).not.toBe('');
+
+    // Path 2: the same command inside a 2-command batch, which always rehearses first —
+    // starting from an identically seeded (and so far identically advanced) IdSource.
+    const idsBatched = createSeededIdSource(4242);
+    const docBatched = createDocument({ template: screenplayStandard, uid: 'u', ids: idsBatched });
+    const modelBatched = openDocument(docBatched, { ids: idsBatched, clock: () => 0, locale: 'en' });
+    const originsBatched = createSessionOrigins(actorForTest);
+    mintedId = '';
+    const r = executeBatch({
+      doc: docBatched, model: modelBatched, actor: actorForTest, origin: originsBatched.make('local-command'),
+      capabilities: new Set(['write'] as const), ids: idsBatched,
+      commands: [{ id: 'test.mintId', params: {} }, { id: 'test.noop', params: {} }],
+    });
+    expect(r.ok).toBe(true);
+    const idWithRehearsal = mintedId;
+
+    expect(idWithRehearsal).toBe(idWithoutRehearsal);
   });
 });
