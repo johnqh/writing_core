@@ -37,7 +37,7 @@ const ROOT_EXPORTS = [
   'SmartTypeJSON', 'SmartTypeSeed', 'SoundMusicFields', 'SpellingJSON', 'StorylineJSON', 'StyleDef',
   'StyleDefaults', 'StyleFlow', 'StyleIdSchema', 'SuggestionItemJSON', 'SuggestionSetJSON', 'TAG_CATEGORY_SEEDS',
   'TEMPLATE_CATEGORIES', 'TEMPLATE_ISSUE_CODES', 'TEMPLATE_SCHEMA_VERSION', 'TEMPLATE_SEED_KEYS',
-  'TEXT_COMMANDS', 'TEXT_DIRECTIONS', 'TITLE_FIELDS', 'TITLE_PAGE_STYLES', 'TRACKED_ORIGIN_KINDS',
+  'TEXT_COMMANDS', 'TEXT_DIRECTIONS', 'TITLE_FIELDS', 'TITLE_PAGE_STYLES', 'TOKEN_NAMES', 'TRACKED_ORIGIN_KINDS',
   'TRACK_CHANGE_VIEWS', 'TRAIT_DEF_SEEDS', 'UNIMPLEMENTED_INVARIANTS', 'TableReadJSON', 'TagCategoryJSON', 'TagCategorySeed', 'TagJSON',
   'TagTextStyle', 'TemplateJSON', 'TextAttrs', 'TextJSON', 'TextRun', 'Timestamp', 'TitlePageJSON',
   'TitlePageLayout', 'TokenString', 'TrackChangeRecord', 'TrackChangesJSON', 'TraitDefJSON', 'TraitDefSeed',
@@ -45,7 +45,7 @@ const ROOT_EXPORTS = [
   'WRITING_CORE_VERSION', 'WardrobeFields', 'WireDocPos', 'WireRange', 'WriterJSON', 'addBuiltinCommands',
   'applyTemplate', 'authoredTemplate', 'bidiClass', 'bidiLevels', 'breakOpportunities', 'builtinStyleId', 'builtinStyleSlug', 'canonicalElementText',
   'canonicalJSON', 'comparePositions', 'computeHashVector', 'createDocument', 'createSeededIdSource',
-  'advanceTableFor', 'aliasFor', 'cjkRegion', 'createFontRegistry', 'createHarfBuzzShaper', 'createSessionOrigins', 'createSessionUndo', 'cryptoIdSource', 'decodeFwm', 'decodeRelativePosition', 'defaultPagination',
+  'advanceTableFor', 'aliasFor', 'cjkRegion', 'createFontRegistry', 'createHarfBuzzShaper', 'createSessionOrigins', 'createSessionUndo', 'cryptoIdSource', 'decodeFwm', 'decodeRelativePosition', 'defaultLocaleData', 'defaultPagination',
   'defineCommand', 'deltaToTextJSON', 'deterministicId', 'disabledFooter', 'documentFromJSON', 'documentToJSON',
   'eastAsianWidth', 'elementContentHash', 'emptyTextJSON', 'emuFromFontUnits', 'emuToInches', 'encodeFwm', 'encodeRelativePosition', 'enterAction',
   'entityContentHash', 'entityNameKey', 'executeBatch', 'executeCommand', 'exportTemplate', 'fallbackChain', 'flowTo', 'formatNumberLabel',
@@ -53,9 +53,9 @@ const ROOT_EXPORTS = [
   'harvest', 'idKind', 'idSchema', 'inchesToEmu', 'isId',
   'isMarkKey', 'isNewerThanCode', 'isPortablePos', 'isStyleId', 'letterPage', 'letters', 'lineBreakClass', 'listBuiltinTemplates',
   'listCommands', 'loadDictionary', 'localizeTemplate', 'materializeDocument', 'migrateDocument', 'mirrorChar', 'mirrorTemplate',
-  'newDualGroupId', 'newId', 'nextCluster', 'normalizeKey', 'nullShaper', 'openDocument', 'packetHash', 'parseSceneHeading', 'pointsToEmu',
+  'newDualGroupId', 'newId', 'nextCluster', 'normalizeKey', 'nullShaper', 'openDocument', 'packetHash', 'parseSceneHeading', 'parseTokenString', 'pointsToEmu',
   'positionBetween', 'previousCluster', 'queryLetter', 'readTextJSON', 'registerBuiltinCommands', 'registerCommand',
-  'registerInvariants', 'remapDocumentIds', 'reorderVisual', 'resolveParagraphLevel', 'resolveStyle', 'roleForImportedStyle', 'rootStyle', 'roundHalfEven', 'scanText',
+  'registerInvariants', 'remapDocumentIds', 'renderTokenString', 'reorderVisual', 'resolveParagraphLevel', 'resolveStyle', 'roleForImportedStyle', 'rootStyle', 'roundHalfEven', 'scanText',
   'sceneContentHash', 'sceneHeadingNumbering', 'screenplayStandard', 'script', 'scriptOf', 'sentenceBoundaries', 'sentenceBreakProperty', 'sentenceEnds', 'sha256Bytes', 'sha256Hex',
   'shiftTabAction', 'shotContentHash', 'sizeEmuFromPoints', 'sliceTextJSON', 'standardHeader', 'standardTitlePageSeeds',
   'stripExtension', 'styleDef', 'tabAction', 'templateHash', 'textJSONFromPlain', 'textJSONToDelta', 'textOutline',
@@ -98,6 +98,7 @@ describe('public API', () => {
     expect(api.STYLE_ROLES).toHaveLength(27);
     expect(api.DOC_TOP_LEVEL_KEYS).toHaveLength(30);
     expect(api.NUMBER_MODES).toEqual(['1AB', '1A2', 'AB2', 'BA2', 'romanUpper', 'romanLower']);
+    expect(api.TOKEN_NAMES).toHaveLength(24);
   });
 
   it('pins the root package surface exactly — any addition or removal must be deliberate', () => {

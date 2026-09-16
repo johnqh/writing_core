@@ -25,6 +25,7 @@ import type { ElementId, BookmarkId, NoteId, PageLockId, RevisionSetId, TagId } 
 import type { FontFamilyId } from '../schema/primitives.js';
 import type { NumberLabel } from '../schema/template.js';
 import type { Column, DiagnosticCode, TextDirection, TrackChangeView } from '../schema/vocab.js';
+import type { LocaleDataPort } from '../template/locale-data.js';
 
 export { DIAGNOSTIC_CODES } from '../schema/vocab.js';
 export type { DiagnosticCode } from '../schema/vocab.js';
@@ -99,6 +100,8 @@ export interface LayoutEngineOptions {
   shaper: Shaper | null;
   segmentation: SegmentationData;
   budgetMsPerSlice?: number;
+  /** The `TokenString` locale port (§20.2, M2 task 11); defaults to `defaultLocaleData`. */
+  locale?: LocaleDataPort;
 }
 
 /** Spec 02 §25.3, given in full. */

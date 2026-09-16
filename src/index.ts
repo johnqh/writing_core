@@ -64,6 +64,8 @@ export * from './schema/document.js';
 export { type ResolvedStyle, ROOT_REQUIRED_KEYS, FONT_KEYS, FLOW_KEYS, ROLE_DEFAULT_SPLIT, resolveStyle } from './template/resolve.js';
 export * from './template/validate.js';
 export * from './template/flow.js';
+export * from './template/tokens.js';
+export * from './template/locale-data.js';
 
 // ─── Read model ─────────────────────────────────────────────────────────────
 // (raw structure computation behind `openDocument` — readCollection, OrderIndex, computeScenes/

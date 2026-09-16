@@ -100,6 +100,21 @@ export type RevisionDisplay = (typeof REVISION_DISPLAYS)[number];
 export const TRACK_CHANGE_VIEWS = ['markup', 'simple', 'final', 'original'] as const;
 export type TrackChangeView = (typeof TRACK_CHANGE_VIEWS)[number];
 
+/**
+ * Spec 02 §20.2 (registry R30): the closed vocabulary of `TokenString` names — the
+ * `Name` production of the grammar `{'{' Name (':' Arg)* ('|' Filter)* '}'}`. Matching
+ * is case-insensitive (`{Title}` === `{title}`); this table holds the canonical casing
+ * as §20.2 writes it. `scene.heading`/`scene.number`, `revision.name`/`.color`/`.date`/
+ * `.mark`, `page.revision`, `revision.active`/`.collated` and `watermark.recipient` are
+ * single dotted identifiers, not a name plus a `:`-arg — the dot is part of `Name`.
+ */
+export const TOKEN_NAMES = [
+  'page', 'pages', 'date', 'lastRevised', 'title', 'field', 'draft', 'filename', 'project', 'snapshot',
+  'scene.heading', 'scene.number', 'style', 'label', 'revision.name', 'revision.color', 'revision.date',
+  'revision.mark', 'page.revision', 'revision.active', 'revision.collated', 'watermark.recipient', 'n', 'count',
+] as const;
+export type TokenName = (typeof TOKEN_NAMES)[number];
+
 /** Spec 02 §35: the closed vocabulary of layout diagnostic codes. */
 export const DIAGNOSTIC_CODES = [
   'keepViolated', 'forcedSplit', 'lockedBreakOverride', 'fontSubstituted',
