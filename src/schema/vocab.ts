@@ -99,3 +99,13 @@ export type RevisionDisplay = (typeof REVISION_DISPLAYS)[number];
 
 export const TRACK_CHANGE_VIEWS = ['markup', 'simple', 'final', 'original'] as const;
 export type TrackChangeView = (typeof TRACK_CHANGE_VIEWS)[number];
+
+/** Spec 02 §35: the closed vocabulary of layout diagnostic codes. */
+export const DIAGNOSTIC_CODES = [
+  'keepViolated', 'forcedSplit', 'lockedBreakOverride', 'fontSubstituted',
+  'glyphMissing', 'overlongUnbreakable', 'columnOverlap', 'styleCycle',
+  'titlePageOverflow', 'headerTruncated', 'numberGapExhausted',
+  'duplicateNumber', 'anchorOutOfOrder', 'markupForcesSpeedView',
+  'approximateShaping', 'unknownToken',
+] as const;
+export type DiagnosticCode = (typeof DIAGNOSTIC_CODES)[number];

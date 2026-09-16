@@ -93,3 +93,7 @@ export * from './templates/catalogue.js';
 
 // ─── Undo ───────────────────────────────────────────────────────────────────
 export * from './undo/undo-manager.js';
+
+// ─── Layout ─────────────────────────────────────────────────────────────────
+export { LAYOUT_ENGINE_VERSION, roundHalfEven, emuFromFontUnits, sizeEmuFromPoints } from './layout/round.js';
+export * from './layout/types.js';
