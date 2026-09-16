@@ -1,9 +1,10 @@
 import type { IdSource } from '../ids/id-source.js';
-import type { ElementId, StyleId } from '../ids/ids.js';
+import type { ElementId, EntityId, FolderId, StyleId } from '../ids/ids.js';
 import type { ElementMeta, ElementNumbering, OmitRecord, TrackChangeRecord } from '../schema/document.js';
 import type { ElementOverrides } from '../schema/template.js';
 import type { TextJSON } from '../schema/text.js';
 import type { StyleRole, TitleField } from '../schema/vocab.js';
+import type { ParsedSceneHeading } from './scene-heading.js';
 
 export type TextSnapshot = TextJSON;
 
@@ -53,3 +54,46 @@ export interface ModelDeps {
 }
 
 export type Unsubscribe = () => void;
+
+export interface SceneView {
+  readonly id: ElementId;
+  readonly index: number;
+  readonly headingText: string;
+  readonly heading: ParsedSceneHeading;
+  readonly number: string | null;
+  readonly elementIds: readonly ElementId[];
+  readonly folderPath: readonly FolderId[];
+  readonly actId: string | null;
+  readonly synopsis: TextSnapshot;
+  readonly color: string | null;
+  readonly title: string;
+  readonly locationId: EntityId | null;
+  readonly characterIds: readonly EntityId[];
+  readonly omitted: boolean;
+  readonly storyDay: string;
+  readonly versions: readonly { id: string; name: string; createdAt: number }[];
+}
+
+export interface DialogueBlockView {
+  readonly speakerId: ElementId;
+  readonly elementIds: readonly ElementId[];
+  readonly name: string;
+  readonly extension: string | null;
+  readonly entityId: EntityId | null;
+  readonly dualGroup: string | null;
+  readonly sceneId: ElementId | null;
+}
+
+export interface OutlineNode {
+  kind: 'root' | 'act' | 'sequence' | 'folder' | 'outline' | 'scene';
+  id: string;
+  title: string;
+  level: number;
+  elementId: ElementId | null;
+  children: OutlineNode[];
+}
+
+export interface TitlePageView {
+  readonly elements: readonly ElementView[];
+  readonly fields: Partial<Record<TitleField, { elementId: ElementId; text: string }>>;
+}

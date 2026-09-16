@@ -48,6 +48,9 @@ export * from './template/flow.js';
 export * from './read-model/order-index.js';
 export * from './read-model/views.js';
 export * from './read-model/open.js';
+export * from './read-model/scene-heading.js';
+export * from './read-model/number-label.js';
+export * from './read-model/structure.js';
 
 // ─── Templates (seeds) ──────────────────────────────────────────────────────
 export * from './templates/role-table.js';

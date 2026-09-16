@@ -1,14 +1,19 @@
 import * as Y from 'yjs';
-import type { DocId, ElementId, StyleId } from '../ids/ids.js';
+import type { DocId, ElementId, EntityId, StyleId } from '../ids/ids.js';
 import { readEmbeddedTemplate } from '../model/embed-template.js';
 import { documentToJSON } from '../model/json.js';
+import { comparePositions } from '../model/positions.js';
 import { readTextJSON } from '../model/ytext.js';
 import type { DocumentJSON, EmbeddedTemplateJSON, SettingsJSON } from '../schema/document.js';
 import type { StyleDef } from '../schema/template.js';
-import type { StyleRole } from '../schema/vocab.js';
+import type { EntityKind, StyleRole } from '../schema/vocab.js';
+import { normalizeKey, stripExtension } from '../smarttype/normalize.js';
 import { type ResolvedStyle, resolveStyle } from '../template/resolve.js';
 import { OrderIndex } from './order-index.js';
-import type { ElementView, ModelChange, ModelChangeBatch, ModelDeps, Unsubscribe } from './views.js';
+import { computeDialogueBlocks, computeOutlineTree, computeScenes, type StructureInput } from './structure.js';
+import type {
+  DialogueBlockView, ElementView, ModelChange, ModelChangeBatch, ModelDeps, OutlineNode, SceneView, TitlePageView, Unsubscribe,
+} from './views.js';
 
 type YMap = Y.Map<unknown>;
 
@@ -34,6 +39,12 @@ export interface DocumentModel {
   attrsVersion(elementId: ElementId): number;
   settings(): SettingsJSON;
   toJSON(): DocumentJSON;
+  scenes(): readonly SceneView[];
+  scene(id: ElementId): SceneView | undefined;
+  sceneOf(elementId: ElementId): SceneView | undefined;
+  dialogueBlocks(sceneId?: ElementId): readonly DialogueBlockView[];
+  outlineTree(): OutlineNode;
+  titlePage(): TitlePageView;
   subscribe(listener: (batch: ModelChangeBatch) => void): Unsubscribe;
   dispose(): void;
 }
@@ -57,6 +68,110 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
   let templateCache: EmbeddedTemplateJSON | null = null;
   let settingsCache: SettingsJSON | null = null;
   const pending = new Map<Y.Transaction, ModelChange[]>();
+
+  let structure: { scenes: SceneView[]; blocks: DialogueBlockView[]; tree: OutlineNode; sceneOf: Map<string, SceneView> } | null = null;
+  let titlePageCache: TitlePageView | null = null;
+  const invalidateStructure = () => {
+    structure = null;
+  };
+
+  const entityLookup = (kind: EntityKind, name: string): EntityId | null => {
+    const key = normalizeKey(kind === 'character' ? stripExtension(name).name : name, { language: deps.locale });
+    let found: Y.Map<unknown> | undefined;
+    for (const v of doc.getMap('entities').values()) {
+      const e = v as Y.Map<unknown>;
+      if (e.get('kind') !== kind) continue;
+      const aliases = (e.get('aliases') as Y.Array<string> | undefined)?.toArray() ?? [];
+      if (e.get('nameKey') === key || aliases.some((a) => normalizeKey(a, { language: deps.locale }) === key)) {
+        found = e;
+        break;
+      }
+    }
+    let guard = 0;
+    while (found && typeof found.get('mergedInto') === 'string' && guard++ < 64) {
+      found = doc.getMap('entities').get(found.get('mergedInto') as string) as Y.Map<unknown> | undefined;
+    }
+    return (found?.get('id') as EntityId | undefined) ?? null;
+  };
+
+  function structureInput(): StructureInput {
+    const castCategories = new Set(
+      [...doc.getMap('tagCategories').values()].filter((c) => (c as Y.Map<unknown>).get('entityKind') === 'character').map((c) => (c as Y.Map<unknown>).get('id')),
+    );
+    const castTagsByElement = new Map<string, EntityId[]>();
+    for (const v of doc.getMap('tags').values()) {
+      const t = v as Y.Map<unknown>;
+      if (!castCategories.has(t.get('categoryId'))) continue;
+      const list = castTagsByElement.get(String(t.get('elementId'))) ?? [];
+      list.push(t.get('entityId') as EntityId);
+      castTagsByElement.set(String(t.get('elementId')), list);
+    }
+    const st = doc.getMap('smartType');
+    const listTexts = (key: string) =>
+      [...((st.get(key) as Y.Map<{ text: string; pos: string }> | undefined)?.values() ?? [])].sort((a, b) => comparePositions(a.pos, b.pos)).map((e) => e.text);
+    return {
+      elements: model.elements(),
+      sceneMap: (id) => {
+        const s = (elementsMap.get(id) as Y.Map<unknown> | undefined)?.get('scene');
+        return s instanceof Y.Map ? (s as Y.Map<unknown>) : undefined;
+      },
+      folders: [...doc.getMap('folders').values()].map((v) => (v as Y.Map<unknown>).toJSON() as StructureInput['folders'][number]),
+      vocab: {
+        sceneIntros: listTexts('sceneIntros'), times: listTexts('times'),
+        introSeparator: String(st.get('introSeparator') ?? ' '), timeSeparator: String(st.get('timeSeparator') ?? ' - '),
+        language: String(doc.getMap('meta').get('language') ?? deps.locale),
+      },
+      resolveEntity: entityLookup,
+      castTagsByElement,
+    };
+  }
+
+  function getStructure() {
+    if (!structure) {
+      const input = structureInput();
+      const scenes = computeScenes(input);
+      const sceneOf = new Map<string, SceneView>();
+      for (const s of scenes) for (const id of s.elementIds) sceneOf.set(id, s);
+      structure = { scenes, blocks: computeDialogueBlocks(input, scenes), tree: computeOutlineTree(input, scenes), sceneOf };
+    }
+    return structure;
+  }
+
+  const COLLECTION_KINDS: Record<string, (ids: string[]) => ModelChange> = {
+    titlePage: () => ({ kind: 'titlePage' }),
+    entities: (ids) => ({ kind: 'entities', ids }),
+    tags: (ids) => ({ kind: 'tags', ids }),
+    notes: (ids) => ({ kind: 'notes', ids }),
+    revisions: () => ({ kind: 'revisions' }),
+    trackChanges: () => ({ kind: 'trackChanges' }),
+    production: () => ({ kind: 'production' }),
+    folders: () => ({ kind: 'folders' }),
+    beats: (ids) => ({ kind: 'beats', ids }),
+    shots: (ids) => ({ kind: 'shots', ids }),
+    smartType: () => ({ kind: 'smartType' }),
+    bin: () => ({ kind: 'bin' }),
+    bookmarks: () => ({ kind: 'bookmarks' }),
+    macros: () => ({ kind: 'macros' }),
+  };
+  const STRUCTURE_SOURCES = new Set(['entities', 'tags', 'folders', 'smartType', 'tagCategories']);
+  const collectionObservers: [Y.Map<unknown>, (events: Y.YEvent<Y.AbstractType<unknown>>[], tx: Y.Transaction) => void][] = [];
+  for (const key of [...Object.keys(COLLECTION_KINDS), 'tagCategories']) {
+    const map = doc.getMap<unknown>(key);
+    const handler = (events: Y.YEvent<Y.AbstractType<unknown>>[], tx: Y.Transaction) => {
+      if (STRUCTURE_SOURCES.has(key)) invalidateStructure();
+      if (key === 'titlePage') titlePageCache = null;
+      const make = COLLECTION_KINDS[key];
+      if (!make) return;
+      const ids = new Set<string>();
+      for (const e of events) {
+        if (e.target === map) for (const k of (e as Y.YMapEvent<unknown>).keysChanged) ids.add(k);
+        else if (e.path.length > 0) ids.add(String(e.path[0]));
+      }
+      queue(tx, make([...ids].sort()));
+    };
+    map.observeDeep(handler);
+    collectionObservers.push([map, handler]);
+  }
 
   for (const [id, v] of elementsMap.entries()) if (v instanceof Y.Map) index.upsert(id, String(v.get('pos')));
 
@@ -113,6 +228,7 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
   };
 
   const onElements = (events: Y.YEvent<Y.AbstractType<unknown>>[], tx: Y.Transaction) => {
+    invalidateStructure();
     const inserted = new Set<string>();
     const removed = new Set<string>();
     const changed = new Set<string>();
@@ -158,6 +274,7 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
   };
 
   const onTemplate = (events: Y.YEvent<Y.AbstractType<unknown>>[], tx: Y.Transaction) => {
+    invalidateStructure();
     templateCache = null;
     views.clear();
     const styleIds = new Set<string>();
@@ -229,6 +346,42 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
     attrsVersion: (id) => attrsVersions.get(id) ?? 0,
     settings: () => (settingsCache ??= deepFreeze(doc.getMap('settings').toJSON() as SettingsJSON)),
     toJSON: () => documentToJSON(doc),
+    scenes: () => getStructure().scenes,
+    scene: (id) => getStructure().scenes.find((s) => s.id === id),
+    sceneOf: (elementId) => getStructure().sceneOf.get(elementId),
+    dialogueBlocks: (sceneId) => (sceneId ? getStructure().blocks.filter((b) => b.sceneId === sceneId) : getStructure().blocks),
+    outlineTree: () => getStructure().tree,
+    titlePage() {
+      if (!titlePageCache) {
+        const tp = doc.getMap<unknown>('titlePage');
+        const elements = tp.get('elements') instanceof Y.Map ? (tp.get('elements') as Y.Map<unknown>) : new Y.Map<unknown>();
+        const tpTemplate = { ...template(), styles: template().titlePageStyles };
+        const views = [...elements.values()]
+          .map((v) => v as Y.Map<unknown>)
+          .sort((a, b) => comparePositions(String(a.get('pos')), String(b.get('pos'))))
+          .map((m) => {
+            const text = readTextJSON(m.get('text') as Y.Text);
+            let role: StyleRole | null = null;
+            try { role = resolveStyle(tpTemplate, m.get('style') as StyleId).role; } catch { role = null; }
+            return deepFreeze({
+              id: m.get('id') as ElementId, pos: String(m.get('pos')), style: m.get('style') as StyleId, role, text,
+              ov: m.get('ov') instanceof Y.Map ? (m.get('ov') as Y.Map<unknown>).toJSON() : {}, num: null, hasScene: false, dual: null,
+              altCount: 0, label: null, outlineLevel: null, shotId: null, folderId: null, lineAdjust: null, tc: null, omit: null,
+              meta: m.get('meta') as ElementView['meta'], field: (m.get('field') as ElementView['field']) ?? null,
+            } satisfies ElementView);
+          });
+        const fields: TitlePageView['fields'] = {};
+        const fieldMap = tp.get('fields');
+        if (fieldMap instanceof Y.Map) {
+          for (const [field, id] of fieldMap.entries()) {
+            const v = views.find((e) => e.id === id);
+            if (v) fields[field as keyof TitlePageView['fields']] = { elementId: v.id, text: v.text.plain };
+          }
+        }
+        titlePageCache = deepFreeze({ elements: views, fields });
+      }
+      return titlePageCache;
+    },
     subscribe(listener) {
       listeners.add(listener);
       return () => listeners.delete(listener);
@@ -238,6 +391,7 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
       templateMap.unobserveDeep(onTemplate);
       doc.getMap('settings').unobserve(onSettings);
       doc.off('afterTransaction', afterTransaction);
+      for (const [map, handler] of collectionObservers) map.unobserveDeep(handler);
       listeners.clear();
     },
   };
