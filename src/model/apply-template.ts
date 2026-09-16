@@ -1,6 +1,5 @@
 import * as Y from 'yjs';
-import { canonicalJSON } from '../hash/canonical-json.js';
-import { sha256Hex } from '../hash/sha256.js';
+import { templateHash } from '../hash/content.js';
 import type { IdSource } from '../ids/id-source.js';
 import { type StyleId, newId } from '../ids/ids.js';
 import type { MacroSeed, StyleDef, TemplateJSON } from '../schema/template.js';
@@ -105,7 +104,7 @@ export function applyTemplate(
       setJSONMap(macros, id, { id, ...seed });
     }
 
-    doc.getMap('meta').set('templateOrigin', { templateId: template.id, key: template.key, version: template.version, hash: `v1:${sha256Hex(canonicalJSON(template))}` });
+    doc.getMap('meta').set('templateOrigin', { templateId: template.id, key: template.key, version: template.version, hash: templateHash(template) });
   }, systemOrigin('applyTemplate'));
   return { remapped };
 }

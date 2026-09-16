@@ -2,7 +2,7 @@ import type { StyleId } from '../ids/ids.js';
 import type {
   ElementOverrides, FontSpec, NumberingSpec, StyleDef, StyleFlow, TemplateJSON,
 } from '../schema/template.js';
-import type { Alignment, SmartTypeList, SplitRule, StyleRole } from '../schema/vocab.js';
+import type { Alignment, Column, SmartTypeList, SplitRule, StyleRole } from '../schema/vocab.js';
 
 export interface ResolvedStyle {
   id: StyleId;
@@ -19,7 +19,7 @@ export interface ResolvedStyle {
   indentFirstLine: number;
   spaceBefore: number;
   lineSpacing: number;
-  column: 0 | 1 | 2;
+  column: Column;
   keepWithNext: boolean;
   keepTogether: boolean;
   splitRule: SplitRule;

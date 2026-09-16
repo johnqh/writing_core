@@ -1,6 +1,5 @@
 import * as Y from 'yjs';
-import { canonicalJSON } from '../hash/canonical-json.js';
-import { sha256Hex } from '../hash/sha256.js';
+import { templateHash } from '../hash/content.js';
 import type { IdSource } from '../ids/id-source.js';
 import { type DocId, type StyleId, newId } from '../ids/ids.js';
 import type { DocTopLevelKey, SettingsJSON, TableReadJSON } from '../schema/document.js';
@@ -70,7 +69,7 @@ export function createDocument(options: CreateDocumentOptions): Y.Doc {
     m.set('kind', options.kind ?? KIND_BY_CATEGORY[template.category] ?? 'script');
     m.set('language', options.language ?? template.locale);
     m.set('direction', template.direction);
-    m.set('templateOrigin', { templateId: template.id, key: template.key, version: template.version, hash: `v1:${sha256Hex(canonicalJSON(template))}` });
+    m.set('templateOrigin', { templateId: template.id, key: template.key, version: template.version, hash: templateHash(template) });
     m.set('forkedFrom', null);
     const migrations = m.set('migrations', new Y.Map<unknown>());
     for (const step of MIGRATION_STEPS) migrations.set(step.id, { at: now, by: 'create', codeVersion: 'create' });

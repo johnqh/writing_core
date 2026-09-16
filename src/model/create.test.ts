@@ -6,6 +6,8 @@ import { DOC_TOP_LEVEL_KEYS } from '../schema/document.js';
 import { NoteTypeSeed, RevisionColorSeed, TagCategorySeed, TraitDefSeed } from '../schema/template.js';
 import { screenplayStandard } from '../templates/builtin/screenplay-standard.js';
 import { verticalDrama } from '../templates/builtin/vertical-drama.js';
+import { templateHash } from '../hash/content.js';
+import { applyTemplate } from './apply-template.js';
 import { createDocument, titleFromKey } from './create.js';
 import { readEmbeddedTemplate } from './embed-template.js';
 
@@ -73,5 +75,18 @@ describe('titleFromKey', () => {
       expect(seed.shape.key.safeParse('').success).toBe(false);
       expect(seed.shape.key.safeParse('blue').success).toBe(true);
     }
+  });
+});
+
+describe('templateHash', () => {
+  it('is the one definition of meta.templateOrigin.hash, shared by createDocument and applyTemplate', () => {
+    const ids = createSeededIdSource(91);
+    const created = createDocument({ template: screenplayStandard, uid: 'u', ids, clock: () => 1 });
+    const origin = created.getMap('meta').get('templateOrigin') as { hash: string };
+    expect(origin.hash).toBe(templateHash(screenplayStandard));
+    expect(origin.hash).toMatch(/^v1:[0-9a-f]{64}$/);
+    // Applying a different template rewrites it through the same function.
+    applyTemplate(created, verticalDrama, { uid: 'u', ids, clock: () => 2 });
+    expect((created.getMap('meta').get('templateOrigin') as { hash: string }).hash).toBe(templateHash(verticalDrama));
   });
 });

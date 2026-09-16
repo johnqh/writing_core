@@ -3,7 +3,7 @@ import {
   Bcp47, Emu, EmuSigned, FontFamilyId, HexColor, I18nKey, JsonValue, Lines, StyleIdSchema, TokenString, idSchema,
 } from './primitives.js';
 import {
-  ALIGNMENTS, ENTITY_KINDS, LAYOUT_MODES, LINE_SPACING_PRESETS, NUMBER_MODES, NUMBER_POSITIONS, PAPER_SIZES,
+  ALIGNMENTS, COLUMNS, ENTITY_KINDS, LAYOUT_MODES, LINE_SPACING_PRESETS, NUMBER_MODES, NUMBER_POSITIONS, PAPER_SIZES,
   SMARTTYPE_LISTS, SPLIT_RULES, STYLE_ROLES, TEMPLATE_CATEGORIES, TEXT_DIRECTIONS, TITLE_FIELDS, UNDERLINE_KINDS,
 } from './vocab.js';
 
@@ -75,7 +75,7 @@ export const ElementOverrides = z.object({
   lineSpacing: z.number().min(0.5).max(4).optional(),
   keepWithNext: z.boolean().optional(),
   pageBreakBefore: z.boolean().optional(),
-  column: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
+  column: z.literal(COLUMNS).optional(),
   leadingAdjust: z.number().int().min(-25_400).max(50_800).optional(),
   direction: z.enum(['auto', 'ltr', 'rtl']).optional(),
   anchor: z.enum(['flow', 'bottom']).optional(),
@@ -97,7 +97,7 @@ export const StyleDef = z.object({
   indentFirstLine: EmuSigned.optional(),
   spaceBefore: Lines.optional(),
   lineSpacing: z.number().min(0.5).max(4).optional(),
-  column: z.union([z.literal(0), z.literal(1), z.literal(2)]).optional(),
+  column: z.literal(COLUMNS).optional(),
   keepWithNext: z.boolean().optional(),
   keepTogether: z.boolean().optional(),
   splitRule: z.enum(SPLIT_RULES).optional(),

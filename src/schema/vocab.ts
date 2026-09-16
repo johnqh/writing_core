@@ -31,6 +31,14 @@ export const NON_PRINTING_ROLES = ['outline', 'synopsis', 'note'] as const satis
 export const ALIGNMENTS = ['left', 'center', 'right', 'justify'] as const;
 export type Alignment = (typeof ALIGNMENTS)[number];
 
+/**
+ * Spec 01 §3.4: a style's column in a two-column (AV / multimedia) template — `0` for the single
+ * flowing column, `1` for the left column, `2` for the right. Declared once here, like every other
+ * vocabulary, instead of being re-spelled as `0 | 1 | 2` in each schema and resolver.
+ */
+export const COLUMNS = [0, 1, 2] as const;
+export type Column = (typeof COLUMNS)[number];
+
 export const SPLIT_RULES = ['lines', 'sentences', 'never'] as const;
 export type SplitRule = (typeof SPLIT_RULES)[number];
 

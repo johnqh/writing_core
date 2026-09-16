@@ -229,6 +229,17 @@ function stripPacket(value: unknown): unknown {
   return value;
 }
 
+/**
+ * `meta.templateOrigin.hash` (spec 01 §5.2): the canonical-JSON hash of a whole template, so a
+ * document records exactly which template revision it was created from or had applied. Shared by
+ * `createDocument` and `applyTemplate`, which each spelled `v1:${sha256Hex(canonicalJSON(t))}` out
+ * by hand — two copies that could drift, and a hard-coded `v1:` that a HASH_VERSION bump would
+ * leave behind.
+ */
+export function templateHash(template: unknown): ContentHash {
+  return v1(canonicalJSON(template));
+}
+
 export function packetHash(packet: Record<string, unknown>): ContentHash {
   return v1(canonicalJSON(stripPacket(packet)));
 }

@@ -24,7 +24,7 @@ const ROOT_EXPORTS = [
   'HeaderFooterSpec', 'HexColor', 'I18nKey', 'ID_PREFIXES', 'INTRO_VARIANTS', 'INVARIANT_CODES', 'ImportMeta',
   'JsonValue', 'LAYOUT_MODES', 'LINE_SPACING_FACTORS', 'LINE_SPACING_PRESETS', 'LOCALE_SCRIPT_WORDS',
   'LOCALIZED_TEMPLATE_KEYS', 'LOGICAL_FONT_FAMILIES', 'LabelSegment', 'LaneJSON', 'Lines', 'LocationFields',
-  'MARK_COMMANDS', 'MAX_POSITION_LENGTH', 'MIGRATION_STEPS', 'MacroAlias', 'MacroRecord', 'MacroSeed',
+  'COLUMNS', 'MARK_COMMANDS', 'MAX_POSITION_LENGTH', 'MIGRATION_STEPS', 'MacroAlias', 'MacroRecord', 'MacroSeed',
   'NON_PRINTING_ROLES', 'NOTE_TYPE_SEEDS', 'NUMBER_MODES', 'NUMBER_POSITIONS', 'NoteAnchor', 'NoteJSON',
   'NoteReplyJSON', 'NoteTypeJSON', 'NoteTypeSeed', 'NumberLabel', 'NumberingSpec', 'ORIGIN_KINDS', 'OmitRecord',
   'PAPER_SIZES', 'POSITION_DIGITS', 'PageLockJSON', 'PageNumberingRule', 'PageSpec', 'PaginationRules',
@@ -57,7 +57,7 @@ const ROOT_EXPORTS = [
   'registerInvariants', 'remapDocumentIds', 'resolveStyle', 'roleForImportedStyle', 'rootStyle', 'scanText',
   'sceneContentHash', 'sceneHeadingNumbering', 'screenplayStandard', 'sha256Bytes', 'sha256Hex',
   'shiftTabAction', 'shotContentHash', 'sliceTextJSON', 'standardHeader', 'standardTitlePageSeeds',
-  'stripExtension', 'styleDef', 'tabAction', 'textJSONFromPlain', 'textJSONToDelta', 'textOutline',
+  'stripExtension', 'styleDef', 'tabAction', 'templateHash', 'textJSONFromPlain', 'textJSONToDelta', 'textOutline',
   'titleFromKey', 'toPortablePos', 'treatment', 'validateDocument', 'validateTemplate', 'verticalDrama',
 ].sort();
 
