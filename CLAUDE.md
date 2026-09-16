@@ -39,7 +39,8 @@ about accounts, servers or UI.
 ## Patterns
 
 - Every write is a command run through `executeBatch`/`executeCommand`, one `doc.transact` per invocation, carrying a `TransactionOrigin`.
-- A command's `run` makes every refusal check before its first write. Every invocation — a single command or a multi-command batch — is rehearsed on a throwaway replica first, so a refusal after a partial write never reaches the live document. `fastPath: true` on a `CommandSpec` opts a *single* command out of that rehearsal (never a batch), trading the safety net for one fewer document clone; it is allowlisted to exactly `text.insert`, `text.insertSoftReturn`, `text.deleteBackward`, `text.deleteForward` (`src/commands/builtin.test.ts` pins the list) because those are the typing hot path and provably refuse — via `isEnabled` or as the first thing `run` does — before any write.
+- A command's `run` makes every refusal check before its first write. Every invocation — a single command or a multi-command batch — is rehearsed on a throwaway replica first, so a refusal after a partial write never reaches the live document. `fastPath: true` on a `CommandSpec` opts a *single* command out of that rehearsal (never a batch), trading the safety net for one fewer document clone; it is allowlisted to the keyboard hot path — `text.insert`, `text.insertSoftReturn`, `text.deleteBackward`, `text.deleteForward`, `element.split`, `element.setStyle`, `element.cycleStyle` (`src/commands/builtin.test.ts` pins the list) — because each provably refuses, via `isEnabled` or as the first thing `run` does, before any write. Rehearsal clones the whole document, so it costs O(document size): `src/commands/cost.bench.test.ts` guards the budget at 3000 elements.
+- `readOnly` defaults to `isNewerThanCode(doc)` (invariant I20); a caller must pass `false` explicitly to override it.
 - Element order is `pos` (fractional, base-62) then id. Never use `Y.Array` for anything people reorder.
 - Views from the read model are frozen and replaced, never mutated.
 
@@ -51,7 +52,10 @@ about accounts, servers or UI.
 - **Harvest sets counts, it does not increment them** — the harvester is debounced after edits and must be idempotent.
 - **A `revDel` embed occupies one Y.Text index.** Offsets in `TextJSON.embeds[].at` are Y.Text indices; `plain` excludes embeds.
 - **Changing any hash rule bumps `HASH_VERSION`**; never regenerate `vectors.json` for the same version.
-- **Built-in templates are generated.** Edit `osf.ts`, `shared.ts` or the authored modules and regenerate; never hand-edit `builtin/generated`.
+- **Built-in templates are generated.** Edit `osf.ts`, `shared.ts` or the authored modules and regenerate; never hand-edit `builtin/generated` — `generated/checksums.json` is vendored and the golden test verifies it with or without the research sources.
+- **`ctx.model` is stale inside a command.** A command runs inside `doc.transact`, and the read model's order index, element views and caches are only refreshed by its observers when the transaction ENDS. Read `ctx.model` before your first write; after writing, read the Y.Doc directly (see `repairDualRuns` in `commands/element-ops.ts`).
+- **`textVersion`/`attrsVersion` are per-id high-water marks**, never reset on delete: an id can come back (undo, a rejected tracked delete, a re-import) and a reused id with reset counters would collide with the previous element's cache entry.
+- **`resolveStyle` is memoized on the template object's identity** (a WeakMap), which is the `(templateRevision, styleId)` key spec 01 §3.4.2 asks for because the read model rebuilds its frozen template object on every template mutation. The cached resolution is frozen; mutate a copy.
 
 ## Specs
 
