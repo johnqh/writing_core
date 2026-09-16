@@ -13,11 +13,13 @@ import { getCommand, registerCommand } from './registry.js';
 const actor = { userId: 'u1', displayName: 'U', color: '#123456', kind: 'human' as const };
 const ids = createSeededIdSource(62);
 
+let appendRunCount = 0;
 registerCommand({
   id: 'test.append', params: z.object({ elementId: z.string(), text: z.string() }), scope: 'document', mutates: true,
   requires: ['write'], undo: 'normal', labelKey: 'writing.command.test.append',
   isEnabled: (ctx, p) => (ctx.doc.getMap('elements').has(p.elementId) ? { enabled: true } : { enabled: false, reason: 'notFound' }),
   run(ctx, p) {
+    appendRunCount++;
     const text = (ctx.doc.getMap('elements').get(p.elementId) as Y.Map<unknown>).get('text') as Y.Text;
     text.insert(text.length, p.text);
     return { ok: true };
@@ -26,6 +28,51 @@ registerCommand({
 registerCommand({
   id: 'test.refuse', params: z.object({}), scope: 'document', mutates: true, requires: ['write'], undo: 'normal',
   labelKey: 'writing.command.test.refuse', isEnabled: () => ({ enabled: true }), run: () => ({ ok: false, reason: 'notApplicable' }),
+});
+// A misbehaving command that writes and only then refuses — used to prove that
+// single commands are rehearsed by default (finding A) and that `fastPath`
+// skips that safety net.
+registerCommand({
+  id: 'test.writeThenRefuse', params: z.object({ elementId: z.string() }), scope: 'document', mutates: true,
+  requires: ['write'], undo: 'normal', labelKey: 'writing.command.test.writeThenRefuse', isEnabled: () => ({ enabled: true }),
+  run(ctx, p) {
+    const text = (ctx.doc.getMap('elements').get(p.elementId) as Y.Map<unknown>).get('text') as Y.Text;
+    text.insert(text.length, 'LEAK');
+    return { ok: false, reason: 'notApplicable' };
+  },
+});
+registerCommand({
+  id: 'test.fastWriteThenRefuse', params: z.object({ elementId: z.string() }), scope: 'document', mutates: true,
+  requires: ['write'], undo: 'normal', labelKey: 'writing.command.test.fastWriteThenRefuse', fastPath: true,
+  isEnabled: () => ({ enabled: true }),
+  run(ctx, p) {
+    const text = (ctx.doc.getMap('elements').get(p.elementId) as Y.Map<unknown>).get('text') as Y.Text;
+    text.insert(text.length, 'LEAK');
+    return { ok: false, reason: 'notApplicable' };
+  },
+});
+let fastAppendRunCount = 0;
+registerCommand({
+  id: 'test.fastAppend', params: z.object({ elementId: z.string(), text: z.string() }), scope: 'document', mutates: true,
+  requires: ['write'], undo: 'normal', labelKey: 'writing.command.test.fastAppend', fastPath: true,
+  isEnabled: (ctx, p) => (ctx.doc.getMap('elements').has(p.elementId) ? { enabled: true } : { enabled: false, reason: 'notFound' }),
+  run(ctx, p) {
+    fastAppendRunCount++;
+    const text = (ctx.doc.getMap('elements').get(p.elementId) as Y.Map<unknown>).get('text') as Y.Text;
+    text.insert(text.length, p.text);
+    return { ok: true };
+  },
+});
+// Records the ctx.clock() value it sees each time it runs, used to prove
+// rehearsal and the real apply share one resolved clock value (finding B).
+const clockSeen: number[] = [];
+registerCommand({
+  id: 'test.clockProbe', params: z.object({}), scope: 'document', mutates: false, requires: [], undo: 'none',
+  labelKey: 'writing.command.test.clockProbe', isEnabled: () => ({ enabled: true }),
+  run(ctx) {
+    clockSeen.push(ctx.clock());
+    return { ok: true };
+  },
 });
 
 function setup() {
@@ -89,5 +136,56 @@ describe('executeBatch', () => {
     expect(origins.make('local-typing')).toBeInstanceOf(origins.Tracked);
     expect(origins.make('mcp')).not.toBeInstanceOf(origins.Tracked);
     expect(createSessionOrigins(actor).make('local-typing')).not.toBeInstanceOf(origins.Tracked);
+  });
+
+  it('resolves the clock once and shares it between the rehearsal pass and the real apply', () => {
+    const { id, base } = setup();
+    clockSeen.length = 0;
+    let ticks = 500;
+    const clock = () => ticks++;
+    const r = executeBatch({
+      ...base,
+      clock,
+      commands: [{ id: 'test.append', params: { elementId: id, text: 'A' } }, { id: 'test.clockProbe', params: {} }],
+    });
+    expect(r.ok).toBe(true);
+    // One push from the rehearsal pass, one from the real apply.
+    expect(clockSeen).toHaveLength(2);
+    expect(clockSeen[0]).toBe(clockSeen[1]);
+  });
+});
+
+describe('single-command rehearsal (fastPath)', () => {
+  it('rehearses a single command by default, so a command that writes then refuses leaves the document untouched', () => {
+    const { id, base, textOf } = setup();
+    const r = executeCommand({ ...base, command: { id: 'test.writeThenRefuse', params: { elementId: id } } });
+    expect(r).toMatchObject({ ok: false, reason: 'notApplicable' });
+    expect(textOf()).toBe('');
+  });
+
+  it('a fastPath command skips rehearsal: a write-then-refuse fastPath command leaks its write', () => {
+    const { id, base, textOf } = setup();
+    const r = executeCommand({ ...base, command: { id: 'test.fastWriteThenRefuse', params: { elementId: id } } });
+    expect(r).toMatchObject({ ok: false, reason: 'notApplicable' });
+    expect(textOf()).toBe('LEAK');
+  });
+
+  it('a well-behaved fastPath command still applies directly', () => {
+    const { id, base, textOf } = setup();
+    fastAppendRunCount = 0;
+    const r = executeCommand({ ...base, command: { id: 'test.fastAppend', params: { elementId: id, text: 'F' } } });
+    expect(r).toMatchObject({ ok: true });
+    expect(textOf()).toBe('F');
+    expect(fastAppendRunCount).toBe(1);
+  });
+
+  it('a non-fastPath single command runs twice (rehearsal + real), a fastPath one runs once', () => {
+    const { id, base } = setup();
+    appendRunCount = 0;
+    executeCommand({ ...base, command: { id: 'test.append', params: { elementId: id, text: 'A' } } });
+    expect(appendRunCount).toBe(2);
+    fastAppendRunCount = 0;
+    executeCommand({ ...base, command: { id: 'test.fastAppend', params: { elementId: id, text: 'F' } } });
+    expect(fastAppendRunCount).toBe(1);
   });
 });

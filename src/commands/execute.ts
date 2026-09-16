@@ -50,8 +50,7 @@ function prepare(req: BatchRequest): { ok: true; prepared: Prepared[] } | Extrac
   return { ok: true, prepared };
 }
 
-function run(req: BatchRequest, doc: Y.Doc, model: DocumentModel, prepared: Prepared[]): BatchResult {
-  const clock = req.clock ?? Date.now;
+function run(req: BatchRequest, doc: Y.Doc, model: DocumentModel, prepared: Prepared[], clock: () => number): BatchResult {
   const results: CommandResult[] = [];
   const inserted = new Set<string>();
   const removed = new Set<string>();
@@ -106,12 +105,12 @@ function run(req: BatchRequest, doc: Y.Doc, model: DocumentModel, prepared: Prep
   };
 }
 
-function rehearse(req: BatchRequest, prepared: Prepared[]): BatchResult {
+function rehearse(req: BatchRequest, prepared: Prepared[], clock: () => number): BatchResult {
   const replica = new Y.Doc({ gc: false });
   Y.applyUpdate(replica, Y.encodeStateAsUpdate(req.doc));
   const model = openDocument(replica, req.model.deps);
   try {
-    return run(req, replica, model, prepared);
+    return run(req, replica, model, prepared, clock);
   } finally {
     model.dispose();
     replica.destroy();
@@ -121,12 +120,22 @@ function rehearse(req: BatchRequest, prepared: Prepared[]): BatchResult {
 export function executeBatch(req: BatchRequest): BatchResult {
   const p = prepare(req);
   if (!p.ok) return p;
-  if (req.dryRun) return rehearse(req, p.prepared);
-  if (p.prepared.length > 1) {
-    const rehearsal = rehearse(req, p.prepared);
+  // Resolved once so a rehearsal pass and the real apply always see the same
+  // instant (spec 08 §3.3 item 4) — a clock-gated command must not be able to
+  // pass rehearsal and then fail (or behave differently) for the real apply.
+  const now = (req.clock ?? Date.now)();
+  const clock = (): number => now;
+  if (req.dryRun) return rehearse(req, p.prepared, clock);
+  // Single commands rehearse by default, same as multi-command batches: a
+  // command that writes and then refuses must not leave a partial write
+  // committed. `fastPath` opts a single command out of the extra replica
+  // clone for the typing hot path; it never applies to a multi-command batch.
+  const singleFastPath = p.prepared.length === 1 && p.prepared[0]!.spec.fastPath === true;
+  if (!singleFastPath) {
+    const rehearsal = rehearse(req, p.prepared, clock);
     if (!rehearsal.ok) return rehearsal;
   }
-  return run(req, req.doc, req.model, p.prepared);
+  return run(req, req.doc, req.model, p.prepared, clock);
 }
 
 export function executeCommand(req: Omit<BatchRequest, 'commands'> & { command: CommandInvocation }): BatchResult {

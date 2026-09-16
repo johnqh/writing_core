@@ -41,6 +41,16 @@ export type CommandResult =
 /**
  * `run` performs every check that can refuse before its first write, so a single
  * command either refuses without writing or completes.
+ *
+ * `executeBatch`/`executeCommand` enforce this from the outside too: by default
+ * every invocation (single command or multi-command batch) is rehearsed on a
+ * throwaway replica first, so a refusal after a partial write never reaches the
+ * live document even if `run` misbehaves. `fastPath: true` opts a single command
+ * out of that rehearsal (it never applies to a multi-command batch), trading the
+ * safety net for one fewer document clone; it is reserved for the typing hot
+ * path. A `fastPath` command MUST refuse — via `isEnabled` or as the first thing
+ * `run` does — before performing its first write, because nothing rolls back a
+ * write that happens before a later refusal in that command.
  */
 export interface CommandSpec<P> {
   id: string;
@@ -50,6 +60,8 @@ export interface CommandSpec<P> {
   requires: readonly Capability[];
   undo: 'normal' | 'standalone' | 'none';
   labelKey: string;
+  /** Default false. See the type doc comment above for the contract a `true` command must uphold. */
+  fastPath?: boolean;
   isEnabled(ctx: CommandContext, p: P): Availability;
   run(ctx: CommandContext, p: P): CommandResult;
 }

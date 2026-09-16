@@ -26,16 +26,31 @@ export function listCommands(): readonly CommandSpec<unknown>[] {
   return [...specs.values()];
 }
 
-/** A mutating, write-capability, always-enabled built-in command; erased to `CommandSpec<never>` for heterogeneous lists. */
+/**
+ * A mutating, write-capability, always-enabled built-in command by default; every
+ * default (`scope`, `mutates`, `requires`, `undo`, `labelKey`) can be overridden
+ * explicitly via `options`. Erased to `CommandSpec<never>` for heterogeneous lists.
+ */
 export function defineCommand<P>(
   id: string,
   params: z.ZodType<P>,
   run: (ctx: CommandContext, p: P) => CommandResult,
-  options: { scope?: CommandSpec<P>['scope']; undo?: CommandSpec<P>['undo'] } = {},
+  options: {
+    scope?: CommandSpec<P>['scope'];
+    mutates?: CommandSpec<P>['mutates'];
+    requires?: CommandSpec<P>['requires'];
+    undo?: CommandSpec<P>['undo'];
+    labelKey?: CommandSpec<P>['labelKey'];
+  } = {},
 ): CommandSpec<never> {
   const spec: CommandSpec<P> = {
-    id, params, scope: options.scope ?? 'document', mutates: true, requires: ['write'], undo: options.undo ?? 'normal',
-    labelKey: `writing.command.${id}`, isEnabled: () => ({ enabled: true }), run,
+    id, params,
+    scope: options.scope ?? 'document',
+    mutates: options.mutates ?? true,
+    requires: options.requires ?? ['write'],
+    undo: options.undo ?? 'normal',
+    labelKey: options.labelKey ?? `writing.command.${id}`,
+    isEnabled: () => ({ enabled: true }), run,
   };
   return spec as unknown as CommandSpec<never>;
 }
