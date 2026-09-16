@@ -114,7 +114,7 @@ export { graphemeClusters, nextCluster, previousCluster } from './text/grapheme.
 export { breakOpportunities, type DictionarySegmenter, type BreakOptions, type LineBreakProfile } from './text/linebreak.js';
 export { resolveParagraphLevel, bidiLevels, reorderVisual, mirrorChar } from './text/bidi.js';
 export { wordBoundaries } from './text/words.js';
-export { sentenceBoundaries, sentenceEnds, ABBREVIATIONS } from './text/sentences.js';
+export { sentenceBoundaries, sentenceEnds, ABBREVIATIONS, MAY_END_ABBREVIATIONS } from './text/sentences.js';
 export { loadDictionary } from './text/dict.js';
 
 // ─── Fonts ──────────────────────────────────────────────────────────────────

@@ -9,17 +9,20 @@
 //
 // **License — read from the source, not the brief (context item 4).** The task brief says
 // all four ICU dictionaries are Unicode License v3. That is only correct for `thaidict.txt`
-// and `khmerdict.txt`. ICU's own top-level `LICENSE` file (fetched at the same pinned tag,
-// not trusted from memory) carries a "Third-Party Software Licenses" section with dedicated
-// entries for `laodict.txt` and `burmesedict.txt`, each a distinct BSD-style license under
-// its own (non-Unicode) copyright holder — see `dict/ICU-LAO-DICTIONARY-LICENSE.txt` and
-// `dict/ICU-BURMESE-DICTIONARY-LICENSE.txt`, vendored verbatim from that section, and
-// `dict/LICENSES.md` for the full finding. `thaidict.txt`/`khmerdict.txt` have no such
-// section — ICU's top-level LICENSE is Unicode License v3 itself (verified byte-identical in
-// its operative grant to `ucd/UNICODE-LICENSE.txt`, already vendored from unicode.org), and
-// neither file's own header claims an "otherwise indicated" override, so the general license
-// applies to them — reusing the already-vendored `ucd/UNICODE-LICENSE.txt` rather than
-// re-fetching, per the task instructions.
+// and `khmerdict.txt`. The four source files' own per-file headers do NOT distinguish this —
+// all four carry the same byte-identical two-line boilerplate pointer to
+// `unicode.org/copyright.html`; reading only that would wrongly suggest one license for all
+// four. What actually distinguishes them is ICU's own **top-level** `LICENSE` file (fetched
+// at the same pinned tag, not trusted from memory or from the brief), which carries a
+// "Third-Party Software Licenses" section with dedicated entries overriding that default
+// pointer for `laodict.txt` and `burmesedict.txt` only, each a distinct BSD-style license
+// under its own (non-Unicode) copyright holder — see `dict/ICU-LAO-DICTIONARY-LICENSE.txt`
+// and `dict/ICU-BURMESE-DICTIONARY-LICENSE.txt`, vendored verbatim from that section, and
+// `dict/LICENSES.md` for the full finding. `thaidict.txt`/`khmerdict.txt` have no entry in
+// that section, so nothing overrides their header's pointer, whose current terms are the
+// Unicode License v3 itself (verified byte-identical in its operative grant to
+// `ucd/UNICODE-LICENSE.txt`, already vendored from unicode.org) — reusing that vendored text
+// rather than re-fetching, per the task instructions.
 //
 // **Format.** Each source file is a plain word list, one word per line, `#`-prefixed comment
 // lines (a UTF-8 BOM on the very first line, and a handful of files having a leading space

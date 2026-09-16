@@ -11,13 +11,15 @@
  * **`sentenceEnds`** is spec 02 §6.5's own, deliberately simpler, screenplay-facing rule
  * ("break on sentences", §13.6): a sentence ends after a run of `STerm`/`ATerm` characters,
  * optionally followed by closing punctuation, then whitespace or end of paragraph — except
- * when the token ending in `.` is in the language's curated abbreviation list, or is a
- * single uppercase letter (an initial). This is **not** a tailoring of
- * `sentenceBoundaries` the way `linebreak.ts`'s `screenplay` profile is a tailoring of
- * stock UAX #14: no official conformance case exercises a curated abbreviation list or the
- * initials exception (context item 3 — "no UAX case will ever test that `INT.` fails to end
- * a sentence"), so `sentenceEnds` is written directly against spec 02 §6.5's prose and
- * carries its own dedicated tests, not a `SentenceBreakTest.txt` sample.
+ * when the token ending in `.` is a single uppercase letter (an initial), or is in one of the
+ * language's two curated abbreviation classes (`ABBREVIATIONS`, never-end; the fix-round-1
+ * `MAY_END_ABBREVIATIONS`, may-end — see `ABBREVIATIONS`'s doc comment for why an
+ * unconditional exception silently merged genuine sentence ends). This is **not** a
+ * tailoring of `sentenceBoundaries` the way `linebreak.ts`'s `screenplay` profile is a
+ * tailoring of stock UAX #14: no official conformance case exercises a curated abbreviation
+ * list or the initials exception (context item 3 — "no UAX case will ever test that `INT.`
+ * fails to end a sentence"), so `sentenceEnds` is written directly against spec 02 §6.5's
+ * prose and carries its own dedicated tests, not a `SentenceBreakTest.txt` sample.
  *
  * **Why `sentenceBoundaries` needs backward/forward scans instead of `linebreak.ts`'s
  * incremental chain state.** SB8 ("ATerm Close* Sp* × (¬(OLetter|Upper|Lower|Sep|CR|LF|
@@ -173,36 +175,67 @@ export function sentenceBoundaries(text: string): number[] {
 // Part 2: sentenceEnds — spec 02 §6.5's screenplay "break on sentences" rule
 // ═══════════════════════════════════════════════════════════════════════════════════════
 
-/** Spec 02 §6.5's exact abbreviation lists. Others (non-en/es/fr/de) use the rule without exceptions. */
+/**
+ * Spec 02 §6.5's two abbreviation classes (amended after fix round 1 — an earlier draft
+ * made the exception unconditional, which silently merged every genuine sentence end that
+ * happened to fall on an abbreviation: `Buy milk, eggs, etc. Then go home.` returned one
+ * sentence, not two).
+ *
+ * - **`ABBREVIATIONS` (never ends a sentence):** always mid-sentence, regardless of what
+ *   follows. Includes the scene-heading forms (INT., EXT., I/E.) *deliberately* — inside an
+ *   all-caps slug line the "followed by an uppercase letter" signal `MAY_END_ABBREVIATIONS`
+ *   relies on is worthless (every letter is uppercase), so those three must never consult it.
+ * - **`MAY_END_ABBREVIATIONS` (may end a sentence):** suppressed mid-sentence, but honoured
+ *   — treated as a genuine sentence end — when the whitespace following the abbreviation is
+ *   itself succeeded by an uppercase letter, an opening quote, or an opening bracket (or by
+ *   nothing at all: end of paragraph), and suppressed otherwise. See `mayEndHonoured`.
+ *
+ * Only English's lists are given verbatim by spec 02 §6.5; es/fr/de are the implementer's
+ * own reasonable choices (task 9 report flags this as a known M2 limitation, not to be grown
+ * further without a native-speaker pass). Fix round 1 only *reclassifies* those existing
+ * entries into the two new classes — it adds no new abbreviations: `etc.`/`usw.` ("etc." in
+ * es/fr/de) move to the may-end class by the same real-world reasoning spec 02 §6.5 gives
+ * for English `etc.`; the es/fr/de lists have no existing Jr./Sr.-equivalent to move.
+ */
 export const ABBREVIATIONS: Record<string, readonly string[]> = {
   en: [
-    'Mr.', 'Mrs.', 'Ms.', 'Dr.', 'St.', 'Jr.', 'Sr.', 'vs.', 'etc.', 'e.g.', 'i.e.',
+    'Mr.', 'Mrs.', 'Ms.', 'Dr.', 'St.', 'vs.', 'e.g.', 'i.e.',
     'INT.', 'EXT.', 'I/E.', 'approx.', 'No.', 'Mt.', 'Ft.', 'Lt.', 'Sgt.', 'Capt.', 'Col.', 'Gen.', 'Prof.', 'Rev.',
   ],
-  // Not enumerated by spec 02 §6.5's own text (only English's list is given verbatim); these
-  // are the implementer's reasonable choices for the three other languages it says "ship"
-  // for, flagged for review rather than invented silently (task 9 report).
-  es: ['Sr.', 'Sra.', 'Srta.', 'Dr.', 'Dra.', 'Ud.', 'Uds.', 'etc.', 'pág.', 'núm.', 'art.', 'vol.', 'cap.', 'INT.', 'EXT.'],
-  fr: ['M.', 'Mme.', 'Mlle.', 'Dr.', 'etc.', 'c.-à-d.', 'INT.', 'EXT.', 'n°.', 'p.', 'vol.', 'ch.'],
-  de: ['Hr.', 'Fr.', 'Dr.', 'usw.', 'z.B.', 'd.h.', 'INT.', 'EXT.', 'Nr.', 'S.', 'Bd.', 'Kap.'],
+  es: ['Sr.', 'Sra.', 'Srta.', 'Dr.', 'Dra.', 'Ud.', 'Uds.', 'pág.', 'núm.', 'art.', 'vol.', 'cap.', 'INT.', 'EXT.'],
+  fr: ['M.', 'Mme.', 'Mlle.', 'Dr.', 'c.-à-d.', 'INT.', 'EXT.', 'n°.', 'p.', 'vol.', 'ch.'],
+  de: ['Hr.', 'Fr.', 'Dr.', 'z.B.', 'd.h.', 'INT.', 'EXT.', 'Nr.', 'S.', 'Bd.', 'Kap.'],
+};
+
+/** Spec 02 §6.5's may-end class — see `ABBREVIATIONS`'s doc comment. */
+export const MAY_END_ABBREVIATIONS: Record<string, readonly string[]> = {
+  en: ['etc.', 'Jr.', 'Sr.'],
+  es: ['etc.'],
+  fr: ['etc.'],
+  de: ['usw.'],
 };
 
 /**
- * Reads `ABBREVIATIONS` fresh on every call (no memoization) rather than caching a `Set` per
+ * Reads the given table fresh on every call (no memoization) rather than caching a `Set` per
  * language: the lists are tiny (a few dozen entries at most), the lookup only runs at
  * candidate sentence-end positions (not per character), and a cache keyed by language would
- * make `ABBREVIATIONS[lang]` unobservable after its first use — exactly the property the
- * regression proof (sentences.test.ts, "emptying the abbreviation list") needs to *not* hold.
+ * make the table unobservable after its first use — exactly the property the regression
+ * proof (sentences.test.ts, "emptying the abbreviation list") needs to *not* hold.
  */
-function abbreviationSetFor(lang: string): ReadonlySet<string> | undefined {
+function abbreviationSetFrom(table: Record<string, readonly string[]>, lang: string): ReadonlySet<string> | undefined {
   const primary = (lang.split('-')[0] ?? '').toLowerCase();
-  const list = ABBREVIATIONS[primary];
+  const list = table[primary];
   return list && list.length > 0 ? new Set(list) : undefined;
 }
 
 /** Spec 02 §6.5's closing-punctuation set, optionally skipped between the terminal run and whitespace/EOP. */
 const CLOSING_PUNCT: ReadonlySet<number> = new Set(
   [')', ']', '"', "'", '”', '’', '」', '』'].map((c) => c.codePointAt(0) as number),
+);
+
+/** Spec 02 §6.5's may-end rule: "an opening quote or bracket" — the opening counterparts of `CLOSING_PUNCT`. */
+const OPENING_PUNCT: ReadonlySet<number> = new Set(
+  ['(', '[', '"', "'", '“', '‘', '「', '『'].map((c) => c.codePointAt(0) as number),
 );
 
 /** Spec 02 §6.5's literal "CJK full stops always end a sentence (no whitespace required)" set. */
@@ -239,16 +272,36 @@ function isSingleUppercaseInitial(cps: CodePointAt[], runStart: number): boolean
 }
 
 /**
+ * Spec 02 §6.5's may-end rule: "ends a sentence when the following whitespace is succeeded
+ * by an uppercase letter or an opening quote or bracket, and is suppressed otherwise." `j`
+ * is the position right after the terminal run and any closing punctuation — by the time a
+ * caller reaches this, `followedByWhitespaceOrEop` is already known true, so `j` is either
+ * `cps.length` (end of paragraph) or the index of a whitespace code point. Skips that
+ * whitespace run; true end of paragraph after skipping it is treated as an honoured end too
+ * (spec 02 §6.5's general rule already ends a sentence at "whitespace or end of paragraph" —
+ * the uppercase/opening-punct refinement only disambiguates the case where more text follows).
+ */
+function mayEndHonoured(cps: CodePointAt[], j: number): boolean {
+  let k = j;
+  while (k < cps.length && isWhitespace((cps[k] as CodePointAt).cp)) k++;
+  if (k >= cps.length) return true;
+  const cp = (cps[k] as CodePointAt).cp;
+  return generalCategory(cp) === 'Lu' || OPENING_PUNCT.has(cp);
+}
+
+/**
  * Sentence-end offsets (spec 02 §6.5, for "break on sentences", §13.6) — the UTF-16 offset
  * immediately after each sentence's terminal punctuation (and any closing punctuation),
  * before trailing whitespace, mirroring §6.2's "trailing whitespace hangs" convention.
  *
- * `lang`'s primary subtag selects the abbreviation list (`ABBREVIATIONS`); any other
- * language uses the rule with no abbreviation exception (spec 02 §6.5).
+ * `lang`'s primary subtag selects the abbreviation lists (`ABBREVIATIONS`, the never-end
+ * class; `MAY_END_ABBREVIATIONS`, the may-end class); any other language uses the rule with
+ * no abbreviation exception (spec 02 §6.5).
  */
 export function sentenceEnds(text: string, lang: string): number[] {
   const cps = decode(text);
-  const abbrevs = abbreviationSetFor(lang);
+  const neverEnd = abbreviationSetFrom(ABBREVIATIONS, lang);
+  const mayEnd = abbreviationSetFrom(MAY_END_ABBREVIATIONS, lang);
   const ends: number[] = [];
   let i = 0;
   while (i < cps.length) {
@@ -274,8 +327,15 @@ export function sentenceEnds(text: string, lang: string): number[] {
     const followedByWhitespaceOrEop = j >= cps.length || isWhitespace((cps[j] as CodePointAt).cp);
 
     if (!isCjkAlways && !followedByWhitespaceOrEop) continue;
-    if (abbrevs && abbrevs.has(abbreviationToken(cps, runStart, runEndIdx))) continue;
-    if (isSingleUppercaseInitial(cps, runStart)) continue;
+
+    const token = abbreviationToken(cps, runStart, runEndIdx);
+    if (neverEnd && neverEnd.has(token)) continue; // always mid-sentence
+    if (mayEnd && mayEnd.has(token)) {
+      if (!mayEndHonoured(cps, j)) continue; // suppressed mid-sentence
+      // else: honoured — a genuine sentence end, fall through to push below
+    } else if (isSingleUppercaseInitial(cps, runStart)) {
+      continue;
+    }
 
     ends.push(afterCloseOffset);
   }

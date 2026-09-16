@@ -162,7 +162,11 @@ function makeSegmenter(d: DecodedDawg): DictionarySegmenter {
           cursor += cp > 0xffff ? 2 : 1;
           if (isFinalNode(d, node)) bestEnd = cursor;
         }
-        const end = bestEnd > 0 ? bestEnd : nextCluster(text, pos);
+        // `bestEnd` is the sentinel `-1` exactly when no dictionary entry matched at all (the
+        // inner loop above only ever assigns it `cursor`, which is always > pos >= 0 whenever
+        // it runs — but checking the sentinel explicitly, rather than relying on that always
+        // being positive, is the actual "did we find a match" condition this line means).
+        const end = bestEnd === -1 ? nextCluster(text, pos) : bestEnd;
         pos = end;
         if (pos < text.length) offsets.push(pos);
       }

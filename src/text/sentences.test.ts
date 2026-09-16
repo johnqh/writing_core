@@ -12,7 +12,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { ABBREVIATIONS, sentenceBoundaries, sentenceEnds } from './sentences.js';
+import { ABBREVIATIONS, MAY_END_ABBREVIATIONS, sentenceBoundaries, sentenceEnds } from './sentences.js';
 
 const TEST_FILE = join(dirname(fileURLToPath(import.meta.url)), '../../test/ucd/SentenceBreakTest.txt');
 
@@ -123,6 +123,101 @@ describe('sentenceEnds — spec 02 §6.5 explicit cases', () => {
     // exceptions"), so a Latin "Mr." run in Japanese-tagged text still ends a sentence.
     const text = 'Mr. Tanaka desu.';
     expect(sentenceEnds(text, 'ja')).toEqual([3, text.length]);
+  });
+});
+
+describe('sentenceEnds — two abbreviation classes (spec 02 §6.5, fix round 1)', () => {
+  it('FIX: "etc." at a genuine sentence end is now honoured (the reported defect)', () => {
+    // Before fix round 1 this returned only [34] — the boundary after "etc." never
+    // registered because the exception was unconditional. §6.5 was amended precisely
+    // because a suppression-only rule silently merges sentences that should split.
+    const text = 'Buy milk, eggs, etc. Then go home.';
+    const afterEtc = text.indexOf('etc.') + 'etc.'.length;
+    expect(sentenceEnds(text, 'en')).toEqual([afterEtc, text.length]);
+  });
+
+  it('may-end "etc." is suppressed mid-sentence (followed by lowercase, not honoured)', () => {
+    const text = 'Buy eggs, etc. and then go.';
+    expect(sentenceEnds(text, 'en')).toEqual([text.length]); // one sentence, not split after "etc."
+  });
+
+  it('may-end "etc." is honoured when followed by whitespace then an opening quote', () => {
+    const text = 'We packed food, tools, etc. "Are we ready?" she asked.';
+    const afterEtc = text.indexOf('etc.') + 'etc.'.length;
+    const ends = sentenceEnds(text, 'en');
+    expect(ends).toContain(afterEtc);
+  });
+
+  it('may-end "etc." at true end of paragraph is honoured (nothing follows to disambiguate)', () => {
+    const text = 'We packed food, tools, etc.';
+    expect(sentenceEnds(text, 'en')).toEqual([text.length]);
+  });
+
+  it('may-end "Jr." is honoured at a real boundary (followed by whitespace + uppercase)', () => {
+    const text = 'That was John Smith Jr. He left early.';
+    const afterJr = text.indexOf('Jr.') + 'Jr.'.length;
+    expect(sentenceEnds(text, 'en')).toEqual([afterJr, text.length]);
+  });
+
+  it('may-end "Jr." is suppressed mid-name (followed by whitespace + lowercase)', () => {
+    const text = 'John Smith Jr. arrived late.';
+    expect(sentenceEnds(text, 'en')).toEqual([text.length]); // one sentence, not split after "Jr."
+  });
+
+  it('may-end "Sr." is honoured at a real boundary, suppressed mid-sentence', () => {
+    const honoured = 'This is Alan Sr. He built the house.';
+    const afterSr = honoured.indexOf('Sr.') + 'Sr.'.length;
+    expect(sentenceEnds(honoured, 'en')).toEqual([afterSr, honoured.length]);
+
+    const suppressed = 'This is Alan Sr. speaking now.';
+    expect(sentenceEnds(suppressed, 'en')).toEqual([suppressed.length]);
+  });
+
+  it('never-end "Dr." is suppressed even when followed by whitespace + an uppercase letter', () => {
+    // The never class must not consult the uppercase signal at all — unlike "etc."/"Jr."/"Sr.",
+    // "Dr." never ends a sentence regardless of what capital letter follows.
+    const text = 'Dr. Who is here.';
+    expect(sentenceEnds(text, 'en')).toEqual([text.length]);
+  });
+
+  it('never-end "Mr." is suppressed even when followed by whitespace + an opening quote', () => {
+    const text = 'Mr. "Big Deal" Smith arrived.';
+    expect(sentenceEnds(text, 'en')).toEqual([text.length]);
+  });
+
+  it('REGRESSION GUARD: "INT. SFPD BRIEFING ROOM - DAY" is still one sentence — the all-caps slug line never consults the uppercase signal', () => {
+    // INT./EXT./I/E. are deliberately in the never class: every letter in a slug line is
+    // uppercase, so the may-end class's "followed by an uppercase letter" test would be
+    // worthless there — it would honour (wrongly split) every scene heading.
+    const text = 'INT. SFPD BRIEFING ROOM - DAY';
+    expect(sentenceEnds(text, 'en')).toEqual([]);
+  });
+
+  it('es: may-end "etc." honoured at a real boundary, suppressed mid-sentence', () => {
+    const honoured = 'Compramos comida, herramientas, etc. Estamos listos.';
+    const afterEtc = honoured.indexOf('etc.') + 'etc.'.length;
+    expect(sentenceEnds(honoured, 'es')).toEqual([afterEtc, honoured.length]);
+
+    const suppressed = 'Compramos comida, etc. y nos fuimos.';
+    expect(sentenceEnds(suppressed, 'es')).toEqual([suppressed.length]);
+  });
+
+  it('de: may-end "usw." honoured at a real boundary, suppressed mid-sentence', () => {
+    const honoured = 'Wir kauften Essen, Werkzeug, usw. Wir waren bereit.';
+    const afterUsw = honoured.indexOf('usw.') + 'usw.'.length;
+    expect(sentenceEnds(honoured, 'de')).toEqual([afterUsw, honoured.length]);
+
+    const suppressed = 'Wir kauften Essen, usw. und gingen.';
+    expect(sentenceEnds(suppressed, 'de')).toEqual([suppressed.length]);
+  });
+
+  it('ships a may-end list for en, es, fr, de, disjoint from the never-end list per language (spec 02 §6.5)', () => {
+    for (const lang of ['en', 'es', 'fr', 'de']) {
+      const mayList = MAY_END_ABBREVIATIONS[lang] ?? [];
+      expect(mayList.length).toBeGreaterThan(0);
+      const neverList = ABBREVIATIONS[lang] ?? [];
+      for (const abbrev of mayList) expect(neverList).not.toContain(abbrev);
+    }
   });
 });
 

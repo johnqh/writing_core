@@ -13,18 +13,24 @@ these dictionary payloads or of the vendored license texts in this directory.**
 ## License identification method — and a correction to the task brief
 
 The task brief that commissioned this generator states the ICU break dictionaries are
-**Unicode License v3** for all four files. That claim was **not** taken on trust: ICU's own
-top-level `LICENSE` file (fetched directly from the pinned source tag below, not from memory
-or from the brief) carries a "Third-Party Software Licenses" section listing dictionaries
-under their own, separate licenses. Checked against that file:
+**Unicode License v3** for all four files. That claim was **not** taken on trust — but the
+per-file header inside each of the four `.txt` files is **not** what settles it. All four
+carry the same two-line boilerplate pointer
+(`# Copyright (C) 2016 and later: Unicode, Inc. and others.` /
+`# License & terms of use: http://www.unicode.org/copyright.html`), byte-identical in the
+lines that matter for licensing; reading only that pointer would wrongly suggest all four
+are covered by the same license. What actually distinguishes them is ICU's own **top-level**
+`LICENSE` file (fetched directly from the pinned source tag below, not from memory or from
+the brief), which carries a separate "Third-Party Software Licenses" section overriding that
+default pointer for specific data files:
 
-- **`thaidict.txt` and `khmerdict.txt`** have **no** dedicated entry in ICU's
-  "Third-Party Software Licenses" section, and each file's own header
-  (`# License & terms of use: http://www.unicode.org/copyright.html`) carries no
-  "otherwise indicated" override. ICU's top-level `LICENSE` file's own default grant is
-  itself the Unicode License v3 (verified: its operative "Permission is hereby granted, free
-  of charge..." paragraph is byte-identical to `ucd/UNICODE-LICENSE.txt`, already vendored
-  from `https://www.unicode.org/license.txt` and verified there). So for these two files
+- **`thaidict.txt` and `khmerdict.txt`** have **no** dedicated entry in that
+  "Third-Party Software Licenses" section — nothing overrides their header's pointer to
+  `unicode.org/copyright.html`, whose current terms are the Unicode License v3 (verified:
+  ICU's top-level `LICENSE` file's own default grant, the same file just checked for
+  overrides, has an operative "Permission is hereby granted, free of charge..." paragraph
+  byte-identical to `ucd/UNICODE-LICENSE.txt`, already vendored from
+  `https://www.unicode.org/license.txt` and verified there). So for these two files
   **the brief is correct** — Unicode License v3 applies, and `ucd/UNICODE-LICENSE.txt` is
   reused rather than re-vendored, per the task instructions.
 - **`laodict.txt`** has a dedicated section, "Lao Word Break Dictionary Data (laodict.txt)",
