@@ -622,23 +622,57 @@ function resolveImplicitLevels(t: Cls[], level: number): number[] {
 const L1_WS_OR_ISOLATE: ReadonlySet<Cls> = new Set(['WS', 'LRI', 'RLI', 'FSI', 'PDI']);
 
 /**
+ * UAX #9 §5.2's implementation note, second sentence, applied generally (task 8 fix round 2
+ * — review finding): **"Resolve any LRE, RLE, LRO, RLO, PDF, or BN to the level of the
+ * preceding character if there is one, and otherwise to the base level."** This is not
+ * specific to L1's end-of-line/before-separator whitespace runs (fix round 1 only reached
+ * `X9_REMOVED` positions swept into one of *those* two scans) — it's a blanket rule for
+ * every retained format character in the paragraph, including ones in the middle of it with
+ * no whitespace or separator anywhere nearby. Counter-example that exposed the gap (review):
+ * `"HEB LRE B x"` (a Hebrew letter, then LRE, "B", "x" — no PDF ever closes the embedding, no
+ * whitespace, no separator) gave `[1, 0, 2, 2]`: the LRE kept its stale X1–X8 embedding-stack
+ * level (0) instead of resolving to the *preceding* character's final level (1, the Hebrew
+ * letter's own level after I1 bumps it for being R in an LTR paragraph) — neither of L1's
+ * scans reach a lone format character with no adjacent whitespace/separator run to sweep it
+ * into.
+ *
+ * Runs as one left-to-right pass **before** `applyL1Reset`, over the final `levels` array
+ * (already carrying every isolating run sequence's I1/I2 level): each `X9_REMOVED` position
+ * copies `levels[i - 1]` — which, for a *run* of consecutive removed characters, is itself
+ * already-resolved by this same pass for the previous one in the run, so the whole run
+ * inherits the level of whatever real character precedes it — or the base level
+ * (`paragraphLevel`) if there is no preceding character at all (`i === 0`). Running before
+ * `applyL1Reset` is deliberate: L1's own reset (paragraph level, unconditionally, for
+ * anything swept into an end-of-line or before-separator run) is the more specific rule for
+ * those positions and must win there — verified by `"LRE WS LRE"` (`BidiTest.txt` line 2476)
+ * still resolving to `[0, 0, 0]` after this pass runs, not whatever this general rule alone
+ * would have given the trailing LRE.
+ */
+function resolveRetainedFormatLevels(levels: Uint8Array, codeTypes: Cls[], paragraphLevel: 0 | 1): void {
+  for (let i = 0; i < levels.length; i++) {
+    if (X9_REMOVED.has(codeTypes[i] as Cls)) levels[i] = i > 0 ? (levels[i - 1] as number) : paragraphLevel;
+  }
+}
+
+/**
  * L1, over the whole paragraph treated as one line (see header comment's scope note). Uses
  * the *original* Bidi_Class (`codeTypes`, never overwritten by X6/N0/etc.), per L1's own text.
  *
  * **X9-removed characters are transparent to "at the end of the line" / "before a
- * separator", AND get the same reset level themselves (spec's UAX #9 §5.2 implementation
- * note, both its sentences).** `BidiTest.txt` line 2476 (`LRE WS LRE; 3`, `@Levels: x 0 x`)
- * proves the first half: the trailing LRE is removed by X9, so the WS immediately before it
- * *is* "at the end of the line" once removed characters are looked through, and L1 resets it
- * to the paragraph level — even though, ignoring X9, it would look like an embedding is still
- * open around it. §5.2's own second sentence completes it: a BN/explicit-formatting
- * character adjacent to (or intermixed with) that reset whitespace gets assigned the *same*
- * resulting level as the whitespace, not left at whatever level X1–X8 gave it — task 8 fix
- * round 1 (review finding; no conformance-file or current-caller impact, since both official
- * files mark these positions 'x'/don't-care and a caller compacts them out before
- * `reorderVisual` anyway, but a level array is still meant to be internally consistent).
- * Both scans below therefore *reset* `X9_REMOVED` characters' own levels as they skip past
- * them, rather than merely skipping without touching them.
+ * separator", AND get the same reset level themselves** (task 8 fix round 1; the general
+ * §5.2 rule for *every* retained format character, not just these two specific runs, is
+ * `resolveRetainedFormatLevels` above, fix round 2). `BidiTest.txt` line 2476
+ * (`LRE WS LRE; 3`, `@Levels: x 0 x`) proves the transparency half: the trailing LRE is
+ * removed by X9, so the WS immediately before it *is* "at the end of the line" once removed
+ * characters are looked through, and L1 resets it to the paragraph level — even though,
+ * ignoring X9, it would look like an embedding is still open around it. A removed character
+ * swept into one of these runs gets the *same* paragraph-level reset as the whitespace
+ * itself, overriding whatever `resolveRetainedFormatLevels` gave it — L1 is the more
+ * specific rule here and runs after it (no conformance-file or current-caller impact either
+ * way, since both official files mark these positions 'x'/don't-care and a caller compacts
+ * them out before `reorderVisual` anyway, but a level array is still meant to be internally
+ * consistent). Both scans below therefore *reset* `X9_REMOVED` characters' own levels as
+ * they skip past them, rather than merely skipping without touching them.
  */
 function applyL1Reset(levels: Uint8Array, codeTypes: Cls[], paragraphLevel: 0 | 1): void {
   const n = levels.length;
@@ -723,6 +757,7 @@ export function bidiLevels(text: string, paragraphLevel: 0 | 1): Uint8Array {
   }
 
   for (let i = 0; i < n; i++) levels[i] = explicitLevels[i] as number;
+  resolveRetainedFormatLevels(levels, codeTypes, paragraphLevel);
   applyL1Reset(levels, codeTypes, paragraphLevel);
   return levels;
 }

@@ -414,6 +414,66 @@ describe('bidiLevels — L1 resets X9-removed characters\' own levels, not just 
   });
 });
 
+describe('bidiLevels — §5.2\'s general "resolve a retained format character to the preceding character\'s level" rule (task 8 fix round 2, review finding)', () => {
+  // Written from the rule text ("Resolve any LRE, RLE, LRO, RLO, PDF, or BN to the level of
+  // the preceding character if there is one, and otherwise to the base level"), not from the
+  // implementation's output — round 1 only reached a retained format character swept into
+  // one of L1's own two scans (an end-of-line or before-separator whitespace/isolate run);
+  // this rule is unconditional, for every retained format character anywhere in the text.
+
+  it("the review's counter-example — a lone LRE with no PDF, no whitespace, no separator anywhere — resolves to the PRECEDING character's level, not its stale X1-X8 embedding-stack level", () => {
+    // Hebrew Alef (R), LRE, 'B' (L), 'x' (L) — an LTR paragraph. The Hebrew letter's X1-X8
+    // level is 0 (paragraph level, no embedding yet), but I1 bumps it to 1 (R in an even/LTR
+    // sequence). The LRE, immediately after it, must resolve to that FINAL level (1) — round
+    // 1 left it at the stale X1-X8 level the embedding stack assigned when X2 first processed
+    // it (0), because it's nowhere near any whitespace or separator for L1's scans to reach.
+    const text = 'א‪Bx';
+    const level = resolveParagraphLevel(text, 'ltr', 0);
+    const levels = bidiLevels(text, level);
+    expect(Array.from(levels)).toEqual([1, 1, 2, 2]); // was [1, 0, 2, 2] before this fix
+  });
+
+  it('a retained format character with no preceding character at all resolves to the base (paragraph) level', () => {
+    const text = '‪x'; // LRE is the very first character
+    const level = resolveParagraphLevel(text, 'ltr', 0);
+    const levels = bidiLevels(text, level);
+    expect(levels[0]).toBe(level); // base level, not whatever X1-X8 happened to assign it
+  });
+
+  it("a retained format character following a character whose level was changed by I1/I2's EN/AN rule (not just R's), not by the embedding stack", () => {
+    // U+0660 ARABIC-INDIC DIGIT ZERO (AN), LRE, 'x' — an LTR paragraph. AN in an even
+    // (LTR) sequence gets level = seqLevel + 2 (I1) = 2, distinct from R's + 1 — the LRE
+    // must inherit that +2 result, not the AN's own pre-I1 embedding level (0).
+    const text = '٠‪x';
+    const level = resolveParagraphLevel(text, 'ltr', 0);
+    const levels = bidiLevels(text, level);
+    expect(Array.from(levels)).toEqual([2, 2, 2]);
+  });
+
+  it('a run of consecutive retained format characters all inherit the level of whatever real character precedes the whole run', () => {
+    // Hebrew Alef (R, -> I1 level 1), then THREE unclosed LREs in a row, then 'x'. Each LRE
+    // in the run must resolve to 1 — the first by copying the Hebrew letter directly, the
+    // second and third by copying the (already-resolved-by-this-same-pass) LRE before it.
+    // ('x' is unrelated to this rule — it's a real character, not X9-removed — and lands at
+    // level 6 because each of the three unclosed LREs pushes its OWN new embedding level:
+    // 0 -> 2 -> 4 -> 6; that's ordinary X2/X3, not part of what this test is proving.)
+    const text = 'א‪‪‪x';
+    const level = resolveParagraphLevel(text, 'ltr', 0);
+    const levels = bidiLevels(text, level);
+    expect(Array.from(levels)).toEqual([1, 1, 1, 1, 6]);
+  });
+
+  it("does not disturb fix round 1's L1 reset: BidiTest.txt line 2476's shape (\"LRE WS LRE\") still resolves to [0, 0, 0]", () => {
+    // L1's end-of-line reset is the MORE SPECIFIC rule where it applies (paragraph level,
+    // unconditionally) and must still win over this general §5.2 rule for positions it
+    // covers — this general rule runs first, L1 runs after and overrides.
+    const text = '‪ ‪';
+    const level = resolveParagraphLevel(text, 'ltr', 0);
+    const levels = bidiLevels(text, level);
+    expect(Array.from(levels)).toEqual([0, 0, 0]);
+  });
+});
+
 // ─── bidiLevels/reorderVisual — basic shape ────────────────────────────────────────────────
 
 describe('bidiLevels — basic shape', () => {
