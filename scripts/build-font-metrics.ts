@@ -69,20 +69,28 @@ const REGULAR_WGHT = 400;
 const BOLD_WGHT = 700;
 
 /**
- * Spec 02 §4.4's Latin/Greek/Cyrillic per-face ceiling (24 KB gzipped). This bundle ships no
- * CJK-mono face, so §4.4's other, looser 30 KB tier never applies here; 24 576 is the one
- * budget every non-CJK face in this generator must fit inside.
+ * Spec 02 §4.4's Latin/Greek/Cyrillic per-face ceiling (24 KB **gzipped**). This bundle ships
+ * no CJK-mono face, so §4.4's other, looser 30 KB tier never applies here; 24 576 is the one
+ * budget every non-monospace face in this generator must fit inside — CJK faces included:
+ * §4.2's kerning rule keys on monospace vs proportional and carves out no CJK exception, and
+ * Noto Sans/Serif CJK are proportional (full-width ideographs never kern, but mixed Latin
+ * text inside a CJK-primary document is normal and should).
  *
  * GPOS class kerning (§4.2's PairPos format 2) is *designed* to cover a huge code-point
  * cross-product from a handful of rules — Carlito's Latin-kerning table alone expands to
  * classes of up to ~90 glyphs a side, so flattening every pair the §4.2-restricted ranges
- * allow can reach 15 000+ pairs (180 KB+) for one face, far over budget even after the
+ * allow can reach 15 000+ pairs (180 KB+ raw) for one face, over budget even after the
  * 4/1000 em drop. `capKernPairs` keeps the largest-magnitude — the visually significant —
- * pairs up to what fits, and drops the long tail; this is a size cap on top of §4.2's range
- * and threshold rules, not a change to either.
+ * pairs up to what fits **the actual gzipped size** (fix round 1, controller ruling C: an
+ * earlier revision budgeted against raw bytes against this gzipped ceiling, which is far too
+ * conservative — kern-pair tables are short, repetitive 12-byte records that gzip compresses
+ * hard, so that version threw away common pairs like "AV"/"Wa"/"VA" it didn't need to).
+ * A small safety margin below the true ceiling absorbs the ranges/pool bytes still to be
+ * added by whichever caller order this from (kern pairs are capped before final assembly, so
+ * the exact total is re-measured, not assumed).
  */
 const FACE_BYTE_BUDGET = 24_576;
-const FACE_BYTE_SAFETY_MARGIN = 1024;
+const FACE_BYTE_SAFETY_MARGIN = 256;
 
 /** `post.isFixedPitch` is parsed by fontkit at runtime but not declared by @types/fontkit. */
 function postIsFixedPitchFlag(font: fontkit.Font): boolean {
@@ -407,22 +415,29 @@ function buildKernPairs(font: fontkit.Font, unitsPerEm: number): { left: number;
   return [...merged.values()];
 }
 
-function poolBytesFor(ranges: FwmRange[]): number {
-  let n = 0;
-  for (const r of ranges) if (r.mode === 'explicit') n += (r.advances?.length ?? 0) * 2;
-  return n;
-}
-
-/** See `FACE_BYTE_BUDGET`'s doc comment. */
+/**
+ * See `FACE_BYTE_BUDGET`'s doc comment. Sorts candidate pairs largest-magnitude first, then
+ * binary-searches for the longest prefix whose *actual gzipped* `.fwm` size — built via
+ * `buildFwm` with everything else (ranges, header) held fixed — fits the budget. Monotonic
+ * (more data into a gzip stream never shrinks its compressed size), so binary search is
+ * valid; ~15 gzip calls on a ≤20 000-pair, ≤220 KB buffer is sub-second.
+ */
 function capKernPairs(
   pairs: { left: number; right: number; value: number }[],
-  ranges: FwmRange[],
+  buildFwm: (kernPairs: { left: number; right: number; value: number }[]) => Uint8Array,
 ): { left: number; right: number; value: number }[] {
-  const fixedBytes = 48 + ranges.length * 12 + poolBytesFor(ranges);
-  const budget = FACE_BYTE_BUDGET - FACE_BYTE_SAFETY_MARGIN - fixedBytes;
-  const maxPairs = Math.max(0, Math.floor(budget / 12));
-  if (pairs.length <= maxPairs) return pairs;
-  return [...pairs].sort((a, b) => Math.abs(b.value) - Math.abs(a.value) || a.left - b.left || a.right - b.right).slice(0, maxPairs);
+  const sorted = [...pairs].sort((a, b) => Math.abs(b.value) - Math.abs(a.value) || a.left - b.left || a.right - b.right);
+  const budget = FACE_BYTE_BUDGET - FACE_BYTE_SAFETY_MARGIN;
+  const fits = (n: number) => gzipSync(buildFwm(sorted.slice(0, n))).byteLength <= budget;
+  if (sorted.length === 0 || fits(sorted.length)) return sorted;
+  let lo = 0;
+  let hi = sorted.length;
+  while (lo < hi) {
+    const mid = Math.ceil((lo + hi) / 2);
+    if (fits(mid)) lo = mid;
+    else hi = mid - 1;
+  }
+  return sorted.slice(0, lo);
 }
 
 // ─── Job collection: one static file may yield 1 (plain), 2 (variable, R/B), or N (a .ttc's
@@ -490,33 +505,33 @@ for (const job of collectJobs()) {
       ? 'serif'
       : 'sans';
   const requiresShaping = TIER2_FAMILY_SLUGS.has(family);
-  // CJK faces' embedded Latin/Greek/Cyrillic GPOS class-kerning tables are broad (dozens of
-  // glyphs per class), so flattening them to code-point pairs the way a Latin proportional
-  // face's does blows the spec §4.4 per-face budget for a Latin-kerning nicety inside a
-  // face whose job is full-width ideographs (which never kern, §4.2). Skipped for CJK only.
-  const isCjkFamily = family.startsWith('noto-sans-cjk-') || family.startsWith('noto-serif-cjk-');
-  const kernPairs = monospace || isCjkFamily ? [] : capKernPairs(buildKernPairs(font, font.unitsPerEm), ranges);
 
-  const fwm = encodeFwm({
-    faceId,
-    unitsPerEm: font.unitsPerEm,
-    ascender: font.ascent,
-    descender: font.descent,
-    lineGap: font.lineGap,
-    capHeight: font.capHeight,
-    xHeight: font.xHeight,
-    underlinePosition: font.underlinePosition,
-    underlineThickness: font.underlineThickness,
-    strikeoutPosition: Math.round(font.capHeight / 2),
-    strikeoutThickness: font.underlineThickness,
-    italicAngle: font.italicAngle,
-    monospace,
-    requiresShaping,
-    defaultAdvance,
-    sourceSha256: sha,
-    ranges,
-    kernPairs,
-  });
+  // Spec §4.2: monospaced faces carry no kerning at all; every proportional face — CJK
+  // included (fix round 1, controller ruling D) — gets the restricted-range Latin/Greek/
+  // Cyrillic kerning, capped to what actually fits the gzipped §4.4 budget (ruling C).
+  const buildFwm = (kernPairs: { left: number; right: number; value: number }[]) =>
+    encodeFwm({
+      faceId,
+      unitsPerEm: font.unitsPerEm,
+      ascender: font.ascent,
+      descender: font.descent,
+      lineGap: font.lineGap,
+      capHeight: font.capHeight,
+      xHeight: font.xHeight,
+      underlinePosition: font.underlinePosition,
+      underlineThickness: font.underlineThickness,
+      strikeoutPosition: Math.round(font.capHeight / 2),
+      strikeoutThickness: font.underlineThickness,
+      italicAngle: font.italicAngle,
+      monospace,
+      requiresShaping,
+      defaultAdvance,
+      sourceSha256: sha,
+      ranges,
+      kernPairs,
+    });
+  const kernPairs = monospace ? [] : capKernPairs(buildKernPairs(font, font.unitsPerEm), buildFwm);
+  const fwm = buildFwm(kernPairs);
 
   const moduleName = faceId.replace(':', '-'); // 'courier-prime-regular.fwm.ts'
   writeFileSync(

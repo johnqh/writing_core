@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { emuFromFontUnits, sizeEmuFromPoints } from '../layout/round.js';
 import { FWM_FORMAT_VERSION, FWM_MAGIC, advanceTableFor, decodeFwm, encodeFwm } from './fwm.js';
+import { bytes as carlitoRegular } from './generated/carlito-regular.fwm.js';
 import { bytes as courierPrimeRegular } from './generated/courier-prime-regular.fwm.js';
+import { bytes as notoSansCjkJpRegular } from './generated/noto-sans-cjk-jp-regular.fwm.js';
 import { FACES } from './generated/registry.generated.js';
 
 const FACE_ID = 'courier-prime:regular';
@@ -166,5 +168,26 @@ describe('generated Courier Prime metrics', () => {
       expect(f.sha256).toMatch(/^[0-9a-f]{64}$/);
       expect(f.classification).toMatch(/^(mono|serif|sans)$/);
     }
+  });
+});
+
+describe('bundled kerning (spec 02 §4.2, fix round 1 rulings C and D)', () => {
+  // Every value below was independently verified against `fontkit`'s own shaped advance for
+  // the same font (`font.layout('AV').positions[0].xAdvance - font.glyphForCodePoint(A's cp)
+  // .advanceWidth`, the reviewer's own method) — these are not invented numbers, they are
+  // what the vendored binaries' GPOS tables actually say.
+
+  it("keeps Carlito's everyday kerning pairs (AV, Wa, VA) — ruling C: the cap now budgets against actual gzipped size, not raw bytes, so common pairs are no longer the first to be dropped", () => {
+    const face = decodeFwm(carlitoRegular, 'carlito:regular');
+    expect(face.kern(0x41, 0x56), 'AV').toBe(-89);
+    expect(face.kern(0x57, 0x61), 'Wa').toBe(-71);
+    expect(face.kern(0x56, 0x41), 'VA').toBe(-96);
+  });
+
+  it('ships restricted-range Latin kerning on a CJK face too — ruling D: §4.2 keys kerning on monospace vs proportional, not on script, and Noto Sans CJK is proportional', () => {
+    const face = decodeFwm(notoSansCjkJpRegular, 'noto-sans-cjk-jp:regular');
+    expect(face.kern(0x41, 0x56), 'AV').toBe(-15);
+    expect(face.kern(0x57, 0x61), 'Wa').toBe(-18);
+    expect(face.kern(0x54, 0x6f), 'To').toBe(-74);
   });
 });

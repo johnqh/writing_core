@@ -78,7 +78,9 @@ per spec 02 §4.5's renderer obligation.
   Regular, Bold, Italic, Bold Italic)
 - **Version:** 2.1.5
 - **License:** SIL Open Font License, Version 1.1 (Liberation 2.x)
-- **Copyright:** Copyright 2012 Red Hat, Inc.
+- **Copyright:** Digitized data copyright 2010 Google Corporation; Copyright
+  2012 Red Hat, Inc. (embedded `name` table copyright record, verified
+  against `LiberationMono-Regular.ttf`; identical across all three families)
 - **Source:** `fonts-liberation2_2.1.5-1_all.deb`,
   https://archive.ubuntu.com/ubuntu/pool/main/f/fonts-liberation2/fonts-liberation2_2.1.5-1_all.deb
   (Ubuntu archive; Debian/Ubuntu's FontForge-built binaries of upstream
@@ -103,8 +105,11 @@ per spec 02 §4.5's renderer obligation.
 - **Family:** Carlito (Regular, Bold, Italic, Bold Italic)
 - **Version:** 1.104
 - **License:** SIL Open Font License, Version 1.1
-- **Copyright:** Copyright 2010-2012 Google Corporation; Copyright 2010-2012
-  tyPoland Lukasz Dziedzic (Carlito font, http://www.typoland.com/)
+- **Designer:** Lukasz Dziedzic (tyPoland)
+- **Copyright:** Copyright 2013 The Carlito Project Authors
+  (https://github.com/googlefonts/carlito) — corrected in fix round 1 (the
+  earlier revision's copyright line did not match the vendored binary's own
+  embedded `name` table record)
 - **Source:** https://github.com/google/fonts (commit `1ac2012c34919f5fa2675aacf723fa98edb30b5f`, `ofl/carlito/`)
 - **SHA-256:**
   - `Carlito-Regular.ttf`: `f6418f708baede9789daef5d458c0f53d2a888af9820e8062934e504fedc6595`
@@ -116,8 +121,16 @@ per spec 02 §4.5's renderer obligation.
 
 - **Family:** Caladea (Regular, Bold, Italic, Bold Italic)
 - **Version:** 1.001
-- **License:** Apache License, Version 2.0
-- **Copyright:** Copyright 2012 Google Inc.; Copyright 2012 Huerta Tipográfica
+- **License:** SIL Open Font License, Version 1.1 (**not** Apache 2.0 — the
+  earlier revision of this file mislabeled it; the vendored binary's own
+  embedded `name` table license record reads "This Font Software is
+  licensed under the SIL Open Font License, Version 1.1", it lives under
+  `ofl/` in the google/fonts tree per the Source line below, and google/fonts'
+  `METADATA.pb` for `caladea` at the pinned commit records `license: OFL`.
+  Corrected in fix round 1.)
+- **Designer:** Carolina Giovagnoli and Andres Torresi
+- **Copyright:** Copyright 2012 The Caladea Project Authors
+  (https://github.com/huertatipografica/Caladea)
 - **Source:** https://github.com/google/fonts (commit `1ac2012c34919f5fa2675aacf723fa98edb30b5f`, `ofl/caladea/`)
 - **SHA-256:**
   - `Caladea-Regular.ttf`: `f1e899278b7b4491aba5b6a8253c4b04c050cc59b21865be5c37559a775153cd`
@@ -131,8 +144,10 @@ per spec 02 §4.5's renderer obligation.
   two `wght`-variable files, see "Variable-font instancing" above)
 - **Version:** 1.008
 - **License:** SIL Open Font License, Version 1.1
-- **Copyright:** Copyright 2017 The Gelasio Project Authors
-  (https://github.com/googlefonts/gelasio)
+- **Copyright:** Copyright 2022 The Gelasio Project Authors
+  (https://github.com/SorkinType/Gelasio) — corrected in fix round 1 (the
+  earlier revision had both the year and the repo wrong; the vendored
+  binary's own embedded `name` table copyright record is the source here)
 - **Source:** https://github.com/google/fonts (commit `1ac2012c34919f5fa2675aacf723fa98edb30b5f`, `ofl/gelasio/`)
 - **SHA-256** (of the two vendored variable-font files):
   - `Gelasio[wght].ttf` (Regular + Bold instances): `4daecea457258c9ebeb8bc99ed3fd24353618bfad3ea4b93fa0b5d0468fc04e4`
@@ -144,8 +159,12 @@ per spec 02 §4.5's renderer obligation.
   instanced), Noto Sans Mono (Regular, Bold only — no italic published)
 - **Version:** Noto Serif 2.015, Noto Sans 2.015, Noto Sans Mono 2.014
 - **License:** SIL Open Font License, Version 1.1
-- **Copyright:** Copyright 2014-2021 Adobe (for Source Serif/Sans-derived
-  glyphs) and The Noto Project Authors (https://github.com/notofonts)
+- **Copyright:** Copyright 2022 The Noto Project Authors
+  (https://github.com/notofonts/latin-greek-cyrillic) — corrected in fix
+  round 1 (the earlier revision credited Adobe/Source Serif-Sans here; that
+  attribution belongs to the CJK families below, not these Latin/Greek/
+  Cyrillic ones — the vendored binaries' own embedded copyright records
+  name only The Noto Project Authors)
 - **Source:** https://github.com/google/fonts (commit `1ac2012c34919f5fa2675aacf723fa98edb30b5f`)
 - **SHA-256:**
   - `NotoSerif[wdth,wght].ttf` (`ofl/notoserif/`): `4d8e6761424656867019081a1a01336f3cb086982682698714054fc33f782713`
@@ -160,8 +179,10 @@ per spec 02 §4.5's renderer obligation.
   Regular, Bold)
 - **Version:** Noto Sans CJK 2.004, Noto Serif CJK 2.003
 - **License:** SIL Open Font License, Version 1.1
-- **Copyright:** Copyright 2014-2021 Adobe (Source Han Sans/Serif) and The
-  Noto Project Authors
+- **Copyright:** Noto Sans CJK: © 2014-2021 Adobe; Noto Serif CJK: © 2017-2024
+  Adobe (both Source Han Sans/Serif-derived; per the embedded `name` table
+  copyright record of each vendored `.ttc`, which differ slightly by year —
+  corrected in fix round 1, the earlier revision quoted one year for both)
 - **Source:** https://github.com/googlefonts/noto-cjk — Sans at tag
   `Sans2.004` (commit `523d033d6cb47f4a80c58a35753646f5c3608a78`), Serif at
   tag `Serif2.003` (commit `9b0f1436e455d902de067a2501422e5dc71ad16b`). Each
@@ -186,6 +207,8 @@ this face.
 
 - **Version:** Noto Sans Thai 2.002, Noto Serif Thai 2.002
 - **License:** SIL Open Font License, Version 1.1
+- **Copyright:** Copyright 2022 The Noto Project Authors
+  (https://github.com/notofonts/thai)
 - **Source:** https://github.com/google/fonts (commit `1ac2012c34919f5fa2675aacf723fa98edb30b5f`)
 - **SHA-256:**
   - `NotoSansThai[wdth,wght].ttf` (`ofl/notosansthai/`): `5a1c559bb539583c8a1fd99d1c5b9491e5e14478c9cd2bd0970d5c3096cc9ef8`
@@ -195,6 +218,9 @@ this face.
 
 - **Version:** Noto Sans Hebrew 3.001, Noto Serif Hebrew 2.004
 - **License:** SIL Open Font License, Version 1.1
+- **Copyright:** Noto Sans Hebrew: Copyright 2024 The Noto Project Authors;
+  Noto Serif Hebrew: Copyright 2022 The Noto Project Authors
+  (both https://github.com/notofonts/hebrew)
 - **Source:** https://github.com/google/fonts (commit `1ac2012c34919f5fa2675aacf723fa98edb30b5f`)
 - **SHA-256:**
   - `NotoSansHebrew[wdth,wght].ttf` (`ofl/notosanshebrew/`): `7ef36a2c3593758cdb622e1bdef4f84523e92fbc3ccc667438dd80ff54c2de88`
@@ -210,6 +236,8 @@ not Regular); the generator reads the typographic family name (nameID 16,
 
 - **Version:** 2.021
 - **License:** SIL Open Font License, Version 1.1
+- **Copyright:** Copyright 2022 The Noto Project Authors
+  (https://github.com/notofonts/arabic)
 - **Source:** https://github.com/google/fonts (commit `1ac2012c34919f5fa2675aacf723fa98edb30b5f`, `ofl/notonaskharabic/`)
 - **SHA-256:** `NotoNaskhArabic[wght].ttf`: `67b5a525a661b607971fbd3f96a81b89d3a768e74534fca84f18ac97e6fab72f`
 
@@ -219,6 +247,9 @@ Only Noto Naskh Arabic is bundled (not the Noto Sans Arabic alternate spec 02
 ## Noto Sans Devanagari / Bengali / Tamil / Telugu / Gujarati / Gurmukhi / Kannada / Malayalam
 
 - **License:** SIL Open Font License, Version 1.1
+- **Copyright:** Copyright 2022 The Noto Project Authors, except Bengali
+  (Copyright 2025) — each family's own `github.com/notofonts/<script>` repo
+  (per embedded `name` table copyright records)
 - **Source:** https://github.com/google/fonts (commit `1ac2012c34919f5fa2675aacf723fa98edb30b5f`)
 - **SHA-256:**
   - `NotoSansDevanagari[wdth,wght].ttf` (v2.007, `ofl/notosansdevanagari/`): `14ec4af41f27482216d1c2229f417ff9b1425e1babb014e57d1d40d03229853e`
@@ -234,6 +265,9 @@ Only Noto Naskh Arabic is bundled (not the Noto Sans Arabic alternate spec 02
 
 - **Version:** Noto Sans Symbols 2 v2.008, Noto Sans Math v3.000, Noto Emoji v3.002
 - **License:** SIL Open Font License, Version 1.1
+- **Copyright:** Noto Sans Symbols 2: Copyright 2022 The Noto Project Authors
+  (https://github.com/notofonts/symbols); Noto Sans Math: Copyright 2022
+  Google LLC; Noto Emoji: Copyright 2013 Google LLC
 - **Source:** https://github.com/google/fonts (commit `1ac2012c34919f5fa2675aacf723fa98edb30b5f`)
 - **SHA-256:**
   - `NotoSansSymbols2-Regular.ttf` (`ofl/notosanssymbols2/`): `7d5fb73b7ca67a6798101741f5d280a3d016a56a197afcd4199dbb57b4b82a21`
