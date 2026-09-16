@@ -184,4 +184,25 @@ describe('openDocument elements', () => {
     rootStyle.delete('align'); // no style in h's chain overrides align, so its resolution has no value left to inherit
     expect(() => model.element(h.get('id') as never)).toThrow(/no value for align/);
   });
+
+  it('resolves title page role to null for an unknown style without throwing', () => {
+    const { doc } = setup();
+    const model = openDocument(doc, deps);
+    const tpElements = doc.getMap('titlePage').get('elements') as Y.Map<unknown>;
+    const bogus = insertElementRecord(
+      tpElements,
+      { id: newId('el', ids), pos: 'ZZ', style: 'st_does_not_exist' as never, text: { plain: 'Ghost line.', runs: [{ text: 'Ghost line.', attrs: {} }], embeds: [] } },
+      meta,
+    );
+    const tp = model.titlePage();
+    expect(tp.elements.find((e) => e.id === bogus.get('id'))!.role).toBeNull();
+  });
+
+  it('lets a genuine resolveStyle failure propagate from titlePage instead of being swallowed', () => {
+    const { doc } = setup();
+    const model = openDocument(doc, deps);
+    const titleCenter = (doc.getMap('template').get('titlePageStyles') as Y.Map<Y.Map<unknown>>).get('st_title_center')!;
+    titleCenter.delete('align'); // st_title_center is the root of the title-page chain; st_title inherits align from it
+    expect(() => model.titlePage()).toThrow(/no value for align/);
+  });
 });

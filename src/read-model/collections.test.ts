@@ -69,6 +69,78 @@ describe('entities and occurrences', () => {
   });
 });
 
+describe('entities and occurrences: review fixes', () => {
+  it('merges occurrences from multiple sources into true document order', () => {
+    const { model, doc, maya, made } = setup();
+    const props = [...doc.getMap('tagCategories').values()].map((c) => (c as Y.Map<unknown>).toJSON() as { id: string; key: string }).find((c) => c.key === 'props')!;
+    const tagId = newId('tag', ids);
+    const tag = doc.getMap('tags').set(tagId, new Y.Map<unknown>());
+    const between = made[2]!; // "Hi." dialogue, between MAYA's two speaker cues (made[1], made[5])
+    for (const [k, v] of Object.entries({ id: tagId, categoryId: props.id, entityId: maya, elementId: between.get('id'), createdBy: 'u', createdAt: 0 })) tag.set(k, v);
+    (between.get('text') as Y.Text).format(0, 2, { [`t:${tagId}`]: true }); // "Hi"
+
+    // Document order is speaker(made[1]) < tag(made[2]) < speaker(made[5]); a naive per-source
+    // concatenation (speaker pass, then heading, then tag) would instead return both speaker
+    // occurrences before the tag one.
+    expect(model.occurrences(maya).map((o) => ({ source: o.source, elementId: o.elementId }))).toEqual([
+      { source: 'speaker', elementId: made[1]!.get('id') },
+      { source: 'tag', elementId: made[2]!.get('id') },
+      { source: 'speaker', elementId: made[5]!.get('id') },
+    ]);
+  });
+
+  it('follows a live merge when filtering tags and computing occurrences', () => {
+    const { model, doc, maya, made } = setup();
+    const rose = (() => {
+      const id = newId('ent', ids);
+      writeEntity(doc.getMap('entities'), {
+        id, kind: 'character', name: 'ROSE', nameKey: 'rose', aliases: [], color: null, description: emptyText,
+        fields: {}, attributes: {}, categoryId: null, retain: false, mergedInto: null, createdBy: 'u', createdAt: 0, origin: 'manual',
+      } as never);
+      return id as EntityId;
+    })();
+    const props = [...doc.getMap('tagCategories').values()].map((c) => (c as Y.Map<unknown>).toJSON() as { id: string; key: string }).find((c) => c.key === 'props')!;
+    const tagId = newId('tag', ids);
+    const tag = doc.getMap('tags').set(tagId, new Y.Map<unknown>());
+    const coffee = made[6]!; // "Coffee?" dialogue
+    for (const [k, v] of Object.entries({ id: tagId, categoryId: props.id, entityId: rose, elementId: coffee.get('id'), createdBy: 'u', createdAt: 0 })) tag.set(k, v);
+    (coffee.get('text') as Y.Text).format(0, 6, { [`t:${tagId}`]: true }); // "Coffee"
+
+    expect(model.tags({ entityId: maya }).map((t) => t.id)).toEqual([]);
+    expect(model.occurrences(maya).some((o) => o.source === 'tag')).toBe(false);
+
+    (doc.getMap('entities').get(rose) as Y.Map<unknown>).set('mergedInto', maya);
+
+    expect(model.tags({ entityId: maya }).map((t) => t.id)).toEqual([tagId]);
+    expect(model.occurrences(maya)).toContainEqual({ sceneId: made[0]!.get('id'), elementId: coffee.get('id'), source: 'tag', range: { index: 0, length: 6 } });
+  });
+
+  it('computes hidden the same way for a direct fetch and a merged-id hop', () => {
+    const { model, doc, ghost } = setup();
+    // Direct fetch: harvested, unretained, unused -> hidden, matching entities()'s computation.
+    expect(model.entity(ghost)!.hidden).toBe(true);
+
+    const shadow = (() => {
+      const id = newId('ent', ids);
+      writeEntity(doc.getMap('entities'), {
+        id, kind: 'character', name: 'SHADOW OLD', nameKey: 'shadow old', aliases: [], color: null, description: emptyText,
+        fields: {}, attributes: {}, categoryId: null, retain: false, mergedInto: ghost, createdBy: 'u', createdAt: 0, origin: 'manual',
+      } as never);
+      return id as EntityId;
+    })();
+    // Merged-id hop lands on `ghost`, which is hidden; the hop must compute `hidden` too, not
+    // just pass through the raw record (whose JSON has no `hidden` key at all).
+    expect(model.entity(shadow)!.hidden).toBe(true);
+  });
+
+  it('does not invalidate the occurrences cache for a collection unrelated to occurrences', () => {
+    const { model, maya, doc } = setup();
+    const before = model.occurrences(maya);
+    doc.getMap('notes').set('n1', new Y.Map<unknown>()); // 'notes' cannot affect occurrences
+    expect(model.occurrences(maya)).toBe(before);
+  });
+});
+
 describe('SmartType suggestions', () => {
   it('suggests characters from entities and times from the list', () => {
     const { model } = setup();

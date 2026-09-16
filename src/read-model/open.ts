@@ -7,6 +7,7 @@ import { readTextJSON, scanText } from '../model/ytext.js';
 import type {
   BeatJSON, BinItemJSON, BookmarkJSON, DocumentJSON, EmbeddedTemplateJSON, ProductionJSON, RevisionsJSON, SettingsJSON, ShotJSON, TrackChangesJSON,
 } from '../schema/document.js';
+import type { EntityJSON } from '../schema/entities.js';
 import type { MacroRecord, StyleDef } from '../schema/template.js';
 import type { EntityKind, SmartTypeList, StyleRole } from '../schema/vocab.js';
 import { normalizeKey, stripExtension } from '../smarttype/normalize.js';
@@ -181,8 +182,14 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
     const map = doc.getMap<unknown>(key);
     const handler = (events: Y.YEvent<Y.AbstractType<unknown>>[], tx: Y.Transaction) => {
       caches.delete(key);
-      caches.delete('occurrences');
-      if (STRUCTURE_SOURCES.has(key)) invalidateStructure();
+      // Occurrences are derived from structure (entities/tags/folders/smartType/tagCategories
+      // feed computeScenes/computeDialogueBlocks) plus a direct scan of `tags`, so only changes
+      // to those collections can change what occurrences() returns; narrower invalidation avoids
+      // recomputing on every unrelated collection edit (notes, revisions, production, bin, …).
+      if (STRUCTURE_SOURCES.has(key)) {
+        invalidateStructure();
+        caches.delete('occurrences');
+      }
       if (key === 'titlePage') titlePageCache = null;
       const make = COLLECTION_KINDS[key];
       if (!make) return;
@@ -342,12 +349,24 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
   };
   const entityRecords = () => cached('entities', () => readCollection(doc, 'entities', readEntity));
 
+  /** Follows `mergedInto` to the id of the entity a raw (possibly stale) id ultimately resolves to. */
+  const followId = (id: string): string => {
+    let cur = entityRecords().find((e) => e.id === id);
+    let guard = 0;
+    while (cur?.mergedInto && guard++ < 64) cur = entityRecords().find((e) => e.id === cur!.mergedInto);
+    return cur?.id ?? id;
+  };
+
+  /** `hidden` is always derived the same way, everywhere an EntityView is produced. */
+  const computeHidden = (e: EntityJSON): boolean => e.origin === 'harvested' && !e.retain && !(occurrenceMap().get(e.id)?.length);
+  const toView = (e: EntityJSON): EntityView => ({ ...e, hidden: computeHidden(e) } as EntityView);
+
   function occurrenceMap(): Map<string, OccurrenceView[]> {
     return cached('occurrences', () => {
-      const map = new Map<string, OccurrenceView[]>();
+      const raw = new Map<string, OccurrenceView[]>();
       const add = (entityId: string | null, o: OccurrenceView) => {
         if (!entityId) return;
-        map.set(entityId, [...(map.get(entityId) ?? []), o]);
+        raw.set(entityId, [...(raw.get(entityId) ?? []), o]);
       };
       const s = getStructure();
       for (const b of s.blocks) add(b.entityId, { sceneId: b.sceneId, elementId: b.speakerId, source: 'speaker', range: null });
@@ -356,16 +375,32 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
         const el = elementsMap.get(tag.elementId) as YMap | undefined;
         const text = el?.get('text');
         const mark = text instanceof Y.Text ? scanText(text).marks.find((m) => m.key === `t:${tag.id}`) : undefined;
-        add(tag.entityId, { sceneId: s.sceneOf.get(tag.elementId)?.id ?? null, elementId: tag.elementId, source: 'tag', range: mark ? { index: mark.index, length: mark.length } : null });
+        // Follow merges: a tag written against an entity that was later merged into another one
+        // must still surface as an occurrence of the surviving (canonical) entity.
+        add(followId(tag.entityId), { sceneId: s.sceneOf.get(tag.elementId)?.id ?? null, elementId: tag.elementId, source: 'tag', range: mark ? { index: mark.index, length: mark.length } : null });
+      }
+      // The three passes above append per-source, so an entity with occurrences from more than
+      // one source would otherwise come back grouped by source; resort into true document order
+      // by the position of the owning element, tie-broken by in-element range and finally by
+      // source so the result never depends on iteration order.
+      const SOURCE_ORDER: Record<OccurrenceView['source'], number> = { speaker: 0, heading: 1, tag: 2 };
+      const map = new Map<string, OccurrenceView[]>();
+      for (const [entityId, occs] of raw) {
+        map.set(entityId, [...occs].sort((a, b) =>
+          index.indexOf(a.elementId) - index.indexOf(b.elementId)
+          || (a.range?.index ?? -1) - (b.range?.index ?? -1)
+          || SOURCE_ORDER[a.source] - SOURCE_ORDER[b.source]));
       }
       return map;
     });
   }
 
   const follow = (e: EntityView | undefined): EntityView | undefined => {
-    let cur = e;
-    for (let i = 0; cur?.mergedInto && i < 64; i++) cur = entityRecords().find((x) => x.id === cur!.mergedInto) as EntityView | undefined;
-    return cur;
+    if (!e) return undefined;
+    const id = followId(e.id);
+    if (id === e.id) return e;
+    const target = entityRecords().find((x) => x.id === id);
+    return target ? toView(target) : undefined;
   };
 
   const model: DocumentModel = {
@@ -423,10 +458,15 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
           .sort((a, b) => comparePositions(String(a.get('pos')), String(b.get('pos'))))
           .map((m) => {
             const text = readTextJSON(m.get('text') as Y.Text);
-            let role: StyleRole | null = null;
-            try { role = resolveStyle(tpTemplate, m.get('style') as StyleId).role; } catch { role = null; }
+            const style = m.get('style') as StyleId;
+            // Only an unknown style (dangling reference, e.g. after a style deletion) resolves to a
+            // null role; any other resolveStyle failure (e.g. an incomplete root chain) is a genuine
+            // template bug and must propagate rather than be silently swallowed as "no role" —
+            // matching buildView's handling of body elements.
+            const styleExists = tpTemplate.styles.some((s) => s.id === style);
+            const role: StyleRole | null = styleExists ? resolveStyle(tpTemplate, style).role : null;
             return deepFreeze({
-              id: m.get('id') as ElementId, pos: String(m.get('pos')), style: m.get('style') as StyleId, role, text,
+              id: m.get('id') as ElementId, pos: String(m.get('pos')), style, role, text,
               ov: m.get('ov') instanceof Y.Map ? (m.get('ov') as Y.Map<unknown>).toJSON() : {}, num: null, hasScene: false, dual: null,
               altCount: 0, label: null, outlineLevel: null, shotId: null, folderId: null, lineAdjust: null, tc: null, omit: null,
               meta: m.get('meta') as ElementView['meta'], field: (m.get('field') as ElementView['field']) ?? null,
@@ -446,8 +486,7 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
     },
     entities(filter = {}) {
       const all = entityRecords().filter((e) => e.mergedInto === null && (!filter.kind || e.kind === filter.kind));
-      const occ = occurrenceMap();
-      const withHidden = all.map((e) => ({ ...e, hidden: e.origin === 'harvested' && !e.retain && !(occ.get(e.id)?.length) }) as EntityView);
+      const withHidden = all.map(toView);
       const visible = filter.includeHidden ? withHidden : withHidden.filter((e) => !e.hidden);
       // `new Intl.Collator` is banned by the platform-free guard; `localeCompare` with an
       // explicit locale gives the same base-sensitivity comparison.
@@ -455,7 +494,7 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
     },
     entity(id) {
       const e = entityRecords().find((x) => x.id === id);
-      return e ? follow({ ...e, hidden: false } as EntityView) : undefined;
+      return e ? follow(toView(e)) : undefined;
     },
     resolveEntity(kind, name) {
       const found = entityLookup(kind, name);
@@ -464,7 +503,9 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
     occurrences: (entityId) => occurrenceMap().get(entityId) ?? [],
     tags(filter = {}) {
       const all = cached('tags', () => readCollection(doc, 'tags', (m) => m.toJSON() as TagView));
-      return all.filter((t) => (!filter.elementId || t.elementId === filter.elementId) && (!filter.categoryId || t.categoryId === filter.categoryId) && (!filter.entityId || t.entityId === filter.entityId));
+      // `t.entityId` may reference an entity that has since been merged into another one; follow
+      // the merge chain so filtering by the surviving (canonical) entity still matches it.
+      return all.filter((t) => (!filter.elementId || t.elementId === filter.elementId) && (!filter.categoryId || t.categoryId === filter.categoryId) && (!filter.entityId || followId(t.entityId) === filter.entityId));
     },
     tagCategories: () => cached('tagCategories', () => readCollection(doc, 'tagCategories', (m) => m.toJSON() as TagCategoryView)),
     notes(filter = {}) {
