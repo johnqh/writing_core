@@ -17,6 +17,24 @@ describe('documentToJSON', () => {
     expect(json.revisions.sets).toHaveLength(20);
     expect(json.smartType.sceneIntros.map((e) => e.text)).toEqual(['INT.', 'EXT.', 'INT./EXT.']);
   });
+  it('returns a private copy of the template: mutating it leaves the built-in and the document alone', () => {
+    const doc = createDocument({ template: screenplayStandard, uid: 'u', ids: ids(), clock: () => 5 });
+    const before = JSON.stringify(documentToJSON(doc).template);
+    const builtinBefore = JSON.stringify(screenplayStandard);
+    const json = documentToJSON(doc);
+    const t = json.template as unknown as Record<string, unknown>;
+    expect(Object.isFrozen(json.template)).toBe(false);
+    expect(Object.isFrozen(json.template.styles[0])).toBe(false);
+    // Mutate every level a caller might reach: scalar, nested map, style, nested style object.
+    t.name = 'MUTATED';
+    (json.template.page as Record<string, unknown>).width = 1;
+    (json.template.styles[0] as unknown as Record<string, unknown>).name = 'MUTATED';
+    for (const s of json.template.styles) {
+      for (const v of Object.values(s)) if (Array.isArray(v)) v.push('MUTATED'); else if (v && typeof v === 'object') (v as Record<string, unknown>).mutated = true;
+    }
+    expect(JSON.stringify(documentToJSON(doc).template)).toBe(before);
+    expect(JSON.stringify(screenplayStandard)).toBe(builtinBefore);
+  });
 });
 
 describe('documentFromJSON', () => {

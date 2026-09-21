@@ -220,6 +220,22 @@ function anchorText(elements: YMap, elementId: string): Y.Text | null {
   return (el?.get('text') as Y.Text | undefined) ?? null;
 }
 
+/**
+ * A private, mutable deep copy of plain JSON. The Y.Doc keeps plain-object leaves by reference
+ * (`Y.Map.toJSON` and `.get` hand them back as-is), and for the template those leaves are the
+ * frozen objects of the built-in catalogue, so anything derived from them must be copied before
+ * it leaves the model.
+ */
+function cloneJSON<T>(value: T): T {
+  if (Array.isArray(value)) return value.map(cloneJSON) as T;
+  if (value !== null && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value)) out[k] = cloneJSON(v);
+    return out as T;
+  }
+  return value;
+}
+
 export function documentToJSON(doc: Y.Doc): DocumentJSON {
   const g = (k: string) => doc.getMap<unknown>(k);
   const elements = g('elements');
@@ -245,7 +261,7 @@ export function documentToJSON(doc: Y.Doc): DocumentJSON {
 
   return {
     meta: { ...(g('meta').toJSON() as DocumentJSON['meta']) },
-    template: readEmbeddedTemplate(doc),
+    template: cloneJSON(readEmbeddedTemplate(doc)),
     elements: readElementList(elements),
     titlePage: {
       elements: tp.has('elements') ? readElementList(childMap(tp, 'elements')) : [],
