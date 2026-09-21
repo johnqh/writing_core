@@ -14,6 +14,7 @@
 import type { ElementId } from '../ids/ids.js';
 import { childSeq } from '../numbering/modes.js';
 import { compareLabels, formatNumberLabel } from '../read-model/number-label.js';
+import { comparePositions } from '../model/positions.js';
 import type { PageLockJSON } from '../schema/document.js';
 import type { NumberLabel } from '../schema/template.js';
 import type { NumberMode } from '../schema/vocab.js';
@@ -50,8 +51,10 @@ export interface ResolvedLocks {
 
 /** Resolves lock records to block anchors, in label order; collapsed anchors become deleted pages. */
 export function resolveLocks(
-  locks: readonly PageLockJSON[], blocks: readonly Block[], order: ReadonlyMap<ElementId, number>, mode: NumberMode,
+  locks: readonly PageLockJSON[], blocks: readonly Block[], elements: readonly { id: ElementId; pos: string }[], mode: NumberMode,
 ): ResolvedLocks {
+  const order = new Map<ElementId, number>();
+  elements.forEach((e, i) => order.set(e.id, i));
   const blockOf = new Map<ElementId, number>();
   const firstIndex: number[] = [];
   blocks.forEach((b, bi) => {
@@ -74,7 +77,13 @@ export function resolveLocks(
   for (const lock of sorted) {
     let b = resolveBlock(lock.startElementId as ElementId);
     const prev = resolved[resolved.length - 1];
-    if (b < 0) b = prev ? prev.block : 0; // anchor gone: collapse onto the previous one
+    if (b < 0) {
+      // The anchor element was deleted: move forward to the next surviving element (by the order key `page.lock` recorded),
+      // or past the end when there is none (an empty segment: the page is deleted).
+      const hint = (lock as { posHint?: string }).posHint;
+      const next = typeof hint === 'string' ? elements.find((e) => comparePositions(e.pos, hint) >= 0) : undefined;
+      b = next ? resolveBlock(next.id) : blocks.length;
+    }
     if (prev && b < prev.block) b = prev.block; // out of order: clamp
     resolved.push({ lock, block: b });
   }

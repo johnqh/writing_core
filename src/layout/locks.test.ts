@@ -94,6 +94,15 @@ describe('page locking (§24)', () => {
     expect(lock.reanchored).toBe(true);
   });
 
+  it('with repair off (as in the app) a deleted anchor still moves the page start forward', () => {
+    const { h } = build();
+    h.run('page.lock', {});
+    const before = layoutDocument(h.model);
+    h.doc.transact(() => h.doc.getMap<unknown>('elements').delete(before.pages[1]!.lines[0]!.elementId));
+    const m = openDocument(h.doc, { ids: h.ids, clock: () => 5_000, locale: 'en' }, { repair: false });
+    expect(layoutDocument(m).pages.map((p) => p.label)).toEqual(before.pages.map((p) => p.label));
+  });
+
   it('the title page stays unnumbered while pages are locked', () => {
     const { h } = build();
     h.run('title.setField', { field: 'title', text: 'Locked' });

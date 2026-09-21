@@ -158,9 +158,7 @@ export function layoutDocument(model: DocumentModel, templateIn?: EmbeddedTempla
   const production = model.productionState();
   let lockRes: ResolvedLocks | null = null;
   if (production.pagesLocked && production.pageLocks.length > 0) {
-    const orderIndex = new Map<ElementId, number>();
-    order.forEach((id, i) => orderIndex.set(id, i));
-    lockRes = resolveLocks(production.pageLocks, blocks, orderIndex, template.pageNumbering.suffixMode);
+    lockRes = resolveLocks(production.pageLocks, blocks, model.elements(), template.pageNumbering.suffixMode);
     if (lockRes.live.length === 0) lockRes = null;
     else forceBreaks(blocks, lockRes.live);
   }
