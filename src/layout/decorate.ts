@@ -6,7 +6,7 @@
  * Speed-mode scope: slot text that overflows a slot is not truncated with an ellipsis (no
  * `headerTruncated` diagnostic), `inline` scene numbers are not drawn, the title page's Roman
  * numbering (`titlePage: 'romanLower'`), revision tokens and `{style:}` / `{label}` header tokens
- * render empty, and body page labels are plain `start + index` (no A-pages).
+ * render empty, and body page labels come from `layoutDocument` (locked labels / A-pages, else `start + index`).
  */
 import type { ElementId, StyleId } from '../ids/ids.js';
 import { formatNumberLabel } from '../read-model/number-label.js';

@@ -12,8 +12,10 @@
  * come back in `DocPage.lines` with a `kind` other than `text` (generated, not editable) and, inside a dual
  * block, a `dualSide`; a dual side's `x`/`width` already carry the column geometry.
  *
+ * Page locks (§24, `locks.ts`): anchors snap to block starts and force a break; overflow pages get A labels (`DocPage.label`).
+ *
  * NOT run yet: column blocks (laid out at
- * full width), graphic-novel panels (§17), page locks / A-pages (§24), revision display (§25),
+ * full width), graphic-novel panels (§17), revision display (§25),
  * Track Changes and alternates view modes (§26; the `final` view is used), scene running time
  * (§27), the paragraph cache and incremental re-pagination (§31), and the element/line index (§29.5).
  */
@@ -34,6 +36,8 @@ import { makeContinueds } from './continueds.js';
 import { dualGeometry, dualSideBox } from './dual.js';
 import { headerFooterFor, sceneNumbersFor, type DecorateEnv, type DocDecoration } from './decorate.js';
 import { layoutTitlePages } from './title-page.js';
+import { forceBreaks, labelPages, resolveLocks, type ResolvedLocks } from './locks.js';
+import type { NumberLabel } from '../schema/template.js';
 
 export type { DocDecoration } from './decorate.js';
 
@@ -74,8 +78,12 @@ export interface DocPage {
   /** 1-based physical body page; 0 for a title page. */
   number: number;
   index: number;
-  /** The page-number text `{page}` renders: `pageNumbering.start + index`; empty on a title page. */
+  /** The page-number text `{page}` renders: `pageNumbering.start + index`, or the locked label (`12A`, `2-3`); empty on a title page. */
   label: string;
+  /** Locked pages (spec 02 §24): the structural label, the lock record starting this page (null on an A page or unlocked), and 0 / k for the k-th A page. */
+  numberLabel?: NumberLabel | null;
+  lockId?: string | null;
+  overflow?: number;
   lines: DocLine[];
   /** Header/footer slot lines and scene numbers, drawn in the margins. */
   decorations: DocDecoration[];
@@ -146,6 +154,16 @@ export function layoutDocument(model: DocumentModel, templateIn?: EmbeddedTempla
   }
 
   const blocks = formBlocks(paras, { dual: dualOn });
+  // Page locks (§24): resolve anchors to blocks and force a break at each; labels are assigned after pagination.
+  const production = model.productionState();
+  let lockRes: ResolvedLocks | null = null;
+  if (production.pagesLocked && production.pageLocks.length > 0) {
+    const orderIndex = new Map<ElementId, number>();
+    order.forEach((id, i) => orderIndex.set(id, i));
+    lockRes = resolveLocks(production.pageLocks, blocks, orderIndex, template.pageNumbering.suffixMode);
+    if (lockRes.live.length === 0) lockRes = null;
+    else forceBreaks(blocks, lockRes.live);
+  }
   const geometry = pageGeometryOf(template.page);
   const pg = template.pagination;
   const params: PaginationParams = {
@@ -186,8 +204,15 @@ export function layoutDocument(model: DocumentModel, templateIn?: EmbeddedTempla
     model, template, fonts, shaper, lang, referenceSizePt, renderTimeMs: options.renderTimeMs ?? model.deps.clock(), filename: options.filename,
   };
   const start = template.pageNumbering.start;
+  const locked = lockRes ? labelPages(filled.pages, lockRes, template.pageNumbering.suffixMode, template.pageNumbering.skipIO, template.pageNumbering.combineDeletedRanges) : null;
   for (const p of pages) {
-    p.label = String(start + p.index);
+    p.label = locked?.[p.index]?.label ?? String(start + p.index);
+    if (locked?.[p.index]) {
+      const info = locked[p.index]!;
+      p.numberLabel = info.numberLabel;
+      p.lockId = info.lockId;
+      p.overflow = info.overflow;
+    }
     const first = p.lines[0]?.elementId ?? null;
     p.decorations.push(
       ...headerFooterFor(env, { index: p.index, label: p.label, firstElementId: first, isTitle: false }, pages.length, contexts, numbers, diagnostics),

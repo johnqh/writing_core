@@ -4,6 +4,7 @@ import type { StyleId } from '../../ids/ids.js';
 import { ENTITY_KINDS, SCENE_ROLES } from '../../schema/vocab.js';
 import { resolveStyle } from '../../template/resolve.js';
 import { dualRuns } from '../dual-runs.js';
+import { comparePositions } from '../positions.js';
 import { decodeRelativePosition, encodeRelativePosition } from '../portable-pos.js';
 import { type YMap, has, records } from './helpers.js';
 import { allTexts, roleOf, scanText } from './marks.js';
@@ -207,12 +208,16 @@ const I15: Invariant = {
       out.push(issue(I15, `page lock ${id} lost its anchor; re-anchoring`, [id], () => {
         const prevAnchor = i > 0 ? String(sorted[i - 1]![1].get('startElementId')) : null;
         const prevIndex = prevAnchor ? ordered.findIndex((e) => e.get('id') === prevAnchor) : -1;
-        const target = ordered[prevIndex + 1] ?? ordered[0];
+        // `posHint` (written by page.lock) is the anchor element's order key: the next surviving element at or after it.
+        const hint = lock.get('posHint');
+        const forward = typeof hint === 'string' ? ordered.find((e) => comparePositions(String(e.get('pos')), hint) >= 0) : undefined;
+        const target = forward ?? ordered[prevIndex + 1] ?? ordered[0];
         if (!target) return;
         const text = target.get('text') as Y.Text;
         lock.set('startElementId', target.get('id'));
         lock.set('start', encodeRelativePosition(Y.createRelativePositionFromTypeIndex(text, 0, 0)));
         lock.set('startMidElement', false);
+        if (typeof hint === 'string') lock.set('posHint', String(target.get('pos')));
         lock.set('reanchored', true);
       }));
     });
