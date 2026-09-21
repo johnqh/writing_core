@@ -48,6 +48,19 @@ describe('title page', () => {
     expect(l.pages[0]!.number).toBe(1);
   });
 
+  it('keeps the bottom block on the bottom margin when a flow field is added after it', () => {
+    const { h, layout } = build(manyActions(1));
+    h.run('title.setField', { field: 'title', text: 'T' });
+    h.run('title.setField', { field: 'contact', text: 'jane@example.com' });
+    h.run('title.setField', { field: 'basedOn', text: 'Based on a novel' });
+    const l = layout();
+    const lines = l.titlePages[0]!.lines;
+    const contact = lines.find((x) => text(x) === 'jane@example.com')!;
+    const based = lines.find((x) => text(x) === 'Based on a novel')!;
+    expect(contact.y + contact.pitch).toBe(l.bodyBottom);
+    expect(based.y).toBeLessThan(contact.y);
+  });
+
   it('drops "Written by" when there is no author', () => {
     const { h, layout } = build(manyActions(1));
     h.run('title.setField', { field: 'title', text: 'Solo' });

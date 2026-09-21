@@ -1,7 +1,7 @@
 /**
  * Spec 02 §19: the title page, a separate flow over `titlePage.elements` with `titlePageStyles`.
  * `flow` elements stack from the body top (the title element sits at `titlePageLayout.centerTop`);
- * the trailing run of `anchor: 'bottom'` elements is stacked upward so its last line rests on the
+ * the `anchor: 'bottom'` elements are stacked upward so the last line rests on the
  * bottom margin; `pageBreakBefore` starts another title page. Empty title page = no page.
  *
  * Speed-mode scope: `titlePageOverflow` moves the bottom run to a following page but does not try
@@ -113,10 +113,10 @@ export function layoutTitlePages(env: TitleEnv, diagnostics: LayoutDiagnostic[])
   };
 
   for (const group of groups) {
-    let cut = group.length;
-    while (cut > 0 && group[cut - 1]!.bottom) cut--;
-    const flow = group.slice(0, cut);
-    const bottom = group.slice(cut);
+    // Every bottom-anchored element goes in the bottom block, in order, wherever it sits (spec 02 §19 only bottom-anchors the
+    // trailing run; a field added after the block, e.g. "Based on", must not pull the block up into the flow).
+    const flow = group.filter((it) => !it.bottom);
+    const bottom = group.filter((it) => it.bottom);
     const p = emit();
     let y = bodyTop;
     flow.forEach((it, i) => {

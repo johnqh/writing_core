@@ -3,7 +3,7 @@ import * as Y from 'yjs';
 import { z } from 'zod/v4';
 import { type ElementId, type StyleId, newId } from '../ids/ids.js';
 import { insertElementRecord } from '../model/element-record.js';
-import { positionBetween } from '../model/positions.js';
+import { comparePositions, positionBetween } from '../model/positions.js';
 import { childMap, lastPosition, setJSONMap } from '../model/ymap.js';
 import { idSchema } from '../schema/primitives.js';
 import { textJSONFromPlain } from '../schema/text.js';
@@ -82,7 +82,26 @@ export const PAGE_SETUP_COMMANDS: CommandSpec<never>[] = [
     const styleIds = ctx.model.template().titlePageStyles.map((s) => s.id);
     const seed = seedFor(p.field, styleIds);
     const id = newId('el', ctx.ids);
-    const pos = positionBetween(lastPosition(elements as YMap), null, ctx.ids);
+    // Flow fields go before the bottom-anchored block so the block stays last; bottom fields go at the end.
+    const bottomAnchored = (seed.ov as { anchor?: string }).anchor === 'bottom';
+    let firstBottom: string | null = null;
+    for (const v of (elements as YMap).values()) {
+      const m = v as YMap;
+      const anchor = (m.get('ov') as YMap | undefined)?.get('anchor');
+      const p2 = String(m.get('pos'));
+      if (anchor === 'bottom' && (firstBottom === null || comparePositions(p2, firstBottom) < 0)) firstBottom = p2;
+    }
+    let before: string | null = null;
+    if (!bottomAnchored && firstBottom !== null) {
+      // The greatest position strictly below the first bottom element.
+      for (const v of (elements as YMap).values()) {
+        const p2 = String((v as YMap).get('pos'));
+        if (comparePositions(p2, firstBottom) < 0 && (before === null || comparePositions(p2, before) > 0)) before = p2;
+      }
+    }
+    const pos = !bottomAnchored && firstBottom !== null
+      ? positionBetween(before, firstBottom, ctx.ids)
+      : positionBetween(lastPosition(elements as YMap), null, ctx.ids);
     insertElementRecord(elements as YMap, { id, pos, style: seed.style, text: textJSONFromPlain(p.text), ov: seed.ov as never, field: p.field }, meta);
     (fields as YMap).set(p.field, id);
     return { ok: true, effects: [{ kind: 'elementCreated', id }] };
