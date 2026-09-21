@@ -69,6 +69,7 @@ export function computeScenes(input: StructureInput): SceneView[] {
       characterIds: Object.freeze([...characterIds]),
       omitted,
       storyDay: (scene?.get('storyDay') as string | undefined) ?? '',
+      estimatedSeconds: (scene?.get('estimatedSeconds') as number | null | undefined) ?? null,
       versions: Object.freeze(versions instanceof Y.Array ? versions.toArray().map((v) => {
         const m = v as Y.Map<unknown>;
         return { id: String(m.get('id')), name: String(m.get('name')), createdAt: Number(m.get('createdAt')) };

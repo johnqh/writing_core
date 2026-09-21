@@ -186,6 +186,12 @@ describe('the fastPath element commands refuse without writing', () => {
   // escape mid-write, leaving the element restyled with no refusal ever returned. `st_broken`
   // passes `styleExists` (it's in the template) but has `basedOn: null` and an empty font, so it
   // is its own complete chain and resolveStyleCore's `required()` throws "incomplete root".
+  //
+  // `{ repair: false }` — Task 16's repair-on-open runs I6, whose auto-repair for an
+  // 'incompleteRoot' style is exactly to fill in the missing required font fields (spec 01 §9).
+  // With repair on, `commandHarness` would silently heal `st_broken` before this test ever ran
+  // its command, so `resolveStyle` would no longer throw and the refusal-before-write behavior
+  // this test exists to pin would go untested.
   it('element.setStyle leaves the document byte-identical when resolveStyle throws', () => {
     const broken = {
       ...screenplayStandard,
@@ -194,7 +200,7 @@ describe('the fastPath element commands refuse without writing', () => {
         { id: builtinStyleId('broken'), name: 'Broken', nameKey: null, role: 'action' as const, basedOn: null, shortcut: null, font: {} },
       ],
     };
-    const h = commandHarness(broken);
+    const h = commandHarness(broken, 90, { repair: false });
     const [a] = h.replaceBody([['st_action', 'One']]);
     const before = snapshot(h);
     expect(() => h.run('element.setStyle', { elements: [a], style: builtinStyleId('broken') })).toThrow(/incomplete root/);

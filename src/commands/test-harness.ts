@@ -4,7 +4,7 @@ import { type ElementId, newId } from '../ids/ids.js';
 import { createDocument } from '../model/create.js';
 import { insertElementRecord } from '../model/element-record.js';
 import { generatePositions } from '../model/positions.js';
-import { openDocument } from '../read-model/open.js';
+import { type OpenDocumentOptions, openDocument } from '../read-model/open.js';
 import type { TemplateJSON } from '../schema/template.js';
 import { screenplayStandard } from '../templates/builtin/screenplay-standard.js';
 import { registerBuiltinCommands } from './builtin.js';
@@ -13,12 +13,16 @@ import { type OriginKind, createSessionOrigins } from './origin.js';
 
 export const TEST_ACTOR = { userId: 'u1', displayName: 'Writer', color: '#224466', kind: 'human' as const };
 
-export function commandHarness(template: TemplateJSON = screenplayStandard, seed = 90) {
+export function commandHarness(template: TemplateJSON = screenplayStandard, seed = 90, modelOptions: OpenDocumentOptions = {}) {
   registerBuiltinCommands();
   let clock = 1_000;
   const ids = createSeededIdSource(seed);
   const doc = createDocument({ template, uid: TEST_ACTOR.userId, ids, clock: () => clock });
-  const model = openDocument(doc, { ids, clock: () => clock, locale: 'en' });
+  // Repair-on-open defaults to true here too (Task 16), same as any real document open, so the
+  // command suite exercises the real interaction between repair and commands. A test that needs
+  // a deliberately malformed document to stay malformed (e.g. to prove a command refuses cleanly
+  // against it) passes `{ repair: false }`.
+  const model = openDocument(doc, { ids, clock: () => clock, locale: 'en' }, modelOptions);
   const origins = createSessionOrigins(TEST_ACTOR);
   const elements = doc.getMap<unknown>('elements');
   return {

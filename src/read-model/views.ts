@@ -2,8 +2,9 @@ import type { IdSource } from '../ids/id-source.js';
 import type { ElementId, EntityId, FolderId, StyleId } from '../ids/ids.js';
 import type { EntityJSON } from '../schema/entities.js';
 import type {
-  ElementMeta, ElementNumbering, NoteJSON, OmitRecord, TagCategoryJSON, TagJSON, TrackChangeRecord,
+  AltJSON, ElementMeta, ElementNumbering, NoteJSON, OmitRecord, TagCategoryJSON, TagJSON, TrackChangeRecord,
 } from '../schema/document.js';
+import type { JsonValue } from '../schema/primitives.js';
 import type { ElementOverrides } from '../schema/template.js';
 import type { TextJSON } from '../schema/text.js';
 import type { StyleRole, TitleField } from '../schema/vocab.js';
@@ -22,6 +23,9 @@ export interface ElementView {
   readonly hasScene: boolean;
   readonly dual: { group: string; side: 'left' | 'right' } | null;
   readonly altCount: number;
+  /** The inactive alternates' own text (spec 01 §5.5), not just their count — read by
+   *  `alternatesMode: 'all'` (spec 02 §8.2) to render `text // alt1 // alt2`. */
+  readonly alts: readonly AltJSON[];
   readonly label: string | null;
   readonly outlineLevel: number | null;
   readonly shotId: string | null;
@@ -29,9 +33,25 @@ export interface ElementView {
   readonly lineAdjust: { deltaRight: number; auto: boolean } | null;
   readonly tc: TrackChangeRecord | null;
   readonly omit: OmitRecord | null;
+  /** The `omit` record of the *governing* scene (the nearest preceding scene start, walked
+   *  locally — never a full `getStructure()` pass), or `null` if this element has no governing
+   *  scene or that scene is not omitted. Lets a layout consumer skip an omitted scene's body
+   *  without asking the structure pass to compute it (Task 17). */
+  readonly sceneOmit: OmitRecord | null;
   readonly meta: ElementMeta;
   readonly field: TitleField | null;
 }
+
+/** spec 01 §5.11 `production`: which top-level record a change touched, so §31.1 can
+ *  re-decorate (lock badges, page-lock anchors, scene-lock banner) without a refill. */
+export type ProductionChangeKind = 'lockedStyles' | 'pageLocks' | 'scenesLocked' | 'other';
+/** spec 01 §5.10 `revisions`: `sets` holds revision-set *content* (colors, names, dates), which
+ *  changes revised-text styling and needs a refill (§25.6); every other key is a *display*
+ *  setting (active/selected sets, page color, mode) that only changes decoration (§31.1). */
+export type RevisionsChangeKind = 'display' | 'sets' | 'other';
+/** spec 01 §5.18 `settings`: `watermark` is the one field spec 02 §20.1 draws as a header/footer
+ *  decoration (`{watermark.recipient}`), so it alone can be handled as decoration-only. */
+export type SettingsChangeKind = 'watermark' | 'other';
 
 export type ModelChange =
   | { kind: 'elements'; inserted: string[]; removed: string[]; changed: string[]; reordered: boolean }
@@ -40,9 +60,10 @@ export type ModelChange =
   | { kind: 'entities'; ids: string[] }
   | { kind: 'tags'; ids: string[] }
   | { kind: 'notes'; ids: string[] }
-  | { kind: 'revisions' } | { kind: 'trackChanges' } | { kind: 'production' }
+  | { kind: 'revisions'; what: RevisionsChangeKind } | { kind: 'trackChanges' } | { kind: 'production'; what: ProductionChangeKind }
   | { kind: 'folders' } | { kind: 'beats'; ids: string[] } | { kind: 'shots'; ids: string[] }
-  | { kind: 'smartType' } | { kind: 'settings' } | { kind: 'bin' } | { kind: 'bookmarks' } | { kind: 'macros' };
+  | { kind: 'smartType' } | { kind: 'settings'; what: SettingsChangeKind } | { kind: 'bin' } | { kind: 'bookmarks' } | { kind: 'macros' }
+  | { kind: 'writers'; ids: string[] };
 
 export interface ModelChangeBatch {
   changes: ModelChange[];
@@ -75,6 +96,9 @@ export interface SceneView {
   readonly omitted: boolean;
   readonly storyDay: string;
   readonly versions: readonly { id: string; name: string; createdAt: number }[];
+  /** Round-trips `scene.estimatedSeconds` (spec 01 §5.6); `null` when unset, in which case
+   *  spec 02 §27.2's `runningTime` derives it from pages or words instead. */
+  readonly estimatedSeconds: number | null;
 }
 
 export interface DialogueBlockView {
@@ -99,6 +123,10 @@ export interface OutlineNode {
 export interface TitlePageView {
   readonly elements: readonly ElementView[];
   readonly fields: Partial<Record<TitleField, { elementId: ElementId; text: string }>>;
+  /** The stored `titlePage.computed` record (spec 01 §5.12), with `wordCount` replaced by its
+   *  live value: the body word count rounded per `computed.wordCount.roundTo` (spec 02 §19),
+   *  where `roundTo` defaults to 1 (exact count) when unset or not a positive number. */
+  readonly computed: { readonly wordCount: number } & Readonly<Record<string, JsonValue>>;
 }
 
 export type EntityView = Readonly<EntityJSON> & { readonly hidden: boolean };

@@ -1,9 +1,15 @@
 import * as Y from 'yjs';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createSeededIdSource } from '../ids/id-source.js';
 import { newId } from '../ids/ids.js';
+import type { StyleId } from '../ids/ids.js';
+import { DOC_SCHEMA_VERSION } from '../migrations/index.js';
 import { createDocument } from '../model/create.js';
 import { insertElementRecord } from '../model/element-record.js';
+import { writeEntity } from '../model/json.js';
+import { systemOrigin } from '../model/origins.js';
+import { setJSONMap } from '../model/ymap.js';
+import { resolveStyle } from '../template/resolve.js';
 import { screenplayStandard } from '../templates/builtin/screenplay-standard.js';
 import { openDocument } from './open.js';
 import type { ModelChangeBatch } from './views.js';
@@ -293,5 +299,326 @@ describe('document order is pos-then-id everywhere', () => {
     });
     const ordered = model.titlePage().elements.filter((e) => e.pos === pos).map((e) => e.id);
     expect(ordered).toEqual([earlier, later, existing.get('id') as string].sort());
+  });
+});
+
+function mergeCycleDoc() {
+  const doc = createDocument({ template: screenplayStandard, uid: 'u', ids });
+  const entities = doc.getMap<unknown>('entities');
+  const a = newId('ent', ids);
+  const b = newId('ent', ids);
+  const base = {
+    kind: 'character' as const, name: 'MAYA', nameKey: 'maya', aliases: [], color: null,
+    description: { plain: '', runs: [], embeds: [] }, fields: {}, attributes: {}, categoryId: null,
+    retain: false, createdBy: 'u', createdAt: 0, origin: 'manual' as const,
+  };
+  // A concurrent merge cycle: two replicas each independently merged the other entity into
+  // itself. Neither `mergedInto` is null, so `entities()`'s `mergedInto === null` filter drops
+  // BOTH — M1's own carried finding (I17).
+  writeEntity(entities, { ...base, id: a, mergedInto: b });
+  writeEntity(entities, { ...base, id: b, mergedInto: a });
+  return { doc, entities, a, b };
+}
+
+describe('Task 16: layout read-model punch list', () => {
+  it("reads the governing scene's omit record straight off a body element's view, and keeps it scoped to that scene", () => {
+    const { doc, h, a, c } = setup();
+    const model = openDocument(doc, deps);
+    // Nothing omitted yet: warm the cache first so the later assertions exercise invalidation,
+    // not just first-read computation.
+    expect(model.element(a.get('id') as never)!.sceneOmit).toBeNull();
+    expect(model.element(h.get('id') as never)!.sceneOmit).toBeNull();
+
+    const scene = h.set('scene', new Y.Map<unknown>());
+    const omitRecord = { at: 5, by: 'u', rev: null };
+    scene.set('omit', omitRecord);
+    // The heading itself is its own governing scene start, and its member `a`/`c` inherit it.
+    expect(model.element(h.get('id') as never)!.sceneOmit).toEqual(omitRecord);
+    expect(model.element(a.get('id') as never)!.sceneOmit).toEqual(omitRecord);
+    expect(model.element(c.get('id') as never)!.sceneOmit).toEqual(omitRecord);
+
+    // A later, unrelated scene must not inherit the first scene's omit.
+    const h2 = insertElementRecord(doc.getMap('elements'), { id: newId('el', ids), pos: 'ZZ', style: 'st_scene_heading' as never, text: { plain: 'INT. OFFICE - DAY', runs: [{ text: 'INT. OFFICE - DAY', attrs: {} }], embeds: [] } }, meta);
+    const a2 = insertElementRecord(doc.getMap('elements'), { id: newId('el', ids), pos: 'ZZZ', style: 'st_action' as never, text: { plain: 'Later.', runs: [{ text: 'Later.', attrs: {} }], embeds: [] } }, meta);
+    expect(model.element(h2.get('id') as never)!.sceneOmit).toBeNull();
+    expect(model.element(a2.get('id') as never)!.sceneOmit).toBeNull();
+  });
+
+  it('stops the governing-scene walk at an act start, and evicts only the changed scene\'s cached views', () => {
+    const { doc, h, a, add } = setup();
+    const model = openDocument(doc, deps);
+    // Scene 1 (h, a, c) | ACT START | action (no governing scene) | scene 2 (h2, a2).
+    const act = add('st_new_act', 'H', 'ACT TWO');
+    const orphan = add('st_action', 'I', 'No scene governs me.');
+    const h2 = add('st_scene_heading', 'J', 'INT. OFFICE - DAY');
+    const a2 = add('st_action', 'K', 'Later.');
+    const id = (m: Y.Map<unknown>) => m.get('id') as never;
+    // Warm scene 2's views so eviction (or the lack of it) is observable by identity. `act` and
+    // `orphan` are deliberately NOT warmed: their first build happens after the omit is set, so it
+    // is the backward walk itself (not a stale cache) that must stop at the act start.
+    const warm = new Map([h, a, h2, a2].map((m) => [m, model.element(id(m))!] as const));
+
+    h.set('scene', new Y.Map<unknown>()).set('omit', { at: 5, by: 'u', rev: null });
+
+    expect(model.element(id(a))!.sceneOmit).toEqual({ at: 5, by: 'u', rev: null });
+    // An act start ends the scene without starting one: nothing after it inherits scene 1's omit.
+    expect(model.element(id(act))!.sceneOmit).toBeNull();
+    expect(model.element(id(orphan))!.sceneOmit).toBeNull();
+    // Scene 2 is a different scene and keeps its own (absent) omit — and its cached views were not
+    // evicted by an omit change in scene 1.
+    expect(model.element(id(h2))).toBe(warm.get(h2));
+    expect(model.element(id(a2))).toBe(warm.get(a2));
+  });
+
+  it("surfaces the inactive alternates' own text on ElementView.alts, not just altCount", () => {
+    const { doc, a } = setup();
+    const model = openDocument(doc, deps);
+    expect(model.element(a.get('id') as never)!.altCount).toBe(0);
+    expect(model.element(a.get('id') as never)!.alts).toEqual([]);
+
+    const altId = newId('alt', ids);
+    const alts = a.set('alts', new Y.Map<unknown>());
+    const altMap = alts.set(altId, new Y.Map<unknown>());
+    altMap.set('id', altId);
+    altMap.set('pos', 'A');
+    const altText = new Y.Text();
+    altText.insert(0, 'She waits instead.');
+    altMap.set('text', altText);
+    altMap.set('style', 'st_action');
+    altMap.set('label', 'alt 1');
+    altMap.set('createdBy', 'u');
+    altMap.set('createdAt', 0);
+
+    const view = model.element(a.get('id') as never)!;
+    expect(view.altCount).toBe(1);
+    expect(view.alts).toHaveLength(1);
+    expect(view.alts[0]).toMatchObject({ id: altId, pos: 'A', style: 'st_action', label: 'alt 1', createdBy: 'u', createdAt: 0 });
+    expect(view.alts[0]!.text.plain).toBe('She waits instead.');
+  });
+
+  it('reads document meta fresh on every call (no dedicated cache or observer needed)', () => {
+    const { doc } = setup();
+    const model = openDocument(doc, deps);
+    expect(model.meta().language).toBeDefined();
+    doc.getMap('meta').set('language', 'fr-FR');
+    expect(model.meta().language).toBe('fr-FR');
+  });
+
+  it('exposes writers() and emits a `writers` ModelChange on a writer record change (today: none)', () => {
+    const { doc } = setup();
+    const model = openDocument(doc, deps);
+    expect(model.writers()).toEqual([]);
+    const batches: ModelChangeBatch[] = [];
+    model.subscribe((b) => batches.push(b));
+
+    const writers = doc.getMap<unknown>('writers');
+    setJSONMap(writers, 'u1', { uid: 'u1', displayName: 'Ana', initials: 'A', color: '#ff0000' });
+    expect(model.writers()).toEqual([{ uid: 'u1', displayName: 'Ana', initials: 'A', color: '#ff0000' }]);
+    expect(batches.at(-1)!.changes).toContainEqual({ kind: 'writers', ids: ['u1'] });
+
+    (writers.get('u1') as Y.Map<unknown>).set('color', '#00ff00');
+    expect(model.writers()[0]!.color).toBe('#00ff00');
+    expect(batches.at(-1)!.changes).toContainEqual({ kind: 'writers', ids: ['u1'] });
+  });
+
+  it('resolves a title-page element via resolveStyle instead of throwing, and bumps its own text/attrs counters (title-page elements are outside the body order index)', () => {
+    const { doc } = setup();
+    const model = openDocument(doc, deps);
+    const tpElements = doc.getMap<unknown>('titlePage').get('elements') as Y.Map<unknown>;
+    const [tpId, tpEl] = [...tpElements.entries()][0] as [string, Y.Map<unknown>];
+    const style = tpEl.get('style') as StyleId;
+    const ov = tpEl.get('ov') instanceof Y.Map ? ((tpEl.get('ov') as Y.Map<unknown>).toJSON() as never) : undefined;
+
+    const tpTemplate = { ...model.template(), styles: model.template().titlePageStyles };
+    expect(model.resolveStyle(tpId as never)).toEqual(resolveStyle(tpTemplate, style, ov));
+
+    expect(model.textVersion(tpId as never)).toBe(0);
+    expect(model.attrsVersion(tpId as never)).toBe(0);
+    (tpEl.get('text') as Y.Text).insert(0, 'X');
+    expect(model.textVersion(tpId as never)).toBe(1);
+    expect(model.attrsVersion(tpId as never)).toBe(0);
+    tpEl.set('style', 'st_title_left');
+    expect(model.attrsVersion(tpId as never)).toBe(1);
+  });
+
+  it('computes titlePage().computed.wordCount from the live body text, rounded per computed.wordCount.roundTo', () => {
+    const { doc } = setup();
+    const model = openDocument(doc, deps);
+    // Body: "INT. DINER - NIGHT" (3: the "." and the lone "-" are not words) + "Maya waits." (2) + "MAYA" (1).
+    expect(model.titlePage().computed.wordCount).toBe(6);
+
+    const computed = doc.getMap<unknown>('titlePage').get('computed') as Y.Map<unknown>;
+    computed.set('wordCount', { roundTo: 10 });
+    expect(model.titlePage().computed.wordCount).toBe(10);
+  });
+
+  it('counts words by UAX #29 boundaries (spec 02 §6.5), not by whitespace', () => {
+    const { doc, a, c, add } = setup();
+    const model = openDocument(doc, deps);
+    const set = (el: Y.Map<unknown>, text: string) => {
+      const t = el.get('text') as Y.Text;
+      t.delete(0, t.length);
+      t.insert(0, text);
+    };
+    set(a, "Hello, world! Don't stop 3.14"); // Hello, world, Don't, stop, 3.14
+    set(c, '日本語'); // no dictionary for Han: one word per ideograph
+    const extra = add('st_action', 'H', '--- ...');
+    set(extra, '--- ...'); // punctuation only
+    // INT. DINER - NIGHT (3) + 5 + 3 + 0
+    expect(model.titlePage().computed.wordCount).toBe(11);
+  });
+
+  it('keeps titlePage().computed.wordCount current across insert, edit, text replacement and removal, respecting roundTo', () => {
+    const { doc, a, c, add } = setup();
+    const model = openDocument(doc, deps);
+    const computed = doc.getMap<unknown>('titlePage').get('computed') as Y.Map<unknown>;
+    computed.set('wordCount', { roundTo: 5 });
+    expect(model.titlePage().computed.wordCount).toBe(5); // 6 words rounds to 5
+
+    (a.get('text') as Y.Text).insert(0, 'Extra extra extra extra ');
+    expect(model.titlePage().computed.wordCount).toBe(10); // 10 words
+
+    computed.delete('wordCount');
+    expect(model.titlePage().computed.wordCount).toBe(10);
+    // Inserted with its text in ONE transaction, so the observer sees a fresh record (not an empty
+    // one followed by a later text edit).
+    let insertedId = '';
+    doc.transact(() => { insertedId = add('st_action', 'H', 'Four more words here').get('id') as string; });
+    expect(model.titlePage().computed.wordCount).toBe(14);
+
+    // The whole record replaced in one transaction (a map-level `update`, as an importer or a
+    // materialize would do), not an edit inside the existing Y.Text.
+    doc.transact(() => insertElementRecord(doc.getMap('elements'), {
+      id: insertedId as never, pos: 'H', style: 'st_action' as never,
+      text: { plain: 'Two words', runs: [{ text: 'Two words', attrs: {} }], embeds: [] },
+    }, meta));
+    expect(model.titlePage().computed.wordCount).toBe(12);
+    doc.transact(() => insertElementRecord(doc.getMap('elements'), {
+      id: insertedId as never, pos: 'H', style: 'st_action' as never,
+      text: { plain: 'Four more words here', runs: [{ text: 'Four more words here', attrs: {} }], embeds: [] },
+    }, meta));
+    expect(model.titlePage().computed.wordCount).toBe(14);
+
+    doc.transact(() => {
+      const t = c.set('text', new Y.Text());
+      t.insert(0, 'ONE TWO');
+    });
+    expect(model.titlePage().computed.wordCount).toBe(15); // MAYA (1) -> ONE TWO (2)
+
+    doc.getMap('elements').delete(insertedId);
+    expect(model.titlePage().computed.wordCount).toBe(11);
+    doc.getMap('elements').delete(a.get('id') as string);
+    expect(model.titlePage().computed.wordCount).toBe(5); // INT. DINER - NIGHT (3) + ONE TWO (2)
+  });
+
+  it('maintains the body word count incrementally: an edit re-reads only the edited element, never the whole body', () => {
+    const { doc, a, add } = setup();
+    for (let i = 0; i < 60; i++) add('st_action', `M${String(i).padStart(3, '0')}`, `Filler line number ${i}.`);
+    const model = openDocument(doc, deps);
+    expect(model.titlePage().computed.wordCount).toBe(3 + 2 + 1 + 60 * 4); // one initial scan
+    // Force a title-page rebuild cost baseline: a title-page-only change re-reads the title page's
+    // own elements but no body element.
+    const tpComputed = doc.getMap<unknown>('titlePage').get('computed') as Y.Map<unknown>;
+    const spy = vi.spyOn(Y.Text.prototype, 'toDelta');
+    try {
+      tpComputed.set('wordCount', { roundTo: 1 });
+      model.titlePage();
+      const titlePageCost = spy.mock.calls.length;
+      spy.mockClear();
+
+      (a.get('text') as Y.Text).insert(0, 'One more ');
+      expect(model.titlePage().computed.wordCount).toBe(3 + 4 + 1 + 60 * 4);
+      // The rebuild re-reads the title page's own elements (the baseline above) plus the ONE edited
+      // body element — not the 60+ body elements a rescan would touch.
+      expect(spy.mock.calls.length).toBeLessThanOrEqual(titlePageCost + 1);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('classifies a lockedStyles change and a pageLocks change as distinguishable `production` events', () => {
+    const { doc } = setup();
+    const model = openDocument(doc, deps);
+    expect(model.productionState().lockedStyles).toEqual([]); // warm the cache: it must refresh on the edits below
+    const batches: ModelChangeBatch[] = [];
+    model.subscribe((b) => batches.push(b));
+    const production = doc.getMap<unknown>('production');
+    // The real storage shape: `lockedStyles` and `pageLocks` are nested Y.Maps, edited in place.
+    (production.get('lockedStyles') as Y.Map<unknown>).set('st_action', true);
+    expect(batches.at(-1)!.changes).toContainEqual({ kind: 'production', what: 'lockedStyles' });
+    expect(model.productionState().lockedStyles).toEqual(['st_action']);
+    (production.get('pageLocks') as Y.Map<unknown>).set('plk_01ARYZ6S410000000000000000', { id: 'plk_01ARYZ6S410000000000000000' });
+    expect(batches.at(-1)!.changes).toContainEqual({ kind: 'production', what: 'pageLocks' });
+    production.set('scenesLocked', true);
+    expect(batches.at(-1)!.changes).toContainEqual({ kind: 'production', what: 'scenesLocked' });
+    // Two categories in one transaction cannot be told apart by a single tag: 'other' (refill-safe).
+    doc.transact(() => {
+      (production.get('lockedStyles') as Y.Map<unknown>).set('st_dialogue', true);
+      production.set('pagesLocked', true);
+    });
+    expect(batches.at(-1)!.changes).toContainEqual({ kind: 'production', what: 'other' });
+  });
+
+  it('classifies `revisions` changes: `sets` (content, needs a refill) vs everything else (display-only)', () => {
+    const { doc } = setup();
+    const model = openDocument(doc, deps);
+    const batches: ModelChangeBatch[] = [];
+    model.subscribe((b) => batches.push(b));
+    const revisions = doc.getMap<unknown>('revisions');
+    revisions.set('activeSetId', 'rev_01ARYZ6S410000000000000000');
+    expect(batches.at(-1)!.changes).toContainEqual({ kind: 'revisions', what: 'display' });
+    revisions.set('sets', new Y.Map<unknown>());
+    expect(batches.at(-1)!.changes).toContainEqual({ kind: 'revisions', what: 'sets' });
+  });
+
+  it('classifies `settings` changes: `watermark` (header/footer decoration) vs everything else', () => {
+    const { doc } = setup();
+    const model = openDocument(doc, deps);
+    const batches: ModelChangeBatch[] = [];
+    model.subscribe((b) => batches.push(b));
+    const settings = doc.getMap<unknown>('settings');
+    settings.set('watermark', { recipient: 'DRAFT', text: null });
+    expect(batches.at(-1)!.changes).toContainEqual({ kind: 'settings', what: 'watermark' });
+    settings.set('outlineHidden', true);
+    expect(batches.at(-1)!.changes).toContainEqual({ kind: 'settings', what: 'other' });
+  });
+
+  it("repairs a concurrent entity-merge cycle on open, as a single systemOrigin('repair') transaction, and restores both original ids to a resolvable entity", () => {
+    const { doc, entities, a, b } = mergeCycleDoc();
+
+    const unrepaired = openDocument(doc, deps, { repair: false });
+    expect(unrepaired.entities({ kind: 'character' }).map((e) => e.name)).not.toContain('MAYA');
+    unrepaired.dispose();
+
+    const transactions: { origin: unknown }[] = [];
+    const onTx = (tx: Y.Transaction) => transactions.push({ origin: tx.origin });
+    doc.on('afterTransaction', onTx);
+    const model = openDocument(doc, deps); // default: repair on
+    doc.off('afterTransaction', onTx);
+
+    expect(transactions).toHaveLength(1);
+    expect(transactions[0]!.origin).toBe(systemOrigin('repair'));
+
+    // I17's repair breaks the cycle by nulling the target's own `mergedInto` (not by un-merging
+    // both), so exactly one of {a, b} becomes the canonical survivor; the other still points at
+    // it. Both original ids must still resolve to that survivor through `entity()`.
+    const survivorId = (entities.get(a) as Y.Map<unknown>).get('mergedInto') === null ? a : b;
+    expect(model.entity(a)!.id).toBe(survivorId);
+    expect(model.entity(b)!.id).toBe(survivorId);
+    expect(model.entities({ kind: 'character' }).filter((e) => e.name === 'MAYA')).toHaveLength(1);
+  });
+
+  it('does not repair a document newer than this build (I20: it must open read-only, and this build cannot judge what it does not understand)', () => {
+    const { doc, entities, a, b } = mergeCycleDoc();
+    doc.getMap('meta').set('schemaVersion', DOC_SCHEMA_VERSION + 1);
+    const transactions: unknown[] = [];
+    const onTx = (tx: Y.Transaction) => transactions.push(tx.origin);
+    doc.on('afterTransaction', onTx);
+    const model = openDocument(doc, deps);
+    doc.off('afterTransaction', onTx);
+    expect(transactions).toEqual([]);
+    expect((entities.get(a) as Y.Map<unknown>).get('mergedInto')).toBe(b);
+    expect((entities.get(b) as Y.Map<unknown>).get('mergedInto')).toBe(a);
+    expect(model.entities({ kind: 'character' })).toEqual([]);
   });
 });

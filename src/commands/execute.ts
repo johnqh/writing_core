@@ -120,7 +120,10 @@ function run(req: BatchRequest, doc: Y.Doc, model: DocumentModel, prepared: Prep
 function rehearse(req: BatchRequest, prepared: Prepared[], clock: () => number, readOnly: boolean): BatchResult {
   const replica = new Y.Doc({ gc: false });
   Y.applyUpdate(replica, Y.encodeStateAsUpdate(req.doc));
-  const model = openDocument(replica, req.model.deps);
+  // `repair: false` — this replica is thrown away the moment rehearsal finishes (`finally`
+  // below), and repair-on-open would otherwise cost a full `validateDocument` pass on every
+  // single command invocation, including the keyboard hot path `cost.bench.test.ts` guards.
+  const model = openDocument(replica, req.model.deps, { repair: false });
   // Rehearsal mints ids too (a command's `run` may call `ctx.ids`, and `run()` always
   // mints one `changeId`). Forking here means the rehearsal pass draws from a throwaway
   // copy of the id stream, so it can never advance `req.ids`: the real apply that follows

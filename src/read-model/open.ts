@@ -1,29 +1,45 @@
 import * as Y from 'yjs';
 import type { DocId, ElementId, EntityId, StyleId } from '../ids/ids.js';
 import { type ContentHash, elementContentHash, entityContentHash, sceneContentHash } from '../hash/content.js';
+import { isNewerThanCode } from '../migrations/index.js';
 import { readEmbeddedTemplate } from '../model/embed-template.js';
 import { documentToJSON, readEntity, readNote, readTextKeyed } from '../model/json.js';
 import { comparePositions } from '../model/positions.js';
-import { orderElements } from '../model/ymap.js';
+import { validateDocument } from '../model/validate/index.js';
+import { orderElements, sortedRecords } from '../model/ymap.js';
 import { readTextJSON, scanText } from '../model/ytext.js';
 import type {
-  BeatJSON, BinItemJSON, BookmarkJSON, DocumentJSON, EmbeddedTemplateJSON, ProductionJSON, RevisionsJSON, SettingsJSON, ShotJSON, TrackChangesJSON,
+  AltJSON, BeatJSON, BinItemJSON, BookmarkJSON, DocumentJSON, DocumentMeta, EmbeddedTemplateJSON, ProductionJSON, RevisionsJSON, SettingsJSON,
+  ShotJSON, TrackChangesJSON, WriterJSON,
 } from '../schema/document.js';
 import type { EntityJSON } from '../schema/entities.js';
 import type { MacroRecord, StyleDef } from '../schema/template.js';
-import type { EntityKind, SmartTypeList, StyleRole } from '../schema/vocab.js';
+import { SCENE_BOUNDARY_ROLES, SCENE_ROLES, type EntityKind, type SmartTypeList, type StyleRole } from '../schema/vocab.js';
 import { entityNameKey } from '../smarttype/normalize.js';
 import { type ResolvedStyle, resolveStyle } from '../template/resolve.js';
+import { generalCategory } from '../text/ucd.generated.js';
+import { wordBoundaries } from '../text/words.js';
 import { readCollection } from './collections.js';
 import { OrderIndex } from './order-index.js';
 import { computeDialogueBlocks, computeOutlineTree, computeScenes, type StructureInput } from './structure.js';
 import { matchesPrefix, rankSuggestions } from './suggestions.js';
 import type {
   DialogueBlockView, ElementView, EntityView, ModelChange, ModelChangeBatch, ModelDeps, NoteView, OccurrenceView, OutlineNode,
-  SceneView, Suggestion, SuggestionContext, TagCategoryView, TagView, TitlePageView, Unsubscribe,
+  ProductionChangeKind, RevisionsChangeKind, SceneView, SettingsChangeKind, Suggestion, SuggestionContext, TagCategoryView, TagView, TitlePageView,
+  Unsubscribe,
 } from './views.js';
 
 type YMap = Y.Map<unknown>;
+
+export interface OpenDocumentOptions {
+  /** Run `validateDocument(doc).repair()` for `autoRepair` issues before the model's initial
+   *  state is built (spec 01 §9). Default `true`. `false` opts out — used by internal throwaway
+   *  replicas (command rehearsal) where repair would cost O(document size) on every invocation
+   *  for no benefit, since the replica is discarded immediately after. A document newer than this
+   *  build (I20) is never repaired whatever this says: it must open read-only, and a build that
+   *  does not understand the newer schema must not "fix" what it cannot read. */
+  repair?: boolean;
+}
 
 /**
  * Element keys whose change bumps `attrsVersion` (spec 01 §10.2 / spec 02 §31.2). `scene` is here
@@ -50,6 +66,8 @@ export interface DocumentModel {
   previous(id: ElementId, filter?: (e: ElementView) => boolean): ElementView | undefined;
   textVersion(elementId: ElementId): number;
   attrsVersion(elementId: ElementId): number;
+  meta(): DocumentMeta;
+  writers(): readonly WriterJSON[];
   settings(): SettingsJSON;
   toJSON(): DocumentJSON;
   scenes(): readonly SceneView[];
@@ -90,7 +108,47 @@ const deepFreeze = <T>(value: T): T => {
   return value;
 };
 
-export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
+/**
+ * The number of words in `text` (spec 02 §6.5: word counts use UAX #29 word boundaries, the same
+ * segmentation as double-click selection). A segment counts when it holds at least one letter or
+ * number (general category L* or N*), so punctuation, spaces and lone dashes are not words. Uses
+ * the repo's own pinned UCD tables and `wordBoundaries`, so it is deterministic (spec 02 §1.1: no
+ * `Intl`, no host locale). Han text counts one word per ideograph, as UAX #29 segments it;
+ * Thai/Lao/Khmer/Myanmar run without a dictionary here, so they are counted per grapheme cluster.
+ */
+function countWords(text: string, language: string): number {
+  if (text.length === 0) return 0;
+  const starts = wordBoundaries(text, language);
+  let words = 0;
+  for (let i = 0; i < starts.length; i++) {
+    const end = i + 1 < starts.length ? starts[i + 1]! : text.length;
+    for (let j = starts[i]!; j < end;) {
+      const cp = text.codePointAt(j)!;
+      const category = generalCategory(cp)[0];
+      if (category === 'L' || category === 'N') {
+        words++;
+        break;
+      }
+      j += cp > 0xffff ? 2 : 1;
+    }
+  }
+  return words;
+}
+
+/** Rounds `n` to the nearest multiple of `roundTo`; `roundTo <= 1` (or not a finite number) means "exact". */
+function roundToNearest(n: number, roundTo: unknown): number {
+  const step = typeof roundTo === 'number' && Number.isFinite(roundTo) && roundTo > 1 ? roundTo : 1;
+  return step === 1 ? n : Math.round(n / step) * step;
+}
+
+export function openDocument(doc: Y.Doc, deps: ModelDeps, options: OpenDocumentOptions = {}): DocumentModel {
+  // I17's own carried finding (M1): a concurrent entity-merge cycle (two replicas each merging
+  // the other into itself) makes every entity in the cycle vanish from `entities()` until this
+  // runs — both have a non-null `mergedInto`, so the `mergedInto === null` filter drops them
+  // all. Repairing before any read-model state is built means the initial scan, index and
+  // caches below never see the broken state at all, so nothing downstream has to re-check.
+  if ((options.repair ?? true) && !isNewerThanCode(doc)) validateDocument(doc).repair();
+
   const elementsMap = doc.getMap<unknown>('elements');
   const templateMap = doc.getMap<unknown>('template');
   const index = new OrderIndex();
@@ -104,6 +162,32 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
 
   let structure: { scenes: SceneView[]; blocks: DialogueBlockView[]; tree: OutlineNode; sceneOf: Map<string, SceneView> } | null = null;
   let titlePageCache: TitlePageView | null = null;
+
+  // Body word count for `titlePage().computed.wordCount` (spec 02 §19), maintained incrementally:
+  // one scan the first time it is asked for (`wordTotal === null` until then), after which
+  // `onElements` adjusts it by only the elements a transaction touched — never a rescan. Per-element
+  // counts are kept so a removal or an edit can subtract exactly what that element contributed.
+  const wordCounts = new Map<string, number>();
+  let wordTotal: number | null = null;
+  const wordLanguage = () => String(doc.getMap('meta').get('language') ?? deps.locale);
+  const countElementWords = (id: string): number => {
+    const m = elementsMap.get(id);
+    const text = m instanceof Y.Map ? m.get('text') : undefined;
+    return text instanceof Y.Text ? countWords(readTextJSON(text).plain, wordLanguage()) : 0;
+  };
+  const bodyWordTotal = (): number => {
+    if (wordTotal === null) {
+      wordCounts.clear();
+      let total = 0;
+      for (const id of elementsMap.keys()) {
+        const count = countElementWords(id);
+        wordCounts.set(id, count);
+        total += count;
+      }
+      wordTotal = total;
+    }
+    return wordTotal;
+  };
   const invalidateStructure = () => {
     structure = null;
   };
@@ -173,14 +257,36 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
     return structure;
   }
 
+  // spec 01 §5.11: `lockedStyles` and `pageLocks`/`pagesLocked*` are distinct production concerns
+  // (§31.1 re-decorates lock badges vs. page-lock anchors differently); `scenesLocked*` is a
+  // third. A transaction that touches more than one category, or a key outside this table
+  // (there is none today, but a future field must not silently mis-tag itself), reports 'other'.
+  const PRODUCTION_WHAT: Record<string, ProductionChangeKind> = {
+    lockedStyles: 'lockedStyles', pageLocks: 'pageLocks', pagesLocked: 'pageLocks', pagesLockedAt: 'pageLocks',
+    scenesLocked: 'scenesLocked', scenesLockedAt: 'scenesLocked',
+  };
+  const classifyProduction = (keys: readonly string[]): ProductionChangeKind => {
+    const whats = new Set(keys.map((k) => PRODUCTION_WHAT[k] ?? 'other'));
+    return whats.size === 1 ? [...whats][0]! : 'other';
+  };
+  // spec 01 §5.10: `sets` is revision-set *content* (needs a refill, §25.6); every other key is a
+  // *display* setting (§31.1: "revision display changes only" needs decoration only).
+  const REVISIONS_WHAT: Record<string, RevisionsChangeKind> = {
+    sets: 'sets', activeSetId: 'display', headerSetId: 'display', mode: 'display', display: 'display',
+    selectedSetIds: 'display', showPageColor: 'display', colorRevisedText: 'display', markColumn: 'display',
+  };
+  const classifyRevisions = (keys: readonly string[]): RevisionsChangeKind => {
+    const whats = new Set(keys.map((k) => REVISIONS_WHAT[k] ?? 'other'));
+    return whats.size === 1 ? [...whats][0]! : 'other';
+  };
   const COLLECTION_KINDS: Record<string, (ids: string[]) => ModelChange> = {
     titlePage: () => ({ kind: 'titlePage' }),
     entities: (ids) => ({ kind: 'entities', ids }),
     tags: (ids) => ({ kind: 'tags', ids }),
     notes: (ids) => ({ kind: 'notes', ids }),
-    revisions: () => ({ kind: 'revisions' }),
+    revisions: (ids) => ({ kind: 'revisions', what: classifyRevisions(ids) }),
     trackChanges: () => ({ kind: 'trackChanges' }),
-    production: () => ({ kind: 'production' }),
+    production: (ids) => ({ kind: 'production', what: classifyProduction(ids) }),
     folders: () => ({ kind: 'folders' }),
     beats: (ids) => ({ kind: 'beats', ids }),
     shots: (ids) => ({ kind: 'shots', ids }),
@@ -188,6 +294,7 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
     bin: () => ({ kind: 'bin' }),
     bookmarks: () => ({ kind: 'bookmarks' }),
     macros: () => ({ kind: 'macros' }),
+    writers: (ids) => ({ kind: 'writers', ids }),
   };
   const STRUCTURE_SOURCES = new Set(['entities', 'tags', 'folders', 'smartType', 'tagCategories']);
   const collectionObservers: [Y.Map<unknown>, (events: Y.YEvent<Y.AbstractType<unknown>>[], tx: Y.Transaction) => void][] = [];
@@ -203,7 +310,29 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
         invalidateStructure();
         caches.delete('occurrences');
       }
-      if (key === 'titlePage') titlePageCache = null;
+      if (key === 'titlePage') {
+        titlePageCache = null;
+        // Title-page elements live outside `elements`, so `onElements` never sees them: bump
+        // their textVersion/attrsVersion here, from this same deep observer on the stable
+        // top-level `titlePage` map (its `elements` submap can be replaced wholesale by
+        // `fromJSON`, so tracking that submap's own identity would go stale; this one never is).
+        for (const event of events) {
+          if (event.path[0] !== 'elements') continue;
+          const id = String(event.path[1] ?? '');
+          if (!id) continue;
+          let bumpText = false;
+          let bumpAttrs = false;
+          if (event.target instanceof Y.Text && event.path.length === 3 && event.path[2] === 'text') {
+            bumpText = true;
+          } else if (event.path.length === 2) {
+            const keys = (event as Y.YMapEvent<unknown>).keysChanged;
+            bumpText = keys.has('text');
+            bumpAttrs = [...keys].some((k) => ATTRS_KEYS.has(k));
+          }
+          if (bumpText) textVersions.set(id, (textVersions.get(id) ?? 0) + 1);
+          if (bumpAttrs) attrsVersions.set(id, (attrsVersions.get(id) ?? 0) + 1);
+        }
+      }
       const make = COLLECTION_KINDS[key];
       if (!make) return;
       const ids = new Set<string>();
@@ -221,6 +350,79 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
 
   const template = () => (templateCache ??= deepFreeze(readEmbeddedTemplate(doc)));
 
+  /** The inactive alternates' own records (spec 01 §5.5), text included — not just a count. */
+  function readAlts(m: YMap): readonly AltJSON[] {
+    const alts = m.get('alts');
+    if (!(alts instanceof Y.Map) || alts.size === 0) return [];
+    return sortedRecords([...alts.values()].map((a) => {
+      const am = a as YMap;
+      return {
+        id: am.get('id') as AltJSON['id'], pos: am.get('pos') as string, text: readTextJSON(am.get('text') as Y.Text),
+        style: am.get('style') as AltJSON['style'], label: am.get('label') as string,
+        createdBy: am.get('createdBy') as string, createdAt: am.get('createdAt') as number,
+      } satisfies AltJSON;
+    }));
+  }
+
+  /**
+   * The role of an element read directly off `elementsMap`, bypassing the `view()` cache.
+   * `sceneOmitFor` (below) walks backward over *other* elements while `buildView` is still
+   * constructing the view for `id`; going through `view()` there would recurse into
+   * `buildView` for those other ids too, which is fine, except `buildView` itself calls
+   * `sceneOmitFor`, not `view`, so there is no cycle — but resolving role via `view()` would
+   * still pull `sceneOmit` for elements nobody asked to look at yet, doing more work than the
+   * lookup needs. Reading the role directly keeps the walk to "style + resolveStyle" only.
+   */
+  function elementRole(id: string): StyleRole | null {
+    const m = elementsMap.get(id);
+    if (!(m instanceof Y.Map)) return null;
+    const style = m.get('style') as StyleId;
+    return template().styles.some((s) => s.id === style) ? resolveStyle(template(), style).role : null;
+  }
+
+  /**
+   * The `omit` record of the nearest preceding scene start (spec 01 §5.6's `scene.omit`),
+   * walking the order index backward from `id` — never `getStructure()`, which would parse
+   * folders, characters and locations for the whole document just to answer one element's
+   * question. `actStart` ends the previous scene without itself starting one (spec 01 §3.4.1),
+   * so hitting it first means `id` has no governing scene at all.
+   */
+  function sceneOmitFor(id: string): ElementView['sceneOmit'] {
+    const idx = index.indexOf(id);
+    if (idx < 0) return null;
+    for (let i = idx; i >= 0; i--) {
+      const eid = index.idAt(i)!;
+      const role = elementRole(eid);
+      if (role !== null && (SCENE_ROLES as readonly string[]).includes(role)) {
+        const m = elementsMap.get(eid) as YMap | undefined;
+        const scene = m?.get('scene');
+        return scene instanceof Y.Map ? ((scene.get('omit') as ElementView['sceneOmit'] | undefined) ?? null) : null;
+      }
+      if (role === 'actStart') return null;
+    }
+    return null;
+  }
+
+  /**
+   * Evicts the cached views of every element governed by the scene heading `headingId`, from
+   * the heading itself up to (but excluding) the next scene-boundary element — a local walk
+   * bounded by scene length, not `getStructure()`. Needed because `scene.omit` lives only on
+   * the heading's own record; without this, a member element's `sceneOmit` would stay stale
+   * (its cached view untouched) until something unrelated happened to evict it.
+   */
+  function invalidateGoverned(headingId: string): void {
+    const start = index.indexOf(headingId);
+    if (start < 0) return;
+    for (let i = start; i < index.size; i++) {
+      const eid = index.idAt(i)!;
+      if (i > start) {
+        const role = elementRole(eid);
+        if (role !== null && (SCENE_BOUNDARY_ROLES as readonly string[]).includes(role)) break;
+      }
+      views.delete(eid);
+    }
+  }
+
   function buildView(id: string): ElementView | undefined {
     const m = elementsMap.get(id);
     if (!(m instanceof Y.Map)) return undefined;
@@ -230,7 +432,7 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
     // template bug and must propagate rather than be silently swallowed as "no role".
     const styleExists = template().styles.some((s) => s.id === style);
     const role: StyleRole | null = styleExists ? resolveStyle(template(), style).role : null;
-    const alts = m.get('alts');
+    const alts = readAlts(m);
     const view: ElementView = {
       id: id as ElementId,
       pos: String(m.get('pos')),
@@ -241,7 +443,8 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
       num: m.get('num') instanceof Y.Map ? ((m.get('num') as YMap).toJSON() as ElementView['num']) : null,
       hasScene: m.get('scene') instanceof Y.Map,
       dual: (m.get('dual') as ElementView['dual']) ?? null,
-      altCount: alts instanceof Y.Map ? alts.size : 0,
+      altCount: alts.length,
+      alts,
       label: (m.get('label') as string | undefined) ?? null,
       outlineLevel: (m.get('outlineLevel') as number | undefined) ?? null,
       shotId: (m.get('shotId') as string | undefined) ?? null,
@@ -249,6 +452,7 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
       lineAdjust: (m.get('lineAdjust') as ElementView['lineAdjust']) ?? null,
       tc: (m.get('tc') as ElementView['tc']) ?? null,
       omit: (m.get('omit') as ElementView['omit']) ?? null,
+      sceneOmit: sceneOmitFor(id),
       meta: m.get('meta') as ElementView['meta'],
       field: (m.get('field') as ElementView['field']) ?? null,
     };
@@ -276,13 +480,19 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
     const inserted = new Set<string>();
     const removed = new Set<string>();
     const changed = new Set<string>();
+    // Elements whose text may have changed, for the incremental body word count below.
+    const recount = new Set<string>();
+    const sceneOmitChanged = new Set<string>();
     let reordered = false;
     for (const event of events) {
       if (event.target === elementsMap) {
         for (const [key, change] of (event as Y.YMapEvent<unknown>).changes.keys) {
           if (change.action === 'add') inserted.add(key);
           else if (change.action === 'delete') removed.add(key);
-          else changed.add(key);
+          else {
+            changed.add(key);
+            recount.add(key); // the whole record was replaced, so its text may be a different Y.Text
+          }
         }
         continue;
       }
@@ -303,12 +513,34 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
       } else if (event.path[1] === 'scene') {
         // Spec 02 §31.2: of the scene map, only `omit` is a paragraph-layout input.
         bumpAttrs = event.path.length === 2 && (event as Y.YMapEvent<unknown>).keysChanged.has('omit');
+        if (bumpAttrs) sceneOmitChanged.add(id);
       } else {
         bumpAttrs = ATTRS_KEYS.has(String(event.path[1]));
       }
-      if (bumpText) textVersions.set(id, (textVersions.get(id) ?? 0) + 1);
+      if (bumpText) {
+        textVersions.set(id, (textVersions.get(id) ?? 0) + 1);
+        recount.add(id);
+      }
       if (bumpAttrs) attrsVersions.set(id, (attrsVersions.get(id) ?? 0) + 1);
       if (event.target instanceof Y.Map && event.path.length === 1 && (event as Y.YMapEvent<unknown>).keysChanged.has('pos')) reordered = true;
+    }
+    // `titlePage().computed.wordCount` (spec 02 §19) is the body word count. Once it has been asked
+    // for, adjust the running total by exactly what this transaction touched: subtract a removed
+    // element's contribution, recount an inserted or text-edited one. Until then there is nothing
+    // to maintain (`wordTotal === null`), and the first ask pays the single initial scan.
+    if (wordTotal !== null) {
+      const before = wordTotal;
+      for (const id of removed) {
+        wordTotal -= wordCounts.get(id) ?? 0;
+        wordCounts.delete(id);
+      }
+      for (const id of new Set([...inserted, ...recount])) {
+        if (removed.has(id) && !inserted.has(id)) continue;
+        const count = countElementWords(id);
+        wordTotal += count - (wordCounts.get(id) ?? 0);
+        wordCounts.set(id, count);
+      }
+      if (wordTotal !== before) titlePageCache = null;
     }
     for (const id of inserted) {
       const m = elementsMap.get(id);
@@ -334,6 +566,10 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
       if (m instanceof Y.Map) index.upsert(id, String(m.get('pos')));
       views.delete(id);
     }
+    // A scene's `omit` lives only on its heading's own record, but `sceneOmit` (spec 01 §10.2)
+    // is read by every member of that scene — evict their cached views too, or a body element's
+    // `sceneOmit` would stay stale until something unrelated happened to evict it.
+    for (const headingId of sceneOmitChanged) if (!removed.has(headingId)) invalidateGoverned(headingId);
     queue(tx, { kind: 'elements', inserted: [...inserted].sort(), removed: [...removed].sort(), changed: [...changed].filter((id) => !removed.has(id)).sort(), reordered });
   };
 
@@ -355,9 +591,14 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
     queue(tx, { kind: 'template', styleIds: all ? 'all' : [...styleIds].sort() });
   };
 
-  const onSettings = (_e: unknown, tx: Y.Transaction) => {
+  const onSettings = (e: Y.YMapEvent<unknown>, tx: Y.Transaction) => {
     settingsCache = null;
-    queue(tx, { kind: 'settings' });
+    // spec 01 §5.18: `watermark` is the only settings field spec 02 draws as a header/footer
+    // decoration (§20.1 `{watermark.recipient}`); every other field either doesn't reach layout
+    // at all or needs more than re-decoration, so it is conservatively 'other'.
+    const keys = [...e.keysChanged];
+    const what: SettingsChangeKind = keys.length === 1 && keys[0] === 'watermark' ? 'watermark' : 'other';
+    queue(tx, { kind: 'settings', what });
   };
 
   const afterTransaction = (tx: Y.Transaction) => {
@@ -468,9 +709,19 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
     style: (id) => template().styles.find((s) => s.id === id),
     resolveStyle(elementId) {
       const m = elementsMap.get(elementId) as YMap | undefined;
-      if (!m) throw new Error(`unknown element ${elementId}`);
-      const ov = m.get('ov') instanceof Y.Map ? ((m.get('ov') as YMap).toJSON() as ElementView['ov']) : undefined;
-      return resolveStyle(template(), m.get('style') as StyleId, ov);
+      if (m) {
+        const ov = m.get('ov') instanceof Y.Map ? ((m.get('ov') as YMap).toJSON() as ElementView['ov']) : undefined;
+        return resolveStyle(template(), m.get('style') as StyleId, ov);
+      }
+      // Title-page elements are not in the body order index (spec 02 §19 is a separate flow),
+      // so a miss above falls back to `titlePage.elements`, resolving against `titlePageStyles`
+      // the same way `titlePage()` already does for its own views.
+      const tpElements = doc.getMap<unknown>('titlePage').get('elements');
+      const tm = tpElements instanceof Y.Map ? (tpElements.get(elementId) as YMap | undefined) : undefined;
+      if (!tm) throw new Error(`unknown element ${elementId}`);
+      const ov = tm.get('ov') instanceof Y.Map ? ((tm.get('ov') as YMap).toJSON() as ElementView['ov']) : undefined;
+      const tpTemplate = { ...template(), styles: template().titlePageStyles };
+      return resolveStyle(tpTemplate, tm.get('style') as StyleId, ov);
     },
     stylesByRole: (role) => template().styles.filter((s) => s.role === role),
     elementCount: () => index.size,
@@ -498,6 +749,14 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
     },
     textVersion: (id) => textVersions.get(id) ?? 0,
     attrsVersion: (id) => attrsVersions.get(id) ?? 0,
+    // `meta` (spec 01 §5.2) is a fixed handful of scalar keys, not a growing collection — it
+    // costs nothing relative to document size to read fresh every call, so unlike `settings`
+    // (cached below) it needs no cache or dedicated observer to stay "incremental".
+    meta: () => doc.getMap('meta').toJSON() as DocumentMeta,
+    writers: () => cached('writers', () => [...doc.getMap<unknown>('writers').values()]
+      .filter((v): v is YMap => v instanceof Y.Map)
+      .map((m) => m.toJSON() as WriterJSON)
+      .sort((a, b) => (a.uid < b.uid ? -1 : a.uid > b.uid ? 1 : 0))),
     settings: () => (settingsCache ??= deepFreeze(doc.getMap('settings').toJSON() as SettingsJSON)),
     toJSON: () => documentToJSON(doc),
     scenes: () => getStructure().scenes,
@@ -526,8 +785,8 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
             return deepFreeze({
               id: m.get('id') as ElementId, pos: String(m.get('pos')), style, role, text,
               ov: m.get('ov') instanceof Y.Map ? (m.get('ov') as Y.Map<unknown>).toJSON() : {}, num: null, hasScene: false, dual: null,
-              altCount: 0, label: null, outlineLevel: null, shotId: null, folderId: null, lineAdjust: null, tc: null, omit: null,
-              meta: m.get('meta') as ElementView['meta'], field: (m.get('field') as ElementView['field']) ?? null,
+              altCount: 0, alts: [], label: null, outlineLevel: null, shotId: null, folderId: null, lineAdjust: null, tc: null, omit: null,
+              sceneOmit: null, meta: m.get('meta') as ElementView['meta'], field: (m.get('field') as ElementView['field']) ?? null,
             } satisfies ElementView);
           });
         const fields: TitlePageView['fields'] = {};
@@ -538,7 +797,16 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps): DocumentModel {
             if (v) fields[field as keyof TitlePageView['fields']] = { elementId: v.id, text: v.text.plain };
           }
         }
-        titlePageCache = deepFreeze({ elements: views, fields });
+        // spec 02 §19: "the computed `wordCount` field is replaced at layout time by the body
+        // word count rounded per `titlePage.computed.wordCount.roundTo`" — read that config from
+        // the stored record (an author- or template-set value, `{ roundTo: number }`), default
+        // `roundTo` to 1 (exact) when absent, and replace it with the live rounded count.
+        const computedMap = tp.get('computed');
+        const storedComputed = computedMap instanceof Y.Map ? (computedMap.toJSON() as Record<string, unknown>) : {};
+        const wordCountConfig = storedComputed.wordCount;
+        const roundTo = wordCountConfig && typeof wordCountConfig === 'object' ? (wordCountConfig as { roundTo?: unknown }).roundTo : undefined;
+        const computed = { ...storedComputed, wordCount: roundToNearest(bodyWordTotal(), roundTo) } as TitlePageView['computed'];
+        titlePageCache = deepFreeze({ elements: views, fields, computed });
       }
       return titlePageCache;
     },

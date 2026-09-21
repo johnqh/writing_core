@@ -86,6 +86,15 @@ describe('scenes', () => {
     expect(model.scene(idOf(1) as never)!.headingText).toBe('INT. B -X DAY');
   });
 
+  it('round-trips scene.estimatedSeconds onto SceneView.estimatedSeconds (spec 02 §27.2 falls back to pages/words when unset)', () => {
+    const { model, made, idOf } = script([['st_scene_heading', 'INT. A - DAY'], ['st_action', 'Beat.']]);
+    expect(model.sceneOf(idOf(1) as never)!.estimatedSeconds).toBeNull();
+    const scene = made[0]!.set('scene', new Y.Map<unknown>());
+    scene.set('estimatedSeconds', 42);
+    expect(model.sceneOf(idOf(1) as never)!.estimatedSeconds).toBe(42);
+    expect(model.scene(idOf(0) as never)!.estimatedSeconds).toBe(42);
+  });
+
   it('returns no scenes for a document with no heading element', () => {
     const { model, idOf } = script([['st_action', 'FADE IN:'], ['st_action', 'Nothing happens yet.']]);
     expect(model.scenes()).toEqual([]);
@@ -139,6 +148,7 @@ describe('chapter-role scene starts', () => {
       hasScene: false,
       dual: null,
       altCount: 0,
+      alts: [],
       label: null,
       outlineLevel: null,
       shotId: null,
@@ -146,6 +156,7 @@ describe('chapter-role scene starts', () => {
       lineAdjust: null,
       tc: null,
       omit: null,
+      sceneOmit: null,
       meta: { createdBy: 'u', createdAt: 0, editedBy: 'u', editedAt: 0 },
       field: null,
       ...extra,

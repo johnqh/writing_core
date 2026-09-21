@@ -5,6 +5,7 @@ import { createSeededIdSource } from '../ids/id-source.js';
 import { newId, type ElementId } from '../ids/ids.js';
 import { DOC_SCHEMA_VERSION, isNewerThanCode } from '../migrations/index.js';
 import { createDocument } from '../model/create.js';
+import { writeEntity } from '../model/json.js';
 import { openDocument } from '../read-model/open.js';
 import { screenplayStandard } from '../templates/builtin/screenplay-standard.js';
 import { executeBatch, executeCommand } from './execute.js';
@@ -87,6 +88,18 @@ registerCommand({
   labelKey: 'writing.command.test.mintId', fastPath: true, isEnabled: () => ({ enabled: true }),
   run(ctx) {
     mintedIds.push(newId('el', ctx.ids));
+    return { ok: true };
+  },
+});
+// Records how many character entities the model it is handed can see — used to prove that the
+// throwaway rehearsal replica does NOT run repair-on-open (Task 16) even though the default
+// `openDocument` does: a rehearsal that repaired would see one entity where the real model sees none.
+const visibleCharactersSeen: number[] = [];
+registerCommand({
+  id: 'test.entityProbe', params: z.object({}), scope: 'document', mutates: false, requires: [], undo: 'none',
+  labelKey: 'writing.command.test.entityProbe', isEnabled: () => ({ enabled: true }),
+  run(ctx) {
+    visibleCharactersSeen.push(ctx.model.entities({ kind: 'character' }).length);
     return { ok: true };
   },
 });
@@ -294,5 +307,27 @@ describe('read-only defaults from the document schema version (I20)', () => {
     });
     expect(result).toMatchObject({ ok: true });
     expect(h.textMap(a!).toString()).toBe('zMaya waits.');
+  });
+});
+
+describe('rehearsal does not repair the replica on open (Task 16)', () => {
+  it('opens the throwaway replica with repair off, so it sees exactly the state the real model sees', () => {
+    const doc = createDocument({ template: screenplayStandard, uid: 'u', ids });
+    const a = newId('ent', ids);
+    const b = newId('ent', ids);
+    const base = {
+      kind: 'character' as const, name: 'MAYA', nameKey: 'maya', aliases: [], color: null,
+      description: { plain: '', runs: [], embeds: [] }, fields: {}, attributes: {}, categoryId: null,
+      retain: false, createdBy: 'u', createdAt: 0, origin: 'manual' as const,
+    };
+    writeEntity(doc.getMap('entities'), { ...base, id: a, mergedInto: b });
+    writeEntity(doc.getMap('entities'), { ...base, id: b, mergedInto: a });
+    const model = openDocument(doc, { ids, clock: () => 0, locale: 'en' }, { repair: false });
+    const origins = createSessionOrigins(actor);
+    visibleCharactersSeen.length = 0;
+    const r = executeCommand({ doc, model, actor, origin: origins.make('local-command'), capabilities: new Set(['write'] as const), ids, command: { id: 'test.entityProbe', params: {} } });
+    expect(r.ok).toBe(true);
+    // Two runs: the rehearsal on the replica, then the real apply. Both see the unrepaired cycle.
+    expect(visibleCharactersSeen).toEqual([0, 0]);
   });
 });
