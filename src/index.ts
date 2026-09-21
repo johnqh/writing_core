@@ -50,6 +50,7 @@ export { ELEMENT_COMMANDS } from './commands/element.js';
 export { ENTITY_COMMANDS } from './commands/entity.js';
 export { SMARTTYPE_COMMANDS } from './commands/smarttype.js';
 export { PAGE_SETUP_COMMANDS } from './commands/page-setup.js';
+export { REVISION_COMMANDS } from './commands/revisions.js';
 export * from './commands/builtin.js';
 
 // ─── Schema ─────────────────────────────────────────────────────────────────
@@ -128,6 +129,10 @@ export {
 } from './layout/continueds.js';
 export { dualGeometry, dualSideBox, layoutDual, splitDual, dualMinHead, type DualLayout, type DualSplitChoice, type DualCategory } from './layout/dual.js';
 export { layoutDocument, type LayoutDocumentOptions, type DocLayout, type DocPage, type DocLine, type DocDecoration } from './layout/layout-document.js';
+export {
+  applyRevisionDisplay, revisionReport, revisionLabel, revisionShortName, formatRevisionDate, elementRevisionMarks,
+  type LineRevisionMark, type RevisedPageRef, type RevisionReportSet,
+} from './layout/revisions.js';
 export { contextPass, type ElementContext, type SpeakerKey, type ContextPassResult, type ContextPassDeps } from './layout/context.js';
 
 // ─── Text (shaping) ─────────────────────────────────────────────────────────

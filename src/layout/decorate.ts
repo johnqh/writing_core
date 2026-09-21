@@ -23,7 +23,7 @@ import type { AssignNumbersResult } from '../numbering/assign.js';
 import { layoutParagraph, type ParaLine } from './paragraph.js';
 import type { FontRegistry, GlyphRun, LayoutDiagnostic, Shaper } from './types.js';
 
-export type DecorationKind = 'header' | 'footer' | 'sceneNumber';
+export type DecorationKind = 'header' | 'footer' | 'sceneNumber' | 'revision';
 
 /** A line of generated text drawn in a margin: a header/footer slot or a scene number. */
 export interface DocDecoration {
@@ -38,6 +38,8 @@ export interface DocDecoration {
   baseline: number;
   pitch: number;
   runs: GlyphRun[];
+  /** Text colour to draw with (the revision label uses its set's colour). */
+  color?: string | null;
 }
 
 export interface DecorateEnv {
@@ -92,6 +94,8 @@ export interface PageForDecoration {
   /** Body page: the first line's element, for `{scene.*}`. */
   firstElementId: ElementId | null;
   isTitle: boolean;
+  /** `{page.revision}`: the page's revision label, e.g. `Blue Revised 9/21/26`. */
+  revisionName?: string | null;
 }
 
 /** Header and footer slot lines for one page. */
@@ -113,7 +117,7 @@ export function headerFooterFor(
     }
   }
   const ctx: TokenContext = {
-    page: { label: page.label, count: pageCount, revisionName: null },
+    page: { label: page.label, count: pageCount, revisionName: page.revisionName ?? null },
     title, scene, locale: env.locale ?? defaultLocaleData, language: env.lang, renderTimeMs: env.renderTimeMs,
     document: { filename: env.filename ?? '', project: null, snapshot: null, label: null, lastRevised: null },
   };
@@ -178,4 +182,21 @@ export function sceneNumbersFor(
     }
   }
   return out;
+}
+
+/**
+ * The page's revision label (`Blue Revised 9/21/26`) at the header line: left slot, or centre when the header's own
+ * left slot is in use (spec 02 §25.4; Final Draft prints it in the header area in the set's colour).
+ */
+export function revisionLabelDecoration(env: DecorateEnv, text: string, color: string | null, existing: readonly DocDecoration[]): DocDecoration | null {
+  const pg = env.template.page;
+  const style = resolveStyle(env.template, (env.template.header.styleId ?? env.template.defaults.root) as StyleId);
+  const fullWidth = pg.width - pg.margins.left - pg.margins.right;
+  const leftBusy = existing.some((d) => d.kind === 'header' && d.slot === 'left');
+  const slot = leftBusy ? 'center' : 'left';
+  const boxW = Math.floor(fullWidth / 3);
+  const line = plainLine(env, text, style, leftBusy ? pg.margins.left + boxW : pg.margins.left, boxW * (leftBusy ? 1 : 2), slot);
+  if (!line) return null;
+  const y = pg.headerOffset;
+  return { kind: 'revision', slot, text, elementId: null, x: line.x, width: line.width, y, baseline: y + (line.baseline - line.top), pitch: line.pitch, runs: line.runs, color };
 }

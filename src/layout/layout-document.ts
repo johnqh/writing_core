@@ -12,10 +12,12 @@
  * come back in `DocPage.lines` with a `kind` other than `text` (generated, not editable) and, inside a dual
  * block, a `dualSide`; a dual side's `x`/`width` already carry the column geometry.
  *
+ * Revision display (§25, `revisions.ts`): margin marks on lines, page set/label/tint, and a header label decoration.
+ *
  * Page locks (§24, `locks.ts`): anchors snap to block starts and force a break; overflow pages get A labels (`DocPage.label`).
  *
  * NOT run yet: column blocks (laid out at
- * full width), graphic-novel panels (§17), revision display (§25),
+ * full width), graphic-novel panels (§17),
  * Track Changes and alternates view modes (§26; the `final` view is used), scene running time
  * (§27), the paragraph cache and incremental re-pagination (§31), and the element/line index (§29.5).
  */
@@ -34,7 +36,8 @@ import { pageGeometryOf, paginate, type PaginationParams } from './paginate.js';
 import type { FontRegistry, GlyphRun, LayoutDiagnostic, LineKind, Shaper } from './types.js';
 import { makeContinueds } from './continueds.js';
 import { dualGeometry, dualSideBox } from './dual.js';
-import { headerFooterFor, sceneNumbersFor, type DecorateEnv, type DocDecoration } from './decorate.js';
+import { applyRevisionDisplay, type LineRevisionMark } from './revisions.js';
+import { headerFooterFor, revisionLabelDecoration, sceneNumbersFor, type DecorateEnv, type DocDecoration } from './decorate.js';
 import { layoutTitlePages } from './title-page.js';
 import { forceBreaks, labelPages, resolveLocks, type ResolvedLocks } from './locks.js';
 import type { NumberLabel } from '../schema/template.js';
@@ -70,6 +73,8 @@ export interface DocLine {
   kind: LineKind;
   /** The side of a dual dialogue block this line belongs to (§15), else null. */
   dualSide: 'left' | 'right' | null;
+  /** Revision mark drawn in the right margin (§25.5), when the line holds a visible revised run or deletion. */
+  revisionMark?: LineRevisionMark;
 }
 
 export interface DocPage {
@@ -85,6 +90,12 @@ export interface DocPage {
   lockId?: string | null;
   overflow?: number;
   lines: DocLine[];
+  /** Revision display (§25.4): the highest visible set on the page, its printed-paper tint (when `showPageColor`) and header label. */
+  revisionSetId?: string | null;
+  pageColor?: string | null;
+  revisionLabel?: string | null;
+  /** Every set holding a mark on this page, whatever the display filter (Revised Pages list). */
+  revisedSetIds?: string[];
   /** Header/footer slot lines and scene numbers, drawn in the margins. */
   decorations: DocDecoration[];
 }
@@ -201,6 +212,7 @@ export function layoutDocument(model: DocumentModel, templateIn?: EmbeddedTempla
   const env: DecorateEnv = {
     model, template, fonts, shaper, lang, referenceSizePt, renderTimeMs: options.renderTimeMs ?? model.deps.clock(), filename: options.filename,
   };
+  applyRevisionDisplay(model, pages);
   const start = template.pageNumbering.start;
   const locked = lockRes ? labelPages(filled.pages, lockRes, template.pageNumbering.suffixMode, template.pageNumbering.skipIO, template.pageNumbering.combineDeletedRanges) : null;
   for (const p of pages) {
@@ -213,9 +225,14 @@ export function layoutDocument(model: DocumentModel, templateIn?: EmbeddedTempla
     }
     const first = p.lines[0]?.elementId ?? null;
     p.decorations.push(
-      ...headerFooterFor(env, { index: p.index, label: p.label, firstElementId: first, isTitle: false }, pages.length, contexts, numbers, diagnostics),
+      ...headerFooterFor(env, { index: p.index, label: p.label, firstElementId: first, isTitle: false, revisionName: p.revisionLabel ?? null }, pages.length, contexts, numbers, diagnostics),
       ...sceneNumbersFor(env, p.lines, contexts, numbers, (id) => styleOf(byId.get(id) as ElementView)),
     );
+    if (p.revisionLabel) {
+      const set = model.revisionState().sets.find((s) => s.id === p.revisionSetId);
+      const deco = revisionLabelDecoration(env, p.revisionLabel, set?.textColor ?? null, p.decorations);
+      if (deco) p.decorations.push(deco);
+    }
   }
   const titlePages = layoutTitlePages({ model, template, fonts, shaper, lang, referenceSizePt }, diagnostics);
   for (const p of titlePages) {

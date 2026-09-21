@@ -213,6 +213,16 @@ describe('batch equivalence: hand-written sequences', () => {
     { id: 'scene.unlockNumbers', params: {} },
     { id: 'page.unlock', params: {} },
   ]));
+  it('revision set, mode, edits, mark and clear in one batch', () => expectEquivalent((e) => [
+    { id: 'revision.setCurrent', params: { date: 1_800_000_000_000 } },
+    { id: 'revision.mode', params: { on: true } },
+    { id: 'text.insert', params: { at: at(e[1]!, 0), text: 'new ' } },
+    { id: 'revision.setCurrent', params: {} },
+    { id: 'element.setStyle', params: { elements: [e[2]], style: 'st_shot' } },
+    { id: 'revision.markElements', params: { range: { anchor: at(e[3]!, 0), head: at(e[3]!, 2) }, marked: true } },
+    { id: 'revision.clear', params: {} },
+    { id: 'revision.setDisplay', params: { display: 'collated' } },
+  ]));
   it('mixed kinds', () => expectEquivalent((e) => [
     { id: 'element.insert', params: { after: e[3], style: 'st_parenthetical', text: '(smiling)' } },
     { id: 'element.setStyle', params: { elements: [e[4]], style: 'st_transition' } },
