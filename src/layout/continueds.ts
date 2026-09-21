@@ -34,6 +34,8 @@ export interface ContinuedsHooks {
   reserve: number;
   moreLine(cue: BlockPara, side: 'left' | 'right' | null): DecoLine | null;
   contdCue(cue: BlockPara, side: 'left' | 'right' | null): DecoLine | null;
+  /** §17: the `PAGE n (CONT'D)` line atop a script page that continues a comic page. Null/absent outside `panels` mode. */
+  pageContd?(heading: BlockPara): DecoLine | null;
   sceneTop(sceneId: ElementId, n: number): DecoBlock | null;
   /** Lines relative to the bottom of the body (`dy` is measured up from `bodyBottom`, line top). */
   sceneBottom(sceneId: ElementId): DecoBlock | null;

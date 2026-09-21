@@ -2,11 +2,13 @@
  * Block formation, spec 02 §12 (S4): the paginator's unit is a block — a sequence of paragraph
  * layouts with attached rules — and `keepChains` links consecutive blocks that must share a page.
  *
- * Boundary with Task 24: a `columnRows` block only *delimits* the maximal run of `column ∈ {1,2}`
- * paragraphs here; splitting it into §16.1 rows is Task 24's `formRows`.
+ * Column blocks: this module delimits the maximal run of `column ∈ {1,2}` paragraphs; `columns.ts`'s `formRows`
+ * (§16.1) divides it into rows, and each row is one `columnRows` block (so keep rules and page breaks between rows
+ * work like any other block boundary).
  */
 import type { ResolvedStyle } from '../template/resolve.js';
 import { CATEGORY_RULES, type PaginationCategory } from './category.js';
+import { formRows, type ColumnRow } from './columns.js';
 import type { ElementContext } from './context.js';
 import type { ParagraphLayout } from './paragraph.js';
 
@@ -34,7 +36,8 @@ export interface BlockPara {
 export interface SingleBlock { kind: 'single'; para: BlockPara }
 export interface DialogueBlock { kind: 'dialogue'; cue: BlockPara; members: BlockPara[] }
 export interface DualBlock { kind: 'dual'; group: string; left: DialogueBlock; right: DialogueBlock }
-export interface ColumnRowsBlock { kind: 'columnRows'; paras: BlockPara[] }
+/** One §16.1 row of a run of column paragraphs (`paras` is the row in document order: left side, then right side). */
+export interface ColumnRowsBlock { kind: 'columnRows'; paras: BlockPara[]; row: ColumnRow }
 export interface OmittedSceneBlock { kind: 'omittedScene'; para: BlockPara }
 export type Block = SingleBlock | DialogueBlock | DualBlock | ColumnRowsBlock | OmittedSceneBlock;
 
@@ -101,7 +104,7 @@ export function formBlocks(paras: readonly BlockPara[], opts: FormBlocksOptions 
     if (p.flags.column === 1 || p.flags.column === 2) {
       const run: BlockPara[] = [];
       while (i < visible.length && ((visible[i] as BlockPara).flags.column === 1 || (visible[i] as BlockPara).flags.column === 2)) run.push(visible[i++] as BlockPara);
-      blocks.push({ kind: 'columnRows', paras: run });
+      for (const row of formRows(run)) blocks.push({ kind: 'columnRows', paras: [...row.left, ...row.right], row });
       continue;
     }
     if (cat === 'character') {

@@ -3,8 +3,8 @@
  * `ElementContext` per element: category, scene/act, omitted/hidden, speaker, automatic
  * continueds (§14.3), number label and a `decorationHash` for the paragraph-layout cache key.
  *
- * Speed-mode scope: `columnRowId` (§16) and graphic-novel `generatedText` (§17) are not computed
- * (always null, except the §23.3 omitted placeholder); `decorationHash` does not fold in inactive
+ * Speed-mode scope: `columnRowId` (§16) is not computed (always null; column rows are formed by `columns.ts`), and
+ * graphic-novel `generatedText` (§17) is filled in afterwards by `panels.ts` (here only the §23.3 omitted placeholder); `decorationHash` does not fold in inactive
  * alternates' text versions (the pass has no `ViewSpec`).
  */
 
@@ -33,6 +33,9 @@ export interface ElementContext {
   generatedText: string | null;
   dualSide: 'left' | 'right' | null;
   columnRowId: number | null;
+  /** Graphic novel (§17, `panels.ts`): the rendered page/panel number label, and the inline label drawn before a panel's text. */
+  pageLabel?: string | null;
+  numberPrefix?: string | null;
   decorationHash: number;
 }
 

@@ -378,6 +378,11 @@ export function makeDisplayText(
       text = up.display;
       map = Array.from(up.clusterSource);
     } else map = graphemeClusters(source);
+    if (ctx?.numberPrefix) {
+      const pre = ctx.numberPrefix + (source === '' ? '' : ' ');
+      text = pre + text;
+      map = [...new Array<number>(graphemeClusters(pre).length).fill(0), ...map];
+    }
     if (ctx?.autoContinued) {
       const extra = template.continueds.joiner + template.continueds.cont;
       text += extra;

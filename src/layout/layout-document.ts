@@ -16,9 +16,11 @@
  *
  * Page locks (§24, `locks.ts`): anchors snap to block starts and force a break; overflow pages get A labels (`DocPage.label`).
  *
- * NOT run yet: column blocks (laid out at
- * full width), graphic-novel panels (§17),
- * Track Changes and alternates view modes (§26; the `final` view is used), scene running time
+ * Column blocks (§16, `columns.ts`): rows of two stacks side by side (`DocLine.column`, x from the styles' own indents).
+ * Graphic-novel panels (§17, `panels.ts`): generated `PAGE ONE (TWO PANELS)` headings, inline `Panel n.` labels and the
+ * `PAGE n (CONT'D)` line atop a script page that continues a comic page.
+ *
+ * NOT run yet: Track Changes and alternates view modes (§26; the `final` view is used), scene running time
  * (§27), the paragraph cache and incremental re-pagination (§31), and the element/line index (§29.5).
  */
 import type { ElementId } from '../ids/ids.js';
@@ -39,6 +41,7 @@ import { dualGeometry, dualSideBox } from './dual.js';
 import { applyRevisionDisplay, type LineRevisionMark } from './revisions.js';
 import { headerFooterFor, revisionLabelDecoration, sceneNumbersFor, type DecorateEnv, type DocDecoration } from './decorate.js';
 import { layoutTitlePages } from './title-page.js';
+import { applyPanelText, pageContdLine, panelHeadings } from './panels.js';
 import { forceBreaks, labelPages, resolveLocks, type ResolvedLocks } from './locks.js';
 import type { NumberLabel } from '../schema/template.js';
 
@@ -73,6 +76,8 @@ export interface DocLine {
   kind: LineKind;
   /** The side of a dual dialogue block this line belongs to (§15), else null. */
   dualSide: 'left' | 'right' | null;
+  /** The column (§16) of a line inside a column row (AV / BBC), else 0. Its `x` already carries the column geometry. */
+  column: 0 | 1 | 2;
   /** Revision mark drawn in the right margin (§25.5), when the line holds a visible revised run or deletion. */
   revisionMark?: LineRevisionMark;
 }
@@ -130,6 +135,7 @@ export function layoutDocument(model: DocumentModel, templateIn?: EmbeddedTempla
   const numbers = assignNumbers(model);
   const { contexts, order } = contextPass(model, template, numbers);
   const referenceSizePt = resolveStyle(template, template.defaults.root).font.size;
+  applyPanelText(contexts, panelHeadings({ model, template, contexts, numbers, renderTimeMs: options.renderTimeMs ?? model.deps.clock() }));
 
   const byId = new Map<ElementId, ElementView>();
   for (const el of model.elements()) byId.set(el.id, el);
@@ -183,12 +189,14 @@ export function layoutDocument(model: DocumentModel, templateIn?: EmbeddedTempla
     dialogueMinLinesBeforeBreak: pg.dialogue.minLinesBeforeBreak,
     dialogueMinLinesAfterBreak: pg.dialogue.minLinesAfterBreak,
     minLinesWithHeading: pg.keepWithNextMinLines,
+    columnBlocksSplit: pg.columnBlocks.breakBlocks,
   };
   const continueds = makeContinueds({
     template, fonts, shaper, lang, referenceSizePt,
     sideGeometry: dualGeom ? (category, side) => dualSideBox(dualGeom, category, side) : null,
   });
-  const filled = paginate(blocks, geometry, params, { continueds });
+  const lineEnv = { template, fonts, shaper, lang, referenceSizePt };
+  const filled = paginate(blocks, geometry, params, { continueds: template.layoutMode === 'panels' ? { ...continueds, pageContd: (h) => pageContdLine(lineEnv, h) } : continueds });
   diagnostics.push(...filled.diagnostics);
 
   const pages: DocPage[] = filled.pages.map((fp) => ({
@@ -204,7 +212,7 @@ export function layoutDocument(model: DocumentModel, templateIn?: EmbeddedTempla
       return {
         elementId: pl.elementId, lineIndexInElement: pl.lineIndexInElement, sourceStart: generated ? 0 : line.sourceStart, sourceEnd: generated ? 0 : line.sourceEnd,
         x: line.x, width: line.width, y: geometry.bodyTop + pl.y, baseline: geometry.bodyTop + pl.y + (line.baseline - line.top),
-        pitch: line.pitch, pageNumber: fp.index + 1, runs: line.runs, kind: pl.kind ?? 'text', dualSide: pl.dualSide ?? null,
+        pitch: line.pitch, pageNumber: fp.index + 1, runs: line.runs, kind: pl.kind ?? 'text', dualSide: pl.dualSide ?? null, column: pl.column ?? 0,
       };
     }),
   }));

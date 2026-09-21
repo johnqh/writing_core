@@ -27,7 +27,8 @@
  */
 import type { ElementId } from '../ids/ids.js';
 import type { PageSpec } from '../schema/template.js';
-import { firstPara, keepChains, lastPara, type Block, type BlockPara, type DialogueBlock, type DualBlock } from './blocks.js';
+import { firstPara, keepChains, lastPara, type Block, type BlockPara, type ColumnRowsBlock, type DialogueBlock, type DualBlock } from './blocks.js';
+import { layoutRow, rowMinHead, splitRowSides, type ColumnRow, type RowLayout, type RowRules, type SideRow } from './columns.js';
 import type { ParaLine } from './paragraph.js';
 import { rowsHeight, type ContinuedsHooks, type DecoLine, type DlgRow, type SplitRules } from './continueds.js';
 import { dualMinHead, layoutDual, splitDual, type DualLayout } from './dual.js';
@@ -64,6 +65,8 @@ export interface PaginationParams {
   dialogueMinLinesAfterBreak?: number;
   /** §13.4 `k` for heading-category keeps; default 2. */
   minLinesWithHeading?: number;
+  /** `columnBlocks.breakBlocks` (§16.2): rows may split across pages; default false. */
+  columnBlocksSplit?: boolean;
   segments?: readonly LockSegment[];
 }
 
@@ -84,7 +87,6 @@ export interface FillState {
 export interface SplitChoice { headLines: number; more: boolean }
 export interface DualSplit { headLines: number }
 export interface RowSplit { headLines: number }
-export interface ColumnRow { paras: BlockPara[] }
 
 export interface PaginateDeps {
   bottomReserve(state: FillState): number; // Task 22; default () => 0
@@ -115,6 +117,8 @@ export interface PlacedLine {
   kind?: LineKind;
   /** The side of a dual dialogue block the line belongs to. */
   dualSide?: 'left' | 'right';
+  /** The column (§16) of a line inside a column row. */
+  column?: 1 | 2;
 }
 
 export interface FilledPage {
@@ -144,6 +148,8 @@ interface Row {
   kFirst: number;
   /** The pseudo-row of a dual block. */
   dual?: DualLayout & { block: DualBlock };
+  /** The pseudo-row of a column row (§16). */
+  col?: RowLayout & { block: ColumnRowsBlock };
   /** The cue of a dialogue block, for its `(MORE)` and continuation cue. */
   cue?: BlockPara;
 }
@@ -186,6 +192,8 @@ export function paginate(
   const kHeading = params.minLinesWithHeading ?? 2;
   const dialogueBreaks = params.dialoguePageBreaks !== false;
   const dualRules: SplitRules = { minBefore: dMinB, minAfter: dMinA, breaks: dialogueBreaks };
+  const colRules: RowRules = { minBefore: minB, minAfter: minA, dialogueBreaks };
+  const colSplit = params.columnBlocksSplit === true;
 
   const blockOffset = state?.blockIndex ?? 0;
   const blocks = blocksIn.slice(blockOffset);
@@ -204,6 +212,8 @@ export function paginate(
   let lastScene: ElementId | null = null;
   /** The cue whose continuation heads the next page (a dialogue split queued it). */
   let pendingCue: BlockPara | null = null;
+  /** The last page-heading paragraph placed (§17), for `PAGE n (CONT'D)`. */
+  let lastHeading: BlockPara | null = null;
   const sceneCont = new Map<ElementId, number>();
 
   const fillState = (): FillState => ({
@@ -235,7 +245,7 @@ export function paginate(
   const reserveFor = (scene: ElementId | null): number => (scene === null ? 0 : hooks ? hooks.reserve : deps.bottomReserve(fillState()));
 
   /** Decide a fresh page's top decorations (and the previous page's bottom one) before anything is placed. */
-  const openPage = (nextScene: ElementId | null): void => {
+  const openPage = (nextScene: ElementId | null, first: BlockPara | null = null): void => {
     opened = true;
     const prev = pages[pages.length - 1];
     if (!prev) {
@@ -254,6 +264,14 @@ export function paginate(
         // The scene number is drawn on this line at the scene-number positions (§14.4), so it carries the heading's id and line 0.
         for (const l of top.lines) pg.decor.push({ elementId: l.deco.elementId, lineIndexInElement: 0, line: l.deco.line, y: h + l.dy, kind: l.deco.kind });
         h += top.height;
+      }
+    }
+    // §17: a script page break inside a comic page starts the next page with `PAGE n (CONT'D)`.
+    if (hooks?.pageContd && lastHeading && first && first.ctx.category !== 'pageHeading') {
+      const d = hooks.pageContd(lastHeading);
+      if (d) {
+        pg.decor.push({ elementId: d.elementId, lineIndexInElement: -1, line: d.line, y: h, kind: 'pageHeadingContd' });
+        h += d.line.pitch;
       }
     }
     if (hooks && pendingCue) {
@@ -283,12 +301,12 @@ export function paginate(
   };
 
   const chains = keepChains(blocks);
-  // A pageBreakBefore on a later block of a chain splits the chain there; a dual block always ends its run (see header).
+  // A pageBreakBefore on a later block of a chain splits the chain there; a dual block or a column row always ends its run (see header).
   const runs: { from: number; to: number }[] = [];
   for (const c of chains) {
     let from = c.from;
     for (let i = c.from; i < c.to; i++) {
-      if (firstPara(blocks[i + 1] as Block).flags.pageBreakBefore || (blocks[i] as Block).kind === 'dual') {
+      if (firstPara(blocks[i + 1] as Block).flags.pageBreakBefore || (blocks[i] as Block).kind === 'dual' || (blocks[i] as Block).kind === 'columnRows') {
         runs.push({ from, to: i });
         from = i + 1;
       }
@@ -318,6 +336,15 @@ export function paginate(
         rows.push({
           h: dualMinHead(layout, mL, mR, dualRules), sb: layout.spaceBefore, p: b.left.cue, line: 0, nLines: 1, bi, bStart,
           gbi: run.from + bi + blockOffset, pi: 0, kind: 'dual', kFirst: 0, dual: { ...layout, block: b },
+        });
+        return;
+      }
+      if (b.kind === 'columnRows') {
+        const layout = layoutRow(b.row);
+        if (layout.overlap) diagnostics.push({ code: 'columnOverlap', elementId: b.paras[0]?.layout.elementId ?? null, pageIndex: null, detail: {} });
+        rows.push({
+          h: colSplit ? rowMinHead(layout, colRules) : layout.height, sb: layout.spaceBefore, p: b.paras[0] as BlockPara, line: 0, nLines: 1, bi, bStart,
+          gbi: run.from + bi + blockOffset, pi: 0, kind: 'columnRows', kFirst: 0, col: { ...layout, block: b },
         });
         return;
       }
@@ -479,6 +506,72 @@ export function paginate(
       }
     };
 
+    const emitCol = (pg: FilledPage, rowsOf: readonly SideRow[], b: number, column: 1 | 2, y0: number): void => {
+      let yy = y0;
+      for (let i = 0; i < b; i++) {
+        const cr = rowsOf[i] as SideRow;
+        if (i > 0) yy += cr.sb;
+        pg.lines.push({ elementId: cr.p.layout.elementId, lineIndexInElement: cr.line, line: cr.p.layout.lines[cr.line] as ParaLine, y: yy, column });
+        yy += cr.h;
+      }
+    };
+
+    /** Place (and split, §16.2) a column row: both stacks at the same y, height = max of the two. */
+    const placeColRow = (r: Row): void => {
+      const d = r.col as NonNullable<Row['col']>;
+      let L = d.left;
+      let R = d.right;
+      const scene = r.p.ctx.sceneId;
+      let sb = d.spaceBefore;
+      let fresh = true;
+      for (let guard = 0; guard < 500; guard++) {
+        const top = pageEmpty();
+        const y0 = y + (top ? 0 : sb);
+        const reserve = reserveFor(scene);
+        const avail = bodyH - reserve - y0;
+        const availWhole = sceneFinal ? bodyH - y0 : avail;
+        const hFull = Math.max(rowsHeight(L, 0, L.length), rowsHeight(R, 0, R.length));
+        const pg = curPage();
+        const place = (toL: number, toR: number, height: number): void => {
+          const first = L[0] ?? R[0];
+          noteFirstLine(pg, { gbi: r.gbi, p: first?.p ?? r.p, line: first?.line ?? 0, pi: 0 }, fresh ? null : { kind: 'row', cursor: [first?.line ?? 0] });
+          emitCol(pg, L, toL, 1, y0);
+          emitCol(pg, R, toR, 2, y0);
+          y = y0 + height;
+          noteScene(pg, scene);
+        };
+        if (hFull <= availWhole) {
+          place(L.length, R.length, hFull);
+          return;
+        }
+        let choice = colSplit ? splitRowSides(L, R, avail, colRules, 0) : null;
+        if (!choice && !top) {
+          endPage();
+          openPage(scene, r.p);
+          sb = 0;
+          continue;
+        }
+        if (!choice) {
+          // A fresh page and no legal head: relax as §13.6 does, diagnosing forcedSplit (an over-page row is force-split even when rows never split).
+          for (let level = colSplit ? 1 : 3; level <= 3 && !choice; level++) {
+            choice = splitRowSides(L, R, avail, colRules, level);
+            if (choice) diagnostics.push({ code: 'forcedSplit', elementId: r.p.layout.elementId, pageIndex, detail: { relaxedLevel: level, row: 1 } });
+          }
+        }
+        if (!choice) {
+          place(L.length, R.length, hFull); // nothing splits: overflow rather than loop
+          return;
+        }
+        place(choice.toL, choice.toR, choice.height);
+        endPage();
+        L = L.slice(choice.toL);
+        R = R.slice(choice.toR);
+        fresh = false;
+        openPage(scene, (L[0] ?? R[0])?.p ?? r.p);
+        sb = 0;
+      }
+    };
+
     const emit = (from: number, to: number): void => {
       for (let i = from; i < to; i++) {
         const r = rows[i] as Row;
@@ -486,11 +579,16 @@ export function paginate(
           placeDual(r);
           continue;
         }
+        if (r.col) {
+          placeColRow(r);
+          continue;
+        }
         const pg = curPage();
         if (pg.lines.length === 0) {
           noteFirstLine(pg, r, r.line > 0 || (r.pi > 0 && r.kind === 'dialogue') ? { kind: 'paragraph', cursor: [r.pi, r.line] } : null);
         } else y += r.sb;
         pg.lines.push({ elementId: r.p.layout.elementId, lineIndexInElement: r.line, line: r.p.layout.lines[r.line] as ParaLine, y });
+        if (r.p.ctx.category === 'pageHeading') lastHeading = r.p;
         y += r.h;
         noteScene(pg, r.p.ctx.sceneId);
       }
@@ -505,7 +603,7 @@ export function paginate(
       curGbi = row0.gbi;
       curPara = row0.pi;
       curLine = row0.line;
-      if (!opened) openPage(row0.p.ctx.sceneId);
+      if (!opened) openPage(row0.p.ctx.sceneId, row0.p);
       const avail = bodyH - reserveFor(row0.p.ctx.sceneId);
       const availWhole = sceneFinal ? bodyH : avail;
       if (y + heightOf(cursor, rows.length, pageEmpty()) <= availWhole) {

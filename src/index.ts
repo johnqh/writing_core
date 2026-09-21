@@ -120,13 +120,18 @@ export {
 export {
   paginate, pageGeometryOf, DEFAULT_PAGINATE_DEPS,
   type PageGeometry, type PaginationParams, type PaginateDeps, type FillState, type FilledPage, type PlacedLine, type LockSegment,
-  type BlockLineCursor, type SplitChoice, type DualSplit, type RowSplit, type ColumnRow,
+  type BlockLineCursor, type SplitChoice, type DualSplit, type RowSplit,
 } from './layout/paginate.js';
 export {
   moreLine, synthesizedCue, cueDisplayText, contdCueLine, sceneContinuedTop, sceneContinuedBottom, bottomReserve, makeContinueds,
   dialogueRows, rowsHeight, legalDialogueSplit, splitDialogue, minLegalHead,
   type DecoLine, type DecoBlock, type ContinuedsHooks, type ContinuedsEnv, type DlgRow, type SplitRules,
 } from './layout/continueds.js';
+export {
+  formRows, layoutRow, layoutRows, legalSideSplit, splitSide, splitRowSides, rowMinHead,
+  type ColumnRow, type RowLayout, type RowRules, type RowSplitChoice, type SideRow,
+} from './layout/columns.js';
+export { panelHeadings, pageContdLine, type PanelText } from './layout/panels.js';
 export { dualGeometry, dualSideBox, layoutDual, splitDual, dualMinHead, type DualLayout, type DualSplitChoice, type DualCategory } from './layout/dual.js';
 export { layoutDocument, type LayoutDocumentOptions, type DocLayout, type DocPage, type DocLine, type DocDecoration } from './layout/layout-document.js';
 export {

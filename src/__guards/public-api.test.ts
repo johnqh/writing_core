@@ -66,6 +66,7 @@ const ROOT_EXPORTS = [
   'moreLine', 'synthesizedCue', 'cueDisplayText', 'contdCueLine', 'sceneContinuedTop', 'sceneContinuedBottom', 'bottomReserve', 'makeContinueds',
   'dialogueRows', 'rowsHeight', 'legalDialogueSplit', 'splitDialogue', 'minLegalHead',
   'dualGeometry', 'dualSideBox', 'layoutDual', 'splitDual', 'dualMinHead',
+  'formRows', 'layoutRow', 'layoutRows', 'legalSideSplit', 'splitSide', 'splitRowSides', 'rowMinHead', 'panelHeadings', 'pageContdLine',
   'formBlocks', 'keepChains', 'paraFlags', 'firstPara', 'lastPara',
   'layoutParagraph', 'makeDisplayText', 'basePitchOf', 'spaceBeforeOf',
   'itemize', 'iso15924', 'layoutAdvance', 'isCourierFamily', 'measureItem',
