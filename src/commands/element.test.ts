@@ -5,7 +5,8 @@ import { builtinStyleId, newDualGroupId, newId } from '../ids/ids.js';
 import { documentToJSON } from '../model/json.js';
 import { validateDocument } from '../model/validate/index.js';
 import { screenplayStandard } from '../templates/builtin/screenplay-standard.js';
-import { commandHarness } from './test-harness.js';
+import { executeBatch } from './execute.js';
+import { TEST_ACTOR, commandHarness } from './test-harness.js';
 
 const at = (elementId: string, offset: number) => ({ elementId, offset });
 
@@ -46,6 +47,21 @@ describe('element.insert, setStyle and cycleStyle', () => {
     h.run('element.insert', { before: a, style: 'st_scene_heading', text: 'INT. X - DAY' });
     expect(h.body().map((e) => e.text)).toEqual(['INT. X - DAY', 'A', 'B', 'C']);
     expect(h.run('element.insert', { after: b, style: 'st_nope' })).toMatchObject({ ok: false, reason: 'styleNotInTemplate' });
+  });
+  it('keeps command order for a batch of element.insert in one execute()', () => {
+    const h = commandHarness();
+    const [a] = h.replaceBody([['st_action', 'A']]);
+    const batch = (commands: { id: string; params: unknown }[]) => executeBatch({ doc: h.doc, model: h.model, ids: h.ids, actor: TEST_ACTOR, origin: h.origins.make('local-command', { commandId: 'batch' }), capabilities: new Set(['write'] as const), clock: () => h.now(), commands });
+    // Appends (no anchor): N inserts yield N elements in command order.
+    const appends = Array.from({ length: 12 }, (_, i) => ({ id: 'element.insert', params: { style: 'st_action', text: `n${i}` } }));
+    expect(batch(appends)).toMatchObject({ ok: true });
+    expect(h.body().map((e) => e.text)).toEqual(['A', ...appends.map((_, i) => `n${i}`)]);
+    // Several inserts after the SAME anchor: each lands directly after it, so the newest is first.
+    expect(batch(['x0', 'x1', 'x2'].map((text) => ({ id: 'element.insert', params: { after: a, style: 'st_action', text } })))).toMatchObject({ ok: true });
+    expect(h.body().map((e) => e.text).slice(0, 5)).toEqual(['A', 'x2', 'x1', 'x0', 'n0']);
+    // `before` the same anchor: each lands directly before it, so command order is kept.
+    expect(batch(['b0', 'b1'].map((text) => ({ id: 'element.insert', params: { before: a, style: 'st_action', text } })))).toMatchObject({ ok: true });
+    expect(h.body().map((e) => e.text).slice(0, 3)).toEqual(['b0', 'b1', 'A']);
   });
   it('changes style, drops incompatible dual and records track changes', () => {
     const h = commandHarness();

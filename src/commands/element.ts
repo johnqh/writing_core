@@ -3,7 +3,7 @@ import * as Y from 'yjs';
 import { z } from 'zod/v4';
 import { type ElementId, type StyleId, newId } from '../ids/ids.js';
 import { generatePositions } from '../model/positions.js';
-import { setJSONMap } from '../model/ymap.js';
+import { orderElements, setJSONMap } from '../model/ymap.js';
 import type { YDeltaOp } from '../model/ytext.js';
 import { idSchema, StyleIdSchema } from '../schema/primitives.js';
 import { ElementOverrides } from '../schema/template.js';
@@ -110,16 +110,21 @@ const OverrideParams = z.object({
 export const ELEMENT_COMMANDS: CommandSpec<never>[] = [
   spec('element.insert', z.object({ after: ElementIdParam.nullable().optional(), before: ElementIdParam.optional(), style: StyleIdSchema, text: z.string().optional(), ov: ElementOverrides.optional() }), (ctx, p) => {
     if (!styleExists(ctx, p.style)) return { ok: false, reason: 'styleNotInTemplate' };
+    // Resolve the anchor against the Y.Doc, never `ctx.model`: inside a batch the read model is
+    // stale until the transaction ends, so an append (no anchor) would land after the pre-batch
+    // last element every time, and an `after` naming an element created earlier in the batch
+    // would read as missing.
+    const body = orderElements(bodyElements(ctx.doc));
     let after: ElementId | null;
     if (p.before !== undefined) {
-      if (ctx.model.indexOf(p.before) < 0) return { ok: false, reason: 'notFound' };
-      after = ctx.model.previous(p.before)?.id ?? null;
+      const i = body.findIndex((r) => r.get('id') === p.before);
+      if (i < 0) return { ok: false, reason: 'notFound' };
+      after = i > 0 ? (body[i - 1]!.get('id') as ElementId) : null;
     } else if (p.after) {
-      if (ctx.model.indexOf(p.after) < 0) return { ok: false, reason: 'notFound' };
+      if (!bodyElements(ctx.doc).has(p.after)) return { ok: false, reason: 'notFound' };
       after = p.after;
     } else {
-      const count = ctx.model.elementCount();
-      after = count > 0 ? ctx.model.elementAt(count - 1).id : null;
+      after = body.length > 0 ? (body[body.length - 1]!.get('id') as ElementId) : null;
     }
     const id = createElement(ctx, { after, style: p.style, text: p.text ? { plain: p.text, runs: [{ text: p.text, attrs: {} }], embeds: [] } : undefined, ov: p.ov });
     return { ok: true, effects: [{ kind: 'elementCreated', id }] };
