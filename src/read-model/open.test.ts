@@ -441,6 +441,20 @@ describe('Task 16: layout read-model punch list', () => {
     expect(model.attrsVersion(tpId as never)).toBe(1);
   });
 
+  it('bumps a title-page element\'s attrsVersion for an edit inside its nested `ov` map (not only for a top-level key)', () => {
+    const { doc } = setup();
+    const model = openDocument(doc, deps);
+    const tpElements = doc.getMap<unknown>('titlePage').get('elements') as Y.Map<unknown>;
+    const [tpId, tpEl] = [...tpElements.entries()][0] as [string, Y.Map<unknown>];
+    if (!(tpEl.get('ov') instanceof Y.Map)) tpEl.set('ov', new Y.Map<unknown>());
+    const base = model.attrsVersion(tpId as never);
+    const textBase = model.textVersion(tpId as never);
+    (tpEl.get('ov') as Y.Map<unknown>).set('alignment', 'right');
+    expect(model.attrsVersion(tpId as never)).toBe(base + 1);
+    expect(model.textVersion(tpId as never)).toBe(textBase);
+    expect(model.titlePage().elements.find((e) => e.id === tpId)!.ov).toMatchObject({ alignment: 'right' });
+  });
+
   it('computes titlePage().computed.wordCount from the live body text, rounded per computed.wordCount.roundTo', () => {
     const { doc } = setup();
     const model = openDocument(doc, deps);

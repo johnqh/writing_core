@@ -328,6 +328,10 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps, options: OpenDocumentO
             const keys = (event as Y.YMapEvent<unknown>).keysChanged;
             bumpText = keys.has('text');
             bumpAttrs = [...keys].some((k) => ATTRS_KEYS.has(k));
+          } else if (event.path.length >= 3) {
+            // An edit inside a nested attrs record (`ov`, `num`, `alts`, ...) arrives with the
+            // record's own key at path[2]; the body path (`onElements`) handles the same shape.
+            bumpAttrs = ATTRS_KEYS.has(String(event.path[2]));
           }
           if (bumpText) textVersions.set(id, (textVersions.get(id) ?? 0) + 1);
           if (bumpAttrs) attrsVersions.set(id, (attrsVersions.get(id) ?? 0) + 1);
