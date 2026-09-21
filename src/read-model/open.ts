@@ -407,23 +407,37 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps, options: OpenDocumentO
     return null;
   }
 
+  const isBoundaryRole = (role: StyleRole | null): boolean => role !== null && (SCENE_BOUNDARY_ROLES as readonly string[]).includes(role);
+  const isSceneRole = (role: StyleRole | null): boolean => role !== null && (SCENE_ROLES as readonly string[]).includes(role);
+  /** The role a style id resolves to in the current template, or null for a dangling id. */
+  const roleOfStyle = (style: unknown): StyleRole | null =>
+    typeof style === 'string' && template().styles.some((s) => s.id === style) ? resolveStyle(template(), style as StyleId).role : null;
+
   /**
-   * Evicts the cached views of every element governed by the scene heading `headingId`, from
-   * the heading itself up to (but excluding) the next scene-boundary element — a local walk
-   * bounded by scene length, not `getStructure()`. Needed because `scene.omit` lives only on
-   * the heading's own record; without this, a member element's `sceneOmit` would stay stale
-   * (its cached view untouched) until something unrelated happened to evict it.
+   * The `style` a just-deleted element record last held. Yjs marks a deleted map's items deleted
+   * but keeps their content until garbage collection runs, after observers, so it is still
+   * readable here through the item chain (the public `get` hides deleted entries). Anything
+   * unexpected yields `undefined`, which callers treat as "role unknown".
    */
-  function invalidateGoverned(headingId: string): void {
-    const start = index.indexOf(headingId);
-    if (start < 0) return;
-    for (let i = start; i < index.size; i++) {
+  function deletedStyle(record: unknown): unknown {
+    const item = (record as { _map?: Map<string, { content: { getContent(): unknown[] }; length: number }> } | undefined)?._map?.get('style');
+    const value = item?.content.getContent()[item.length - 1];
+    return typeof value === 'string' ? value : undefined;
+  }
+
+  /**
+   * Adds to `into` the elements a scene boundary at index `from` governs: from `from` up to (but
+   * excluding) the next scene-boundary element, a local walk bounded by scene length, never
+   * `getStructure()`. `includeFirst` says the element at `from` is itself the boundary being
+   * described (a heading whose own `scene` record changed); without it, a boundary found AT
+   * `from` ends the span immediately, because it starts a region of its own that this change
+   * did not touch.
+   */
+  function collectSpan(from: number, into: Set<string>, includeFirst: boolean): void {
+    for (let i = from; i < index.size; i++) {
       const eid = index.idAt(i)!;
-      if (i > start) {
-        const role = elementRole(eid);
-        if (role !== null && (SCENE_BOUNDARY_ROLES as readonly string[]).includes(role)) break;
-      }
-      views.delete(eid);
+      if (!(includeFirst && i === from) && isBoundaryRole(elementRole(eid))) break;
+      into.add(eid);
     }
   }
 
@@ -486,15 +500,30 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps, options: OpenDocumentO
     const changed = new Set<string>();
     // Elements whose text may have changed, for the incremental body word count below.
     const recount = new Set<string>();
-    const sceneOmitChanged = new Set<string>();
+    // Governance bookkeeping (see the block after the loop): which elements may have moved between
+    // scenes, or whose scene's `omit` may have changed.
+    const attrsBumped = new Set<string>();
+    const posMoved = new Set<string>();
+    const oldStyle = new Map<string, unknown>();
+    const scenesTouched = new Set<string>(); // a heading's own `scene` record was created, removed or edited
+    const replaced = new Set<string>(); // whole record swapped: nothing is known about the old one
+    const removedRecords = new Map<string, unknown>();
+    const bump = (id: string) => {
+      if (attrsBumped.has(id)) return;
+      attrsBumped.add(id);
+      attrsVersions.set(id, (attrsVersions.get(id) ?? 0) + 1);
+    };
     let reordered = false;
     for (const event of events) {
       if (event.target === elementsMap) {
         for (const [key, change] of (event as Y.YMapEvent<unknown>).changes.keys) {
           if (change.action === 'add') inserted.add(key);
-          else if (change.action === 'delete') removed.add(key);
-          else {
+          else if (change.action === 'delete') {
+            removed.add(key);
+            removedRecords.set(key, change.oldValue);
+          } else {
             changed.add(key);
+            replaced.add(key);
             recount.add(key); // the whole record was replaced, so its text may be a different Y.Text
           }
         }
@@ -504,29 +533,32 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps, options: OpenDocumentO
       if (inserted.has(id)) continue;
       changed.add(id);
       let bumpText = false;
-      let bumpAttrs = false;
+      let bumpAttr = false;
       if (event.target instanceof Y.Text && event.path.length === 2 && event.path[1] === 'text') {
         bumpText = true;
       } else if (event.path.length === 1) {
-        const keys = (event as Y.YMapEvent<unknown>).keysChanged;
+        const ymapEvent = event as Y.YMapEvent<unknown>;
+        const keys = ymapEvent.keysChanged;
         // Replacing the whole `text` key (a fresh Y.Text swapped in, e.g. by a repair or an
         // importer) is a text change too; only edits *inside* an existing Y.Text arrive on the
         // branch above, so without this the counter — and every cache keyed on it — missed it.
         bumpText = keys.has('text');
-        bumpAttrs = [...keys].some((k) => ATTRS_KEYS.has(k));
+        bumpAttr = [...keys].some((k) => ATTRS_KEYS.has(k));
+        if (keys.has('style') && !oldStyle.has(id)) oldStyle.set(id, ymapEvent.changes.keys.get('style')?.oldValue);
+        if (keys.has('scene')) scenesTouched.add(id);
+        if (keys.has('pos')) posMoved.add(id);
       } else if (event.path[1] === 'scene') {
         // Spec 02 §31.2: of the scene map, only `omit` is a paragraph-layout input.
-        bumpAttrs = event.path.length === 2 && (event as Y.YMapEvent<unknown>).keysChanged.has('omit');
-        if (bumpAttrs) sceneOmitChanged.add(id);
+        bumpAttr = event.path.length === 2 && (event as Y.YMapEvent<unknown>).keysChanged.has('omit');
+        if (bumpAttr) scenesTouched.add(id);
       } else {
-        bumpAttrs = ATTRS_KEYS.has(String(event.path[1]));
+        bumpAttr = ATTRS_KEYS.has(String(event.path[1]));
       }
       if (bumpText) {
         textVersions.set(id, (textVersions.get(id) ?? 0) + 1);
         recount.add(id);
       }
-      if (bumpAttrs) attrsVersions.set(id, (attrsVersions.get(id) ?? 0) + 1);
-      if (event.target instanceof Y.Map && event.path.length === 1 && (event as Y.YMapEvent<unknown>).keysChanged.has('pos')) reordered = true;
+      if (bumpAttr) bump(id);
     }
     // `titlePage().computed.wordCount` (spec 02 §19) is the body word count. Once it has been asked
     // for, adjust the running total by exactly what this transaction touched: subtract a removed
@@ -546,6 +578,45 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps, options: OpenDocumentO
       }
       if (wordTotal !== before) titlePageCache = null;
     }
+
+    // Scene governance (`ElementView.sceneOmit`, spec 01 §10.2). An element's governing scene is
+    // the nearest preceding scene heading, so anything that adds, removes, moves or re-roles a
+    // heading (or an act start, which ends a scene) changes the governance of every element up to
+    // the NEXT boundary, none of which has an event of its own. Collect exactly that span:
+    //   anchors  - "the old span": the elements that followed a removed / moved boundary, found from
+    //              the still-present element before it (taken BEFORE the index is mutated);
+    //   starts   - "the new span": boundaries that now exist (inserted, moved, restyled into a scene
+    //              role, or whose own scene record changed).
+    // Only boundaries qualify: inserting, deleting or restyling an ordinary paragraph touches no
+    // one else, which keeps a routine edit from flushing the layout cache for its whole scene.
+    const anchors: (string | null)[] = [];
+    const starts: { id: string; includeFirst: boolean }[] = [];
+    const skip = new Set<string>([...removed, ...posMoved, ...replaced]);
+    const anchorBefore = (id: string): string | null => {
+      for (let i = index.indexOf(id) - 1; i >= 0; i--) {
+        const eid = index.idAt(i)!;
+        if (!skip.has(eid)) return eid;
+      }
+      return null;
+    };
+    for (const id of removed) {
+      // A cached view knows the role the element HAD (its record is already gone); failing that,
+      // the deleted record's own last `style`; with neither the role is unknowable, so assume it
+      // was a boundary.
+      const known = views.get(id);
+      const role = known ? known.role : roleOfStyle(deletedStyle(removedRecords.get(id)));
+      if ((!known && role === null) || isBoundaryRole(role)) anchors.push(anchorBefore(id));
+    }
+    for (const id of new Set([...posMoved, ...replaced])) {
+      if (removed.has(id) || index.indexOf(id) < 0) continue;
+      const wasBoundary = replaced.has(id) || isBoundaryRole(roleOfStyle(oldStyle.has(id) ? oldStyle.get(id) : (elementsMap.get(id) as YMap | undefined)?.get('style')));
+      if (wasBoundary || isBoundaryRole(elementRole(id))) anchors.push(anchorBefore(id));
+    }
+    // A moved element's own governing scene may change with no attrs event at all (`pos` is not an
+    // attrs key), so compare what it used to report; an unread view has nothing to compare with.
+    const oldOwnOmit = new Map<string, ElementView['sceneOmit'] | undefined>();
+    for (const id of posMoved) oldOwnOmit.set(id, views.get(id)?.sceneOmit);
+
     for (const id of inserted) {
       const m = elementsMap.get(id);
       if (m instanceof Y.Map) index.upsert(id, String(m.get('pos')));
@@ -570,10 +641,35 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps, options: OpenDocumentO
       if (m instanceof Y.Map) index.upsert(id, String(m.get('pos')));
       views.delete(id);
     }
-    // A scene's `omit` lives only on its heading's own record, but `sceneOmit` (spec 01 §10.2)
-    // is read by every member of that scene — evict their cached views too, or a body element's
-    // `sceneOmit` would stay stale until something unrelated happened to evict it.
-    for (const headingId of sceneOmitChanged) if (!removed.has(headingId)) invalidateGoverned(headingId);
+
+    for (const id of inserted) {
+      if (isBoundaryRole(elementRole(id))) starts.push({ id, includeFirst: false });
+    }
+    for (const id of new Set([...posMoved, ...replaced, ...oldStyle.keys()])) {
+      if (removed.has(id) || index.indexOf(id) < 0) continue;
+      const role = elementRole(id);
+      if (replaced.has(id) || isBoundaryRole(role) || isBoundaryRole(roleOfStyle(oldStyle.get(id)))) starts.push({ id, includeFirst: false });
+    }
+    // A heading's own `scene` record: created (with or without `omit` inside it), removed, or its
+    // `omit` edited. `includeFirst`: the heading itself is governed by that record too.
+    for (const id of scenesTouched) {
+      if (removed.has(id) || index.indexOf(id) < 0) continue;
+      if (isSceneRole(elementRole(id))) starts.push({ id, includeFirst: true });
+    }
+    const affected = new Set<string>();
+    for (const anchor of anchors) collectSpan(anchor === null ? 0 : Math.max(0, index.indexOf(anchor) + 1), affected, false);
+    for (const { id, includeFirst } of starts) collectSpan(index.indexOf(id) + (includeFirst ? 0 : 1), affected, includeFirst);
+    for (const [id, was] of oldOwnOmit) {
+      if (removed.has(id) || index.indexOf(id) < 0) continue;
+      if (was === undefined || JSON.stringify(was) !== JSON.stringify(sceneOmitFor(id))) affected.add(id);
+    }
+    for (const id of affected) {
+      if (removed.has(id) || index.indexOf(id) < 0) continue;
+      views.delete(id);
+      if (inserted.has(id)) continue;
+      bump(id);
+      changed.add(id);
+    }
     queue(tx, { kind: 'elements', inserted: [...inserted].sort(), removed: [...removed].sort(), changed: [...changed].filter((id) => !removed.has(id)).sort(), reordered });
   };
 

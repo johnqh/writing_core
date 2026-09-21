@@ -370,6 +370,110 @@ describe('Task 16: layout read-model punch list', () => {
     expect(model.element(id(a2))).toBe(warm.get(a2));
   });
 
+  describe('sceneOmit stays correct when scene membership changes (warmed cache: read first, change, then assert)', () => {
+    const OMIT = { at: 5, by: 'u', rev: null };
+    type Ctx = ReturnType<typeof setup>;
+    const idOf = (m: Y.Map<unknown>) => m.get('id') as never;
+    /** Reads the view of every given element so a later stale cache entry would be observable. */
+    const warm = (model: ReturnType<typeof openDocument>, ...els: Y.Map<unknown>[]) => els.map((e) => model.element(idOf(e))!.sceneOmit);
+    /** h(scene, omitted) a c: an omitted scene of three elements. */
+    const omittedScene = (): Ctx => {
+      const ctx = setup();
+      ctx.h.set('scene', new Y.Map<unknown>()).set('omit', OMIT);
+      return ctx;
+    };
+
+    it('(a) a scene heading inserted mid-scene takes over the elements after it, and bumps only their attrsVersion', () => {
+      const { doc, h, a, c, add } = omittedScene();
+      const model = openDocument(doc, deps);
+      expect(warm(model, h, a, c)).toEqual([OMIT, OMIT, OMIT]);
+      const [aBefore, cBefore] = [model.attrsVersion(idOf(a)), model.attrsVersion(idOf(c))];
+
+      doc.transact(() => { add('st_scene_heading', 'E', 'INT. HALL - DAY'); }); // between a (D) and c (F)
+
+      expect(model.element(idOf(c))!.sceneOmit).toBeNull();
+      expect(model.element(idOf(a))!.sceneOmit).toEqual(OMIT);
+      expect(model.attrsVersion(idOf(c))).toBe(cBefore + 1);
+      expect(model.attrsVersion(idOf(a))).toBe(aBefore);
+    });
+
+    it('(b) deleting a scene heading hands its elements back to the previous scene', () => {
+      const { doc, h, a, c, add } = omittedScene();
+      const h2 = add('st_scene_heading', 'E', 'INT. HALL - DAY'); // a | h2 c
+      const model = openDocument(doc, deps);
+      expect(warm(model, h, a, h2, c)).toEqual([OMIT, OMIT, null, null]);
+      const cBefore = model.attrsVersion(idOf(c));
+
+      doc.getMap('elements').delete(idOf(h2));
+
+      expect(model.element(idOf(c))!.sceneOmit).toEqual(OMIT);
+      expect(model.attrsVersion(idOf(c))).toBe(cBefore + 1);
+    });
+
+    it('(c) restyling a heading out of, and an action into, a scene role moves the elements it governs', () => {
+      const { doc, h, a, c, add } = omittedScene();
+      const h2 = add('st_scene_heading', 'E', 'INT. HALL - DAY'); // h a | h2 c
+      const model = openDocument(doc, deps);
+      expect(warm(model, h, a, h2, c)).toEqual([OMIT, OMIT, null, null]);
+      const cBefore = model.attrsVersion(idOf(c));
+
+      h2.set('style', 'st_action'); // out of a scene role: c rejoins the omitted scene
+      expect(model.element(idOf(c))!.sceneOmit).toEqual(OMIT);
+      expect(model.attrsVersion(idOf(c))).toBe(cBefore + 1);
+
+      const c1 = model.attrsVersion(idOf(c));
+      h2.set('style', 'st_scene_heading'); // and back into one
+      expect(model.element(idOf(c))!.sceneOmit).toBeNull();
+      expect(model.attrsVersion(idOf(c))).toBe(c1 + 1);
+
+      const a1 = model.attrsVersion(idOf(a));
+      a.set('style', 'st_scene_heading'); // an action becomes a heading: it now governs itself
+      expect(model.element(idOf(a))!.sceneOmit).toBeNull();
+      expect(model.attrsVersion(idOf(a))).toBe(a1 + 1);
+    });
+
+    it('(d) a scene map created with `omit` inside it, in ONE transaction (the shape fromJSON writes), reaches every member', () => {
+      const { doc, h, a, c } = setup();
+      const model = openDocument(doc, deps);
+      expect(warm(model, h, a, c)).toEqual([null, null, null]);
+      const before = [h, a, c].map((e) => model.attrsVersion(idOf(e)));
+
+      doc.transact(() => {
+        const scene = new Y.Map<unknown>();
+        scene.set('omit', OMIT);
+        h.set('scene', scene);
+      });
+
+      expect(warm(model, h, a, c)).toEqual([OMIT, OMIT, OMIT]);
+      expect([h, a, c].map((e) => model.attrsVersion(idOf(e)))).toEqual(before.map((v) => v + 1));
+    });
+
+    it('moving a heading (a pos change) re-homes the elements on both sides of it', () => {
+      const { doc, h, a, c, add } = omittedScene();
+      const h2 = add('st_scene_heading', 'E', 'INT. HALL - DAY'); // h a | h2 c
+      const model = openDocument(doc, deps);
+      expect(warm(model, h, a, h2, c)).toEqual([OMIT, OMIT, null, null]);
+      const aBefore = model.attrsVersion(idOf(a));
+
+      h2.set('pos', 'C'); // h | h2 a c ... a now belongs to h2's (unomitted) scene, c too
+      expect(model.element(idOf(a))!.sceneOmit).toBeNull();
+      expect(model.element(idOf(c))!.sceneOmit).toBeNull();
+      expect(model.attrsVersion(idOf(a))).toBe(aBefore + 1);
+    });
+
+    it('does not bump the elements after an ordinary (non-heading) insert, delete or restyle', () => {
+      const { doc, h, a, c, add } = omittedScene();
+      const model = openDocument(doc, deps);
+      warm(model, h, a, c);
+      const before = [h, a, c].map((e) => model.attrsVersion(idOf(e)));
+      let extra!: Y.Map<unknown>;
+      doc.transact(() => { extra = add('st_action', 'E', 'More.'); });
+      extra.set('style', 'st_dialogue');
+      doc.getMap('elements').delete(idOf(extra));
+      expect([h, a, c].map((e) => model.attrsVersion(idOf(e)))).toEqual(before);
+    });
+  });
+
   it("surfaces the inactive alternates' own text on ElementView.alts, not just altCount", () => {
     const { doc, a } = setup();
     const model = openDocument(doc, deps);
