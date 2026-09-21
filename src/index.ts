@@ -121,6 +121,12 @@ export {
   type PageGeometry, type PaginationParams, type PaginateDeps, type FillState, type FilledPage, type PlacedLine, type LockSegment,
   type BlockLineCursor, type SplitChoice, type DualSplit, type RowSplit, type ColumnRow,
 } from './layout/paginate.js';
+export {
+  moreLine, synthesizedCue, cueDisplayText, contdCueLine, sceneContinuedTop, sceneContinuedBottom, bottomReserve, makeContinueds,
+  dialogueRows, rowsHeight, legalDialogueSplit, splitDialogue, minLegalHead,
+  type DecoLine, type DecoBlock, type ContinuedsHooks, type ContinuedsEnv, type DlgRow, type SplitRules,
+} from './layout/continueds.js';
+export { dualGeometry, dualSideBox, layoutDual, splitDual, dualMinHead, type DualLayout, type DualSplitChoice, type DualCategory } from './layout/dual.js';
 export { layoutDocument, type LayoutDocumentOptions, type DocLayout, type DocPage, type DocLine, type DocDecoration } from './layout/layout-document.js';
 export { contextPass, type ElementContext, type SpeakerKey, type ContextPassResult, type ContextPassDeps } from './layout/context.js';
 

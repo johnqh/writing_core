@@ -27,6 +27,8 @@ export interface BlockPara {
   layout: ParagraphLayout;
   ctx: ElementContext;
   flags: ParaFlags;
+  /** The resolved style, when the caller has it (continueds decorations are laid out in the cue's style). */
+  style?: ResolvedStyle;
 }
 
 export interface SingleBlock { kind: 'single'; para: BlockPara }

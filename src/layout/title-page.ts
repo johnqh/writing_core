@@ -106,7 +106,7 @@ export function layoutTitlePages(env: TitleEnv, diagnostics: LayoutDiagnostic[])
     for (const [i, line] of it.para.lines.entries()) {
       const l: DocLine = {
         elementId: it.el.id as ElementId, lineIndexInElement: i, sourceStart: line.sourceStart, sourceEnd: line.sourceEnd,
-        x: line.x, width: line.width, y: top + line.top, baseline: top + line.baseline, pitch: line.pitch, pageNumber: 0, runs: line.runs,
+        x: line.x, width: line.width, y: top + line.top, baseline: top + line.baseline, pitch: line.pitch, pageNumber: 0, runs: line.runs, kind: 'text', dualSide: null,
       };
       p.lines.push(l);
     }

@@ -62,8 +62,11 @@ function textDisplay(text: string, lang: string, caps: boolean) {
   return { text, clusterSource: new Uint32Array(graphemeClusters(text).length), sourceLength: text.length };
 }
 
+/** What `plainLine` needs of the environment (also satisfied by `DecorateEnv`). */
+export type LineEnv = Pick<DecorateEnv, 'template' | 'fonts' | 'shaper' | 'lang' | 'referenceSizePt'>;
+
 /** One line of plain generated text at an absolute x/width in the given style, aligned inside its box. */
-function plainLine(env: DecorateEnv, text: string, style: ResolvedStyle, textLeft: number, width: number, align: 'left' | 'center' | 'right'): ParaLine | null {
+export function plainLine(env: LineEnv, text: string, style: ResolvedStyle, textLeft: number, width: number, align: 'left' | 'center' | 'right'): ParaLine | null {
   if (text === '') return null;
   const flat: ResolvedStyle = { ...style, align, indentLeft: 0, indentRight: 0, indentFirstLine: 0, spaceBefore: 0 };
   const layout = layoutParagraph({

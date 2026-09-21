@@ -7,8 +7,12 @@
  * Runs after pagination (never affecting it): the title page (§19; `titlePages`, unnumbered, kept apart from
  * the body `pages`), headers/footers (§20) and scene numbers in the margins (§21.4), as `decorations` on each page.
  *
- * NOT run yet: automatic and manual continueds — `(MORE)`, `(CONT'D)` at page tops, scene CONTINUED (§14),
- * dual dialogue geometry (dual groups are laid out stacked), column blocks (laid out at
+ * Continueds (§14: `(MORE)`, synthesized `NAME (CONT'D)` cues, scene CONTINUED) and dual dialogue (§15, side by
+ * side per `dualGeometry`, or stacked when `dualDialogue.enabled` is false) are paginated here: their lines
+ * come back in `DocPage.lines` with a `kind` other than `text` (generated, not editable) and, inside a dual
+ * block, a `dualSide`; a dual side's `x`/`width` already carry the column geometry.
+ *
+ * NOT run yet: column blocks (laid out at
  * full width), graphic-novel panels (§17), page locks / A-pages (§24), revision display (§25),
  * Track Changes and alternates view modes (§26; the `final` view is used), scene running time
  * (§27), the paragraph cache and incremental re-pagination (§31), and the element/line index (§29.5).
@@ -25,7 +29,9 @@ import { contextPass } from './context.js';
 import type { AttrRun } from './itemize.js';
 import { layoutParagraph, makeDisplayText, type ParaLine } from './paragraph.js';
 import { pageGeometryOf, paginate, type PaginationParams } from './paginate.js';
-import type { FontRegistry, GlyphRun, LayoutDiagnostic, Shaper } from './types.js';
+import type { FontRegistry, GlyphRun, LayoutDiagnostic, LineKind, Shaper } from './types.js';
+import { makeContinueds } from './continueds.js';
+import { dualGeometry, dualSideBox } from './dual.js';
 import { headerFooterFor, sceneNumbersFor, type DecorateEnv, type DocDecoration } from './decorate.js';
 import { layoutTitlePages } from './title-page.js';
 
@@ -56,6 +62,10 @@ export interface DocLine {
   /** 1-based. */
   pageNumber: number;
   runs: GlyphRun[];
+  /** `text` for a source line; `more`, `contdCue`, `continuedTop` and `continuedBottom` are generated (§14.2). */
+  kind: LineKind;
+  /** The side of a dual dialogue block this line belongs to (§15), else null. */
+  dualSide: 'left' | 'right' | null;
 }
 
 export interface DocPage {
@@ -114,6 +124,11 @@ export function layoutDocument(model: DocumentModel, templateIn?: EmbeddedTempla
 
   const diagnostics: LayoutDiagnostic[] = [];
   const paras: BlockPara[] = [];
+  const dualOn = template.pagination.dualDialogue.enabled;
+  const dualGeom = dualOn ? dualGeometry(template) : null;
+  // A dual side is only laid out in its column when its group has both sides (otherwise it stacks as ordinary dialogue).
+  const groupSides = new Map<string, Set<string>>();
+  if (dualOn) for (const el of model.elements()) if (el.dual) (groupSides.get(el.dual.group) ?? groupSides.set(el.dual.group, new Set()).get(el.dual.group)!).add(el.dual.side);
   for (const id of order) {
     const el = byId.get(id) as ElementView;
     const ctx = contexts.get(id)!;
@@ -122,14 +137,15 @@ export function layoutDocument(model: DocumentModel, templateIn?: EmbeddedTempla
     const layout = layoutParagraph({
       elementId: id, displayText, attrs: attrRuns(el), style, category: ctx.category, page: template.page, referenceSizePt, lang, fonts, shaper,
       lineAdjustDeltaRight: el.lineAdjust?.deltaRight, decorationHash: ctx.decorationHash,
+      geometry: dualGeom && el.dual && groupSides.get(el.dual.group)?.size === 2 ? dualSideBox(dualGeom, ctx.category, el.dual.side) : undefined,
     });
     diagnostics.push(...layout.diagnostics);
     paras.push({
-      layout, ctx, flags: paraFlags(style, ctx.category, { actBreakStartsPage: template.pagination.actBreakStartsPage, dualGroup: el.dual?.group ?? null }),
+      layout, ctx, style, flags: paraFlags(style, ctx.category, { actBreakStartsPage: template.pagination.actBreakStartsPage, dualGroup: el.dual?.group ?? null }),
     });
   }
 
-  const blocks = formBlocks(paras, { dual: false });
+  const blocks = formBlocks(paras, { dual: dualOn });
   const geometry = pageGeometryOf(template.page);
   const pg = template.pagination;
   const params: PaginationParams = {
@@ -141,7 +157,11 @@ export function layoutDocument(model: DocumentModel, templateIn?: EmbeddedTempla
     dialogueMinLinesAfterBreak: pg.dialogue.minLinesAfterBreak,
     minLinesWithHeading: pg.keepWithNextMinLines,
   };
-  const filled = paginate(blocks, geometry, params);
+  const continueds = makeContinueds({
+    template, fonts, shaper, lang, referenceSizePt,
+    sideGeometry: dualGeom ? (category, side) => dualSideBox(dualGeom, category, side) : null,
+  });
+  const filled = paginate(blocks, geometry, params, { continueds });
   diagnostics.push(...filled.diagnostics);
 
   const pages: DocPage[] = filled.pages.map((fp) => ({
@@ -150,12 +170,14 @@ export function layoutDocument(model: DocumentModel, templateIn?: EmbeddedTempla
     index: fp.index,
     label: '',
     decorations: [] as DocDecoration[],
-    lines: fp.lines.map((pl): DocLine => {
+    // Body lines and page-level generated lines, top to bottom (stable, so a dual block's sides keep their order).
+    lines: [...fp.lines, ...fp.decor].sort((a, b) => a.y - b.y).map((pl): DocLine => {
       const line: ParaLine = pl.line;
+      const generated = pl.kind !== undefined;
       return {
-        elementId: pl.elementId, lineIndexInElement: pl.lineIndexInElement, sourceStart: line.sourceStart, sourceEnd: line.sourceEnd,
+        elementId: pl.elementId, lineIndexInElement: pl.lineIndexInElement, sourceStart: generated ? 0 : line.sourceStart, sourceEnd: generated ? 0 : line.sourceEnd,
         x: line.x, width: line.width, y: geometry.bodyTop + pl.y, baseline: geometry.bodyTop + pl.y + (line.baseline - line.top),
-        pitch: line.pitch, pageNumber: fp.index + 1, runs: line.runs,
+        pitch: line.pitch, pageNumber: fp.index + 1, runs: line.runs, kind: pl.kind ?? 'text', dualSide: pl.dualSide ?? null,
       };
     }),
   }));
