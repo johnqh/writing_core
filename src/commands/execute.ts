@@ -78,25 +78,45 @@ function run(req: BatchRequest, doc: Y.Doc, model: DocumentModel, prepared: Prep
     }
   });
   try {
-    doc.transact(() => {
-      for (const [index, { spec, params }] of prepared.entries()) {
-        const ctx: CommandContext = {
-          doc, model, actor: req.actor, origin: req.origin, capabilities: req.capabilities, ids: req.ids, clock,
-          changeId: newId('chg', req.ids), readOnly,
-        };
-        const availability = spec.isEnabled(ctx, params);
-        if (!availability.enabled) {
-          failure = { ok: false, index, reason: availability.reason };
-          return;
+    // Batch = sequential. The model's order index, element views and caches only refresh when the
+    // transaction ends, so after any command that may have written, `model` describes the
+    // document as it was BEFORE the batch. Commands resolve positions, order, scenes and indices
+    // through `ctx.model`; handing them that stale view made a batch diverge from the same
+    // commands run one per execute() (moves, scene moves, range deletes, duplicates ... resolved
+    // against pre-batch order, or refused outright). So before each command that follows a
+    // mutating one, open a throwaway model over the live Y.Doc (`repair: false`, it is a read)
+    // and hand that to the command; it is disposed straight away so it never sees this
+    // transaction's events. The first command, and a single-command batch, keep using `model`.
+    let scratch: DocumentModel | null = null;
+    let wrote = false;
+    try {
+      doc.transact(() => {
+        for (const [index, { spec, params }] of prepared.entries()) {
+          if (wrote) {
+            scratch?.dispose();
+            scratch = openDocument(doc, model.deps, { repair: false });
+          }
+          const ctx: CommandContext = {
+            doc, model: scratch ?? model, actor: req.actor, origin: req.origin, capabilities: req.capabilities, ids: req.ids, clock,
+            changeId: newId('chg', req.ids), readOnly,
+          };
+          const availability = spec.isEnabled(ctx, params);
+          if (!availability.enabled) {
+            failure = { ok: false, index, reason: availability.reason };
+            return;
+          }
+          const result = spec.run(ctx, params);
+          if (!result.ok) {
+            failure = { ok: false, index, reason: result.reason, ...(result.detail ? { detail: result.detail } : {}) };
+            return;
+          }
+          if (spec.mutates) wrote = true;
+          results.push(result);
         }
-        const result = spec.run(ctx, params);
-        if (!result.ok) {
-          failure = { ok: false, index, reason: result.reason, ...(result.detail ? { detail: result.detail } : {}) };
-          return;
-        }
-        results.push(result);
-      }
-    }, req.origin);
+      }, req.origin);
+    } finally {
+      (scratch as DocumentModel | null)?.dispose();
+    }
   } finally {
     unsubscribe();
   }
