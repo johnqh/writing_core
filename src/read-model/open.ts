@@ -163,26 +163,45 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps, options: OpenDocumentO
   let structure: { scenes: SceneView[]; blocks: DialogueBlockView[]; tree: OutlineNode; sceneOf: Map<string, SceneView> } | null = null;
   let titlePageCache: TitlePageView | null = null;
 
-  // Body word count for `titlePage().computed.wordCount` (spec 02 §19), maintained incrementally:
-  // one scan the first time it is asked for (`wordTotal === null` until then), after which
-  // `onElements` adjusts it by only the elements a transaction touched — never a rescan. Per-element
-  // counts are kept so a removal or an edit can subtract exactly what that element contributed.
+  // Body word count for `titlePage().computed.wordCount` (spec 02 §19): the words that PRINT —
+  // printable elements (`resolveStyle(...).printable`, the scene content hash's own predicate) with
+  // no element-level `omit`, in a scene with no `omit`. Maintained incrementally: one scan the
+  // first time it is asked for (`wordTotal === null` until then), after which `onElements` adjusts
+  // it by only the elements a transaction touched — never a rescan — and a template change (rare)
+  // drops it back to null for one fresh scan. `wordCounts` holds each counting element's words;
+  // an element that does not print has no entry, so a text-only edit to one costs a Map lookup.
   const wordCounts = new Map<string, number>();
   let wordTotal: number | null = null;
   const wordLanguage = () => String(doc.getMap('meta').get('language') ?? deps.locale);
-  const countElementWords = (id: string): number => {
+  /** Words in `id`'s text if it prints, else null. `sceneOmit` is read lazily: it walks back to the scene heading. */
+  const printedWords = (id: string, sceneOmit: () => unknown): number | null => {
     const m = elementsMap.get(id);
-    const text = m instanceof Y.Map ? m.get('text') : undefined;
+    if (!(m instanceof Y.Map) || m.get('omit') != null) return null;
+    const style = m.get('style') as StyleId;
+    if (!template().styles.some((s) => s.id === style)) return null;
+    const ov = m.get('ov') instanceof Y.Map ? ((m.get('ov') as YMap).toJSON() as ElementView['ov']) : undefined;
+    if (!resolveStyle(template(), style, ov).printable || sceneOmit() != null) return null;
+    const text = m.get('text');
     return text instanceof Y.Text ? countWords(readTextJSON(text).plain, wordLanguage()) : 0;
   };
   const bodyWordTotal = (): number => {
     if (wordTotal === null) {
       wordCounts.clear();
       let total = 0;
-      for (const id of elementsMap.keys()) {
-        const count = countElementWords(id);
-        wordCounts.set(id, count);
-        total += count;
+      let governing: unknown = null; // the `omit` of the scene the walk is currently inside
+      for (let i = 0; i < index.size; i++) {
+        const id = index.idAt(i)!;
+        const role = elementRole(id);
+        if (role === 'actStart') governing = null;
+        else if (isSceneRole(role)) {
+          const scene = (elementsMap.get(id) as YMap).get('scene');
+          governing = scene instanceof Y.Map ? (scene.get('omit') ?? null) : null;
+        }
+        const words = printedWords(id, () => governing);
+        if (words !== null) {
+          wordCounts.set(id, words);
+          total += words;
+        }
       }
       wordTotal = total;
     }
@@ -560,25 +579,6 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps, options: OpenDocumentO
       }
       if (bumpAttr) bump(id);
     }
-    // `titlePage().computed.wordCount` (spec 02 §19) is the body word count. Once it has been asked
-    // for, adjust the running total by exactly what this transaction touched: subtract a removed
-    // element's contribution, recount an inserted or text-edited one. Until then there is nothing
-    // to maintain (`wordTotal === null`), and the first ask pays the single initial scan.
-    if (wordTotal !== null) {
-      const before = wordTotal;
-      for (const id of removed) {
-        wordTotal -= wordCounts.get(id) ?? 0;
-        wordCounts.delete(id);
-      }
-      for (const id of new Set([...inserted, ...recount])) {
-        if (removed.has(id) && !inserted.has(id)) continue;
-        const count = countElementWords(id);
-        wordTotal += count - (wordCounts.get(id) ?? 0);
-        wordCounts.set(id, count);
-      }
-      if (wordTotal !== before) titlePageCache = null;
-    }
-
     // Scene governance (`ElementView.sceneOmit`, spec 01 §10.2). An element's governing scene is
     // the nearest preceding scene heading, so anything that adds, removes, moves or re-roles a
     // heading (or an act start, which ends a scene) changes the governance of every element up to
@@ -670,6 +670,25 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps, options: OpenDocumentO
       bump(id);
       changed.add(id);
     }
+    // Body word count (spec 02 §19): once asked for, adjust the running total by exactly the
+    // elements this transaction touched. What decides whether an element prints (style, `ov`,
+    // element `omit`, its scene's `omit`, scene membership) all surface here as an inserted,
+    // moved, replaced or attrs-bumped id (the governance pass above bumps every element whose
+    // scene changed), so those recompute whether they print; a text-only edit recounts words only
+    // when the element already prints.
+    if (wordTotal !== null) {
+      const before = wordTotal;
+      const settle = (id: string, words: number | null) => {
+        wordTotal! += (words ?? 0) - (wordCounts.get(id) ?? 0);
+        if (words === null) wordCounts.delete(id);
+        else wordCounts.set(id, words);
+      };
+      for (const id of removed) settle(id, null);
+      const flagsMayHaveChanged = new Set<string>([...inserted, ...attrsBumped, ...posMoved, ...replaced]);
+      for (const id of flagsMayHaveChanged) if (index.indexOf(id) >= 0) settle(id, printedWords(id, () => sceneOmitFor(id)));
+      for (const id of recount) if (!flagsMayHaveChanged.has(id) && wordCounts.has(id)) settle(id, printedWords(id, () => null));
+      if (wordTotal !== before) titlePageCache = null;
+    }
     queue(tx, { kind: 'elements', inserted: [...inserted].sort(), removed: [...removed].sort(), changed: [...changed].filter((id) => !removed.has(id)).sort(), reordered });
   };
 
@@ -682,6 +701,10 @@ export function openDocument(doc: Y.Doc, deps: ModelDeps, options: OpenDocumentO
     // of any element that references it, directly or via `basedOn`/`paginateAs`, so a targeted
     // invalidation would have to replicate the whole resolution chain just to be an optimization.
     views.clear();
+    // Any template edit can change which styles print; rescan lazily on the next ask (spec 02 §19).
+    wordTotal = null;
+    wordCounts.clear();
+    titlePageCache = null;
     const styleIds = new Set<string>();
     let all = false;
     for (const event of events) {
