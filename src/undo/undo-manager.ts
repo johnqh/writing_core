@@ -23,7 +23,7 @@ export function createSessionUndo(
   origins: { Tracked: abstract new (...args: never[]) => TransactionOrigin },
   options: { clock?: () => number; captureMs?: number } = {},
 ): SessionUndo {
-  const clock = options.clock ?? Date.now;
+  const clock = options.clock ?? Date.now; // platform-free-allow-clock: the undo manager's options.clock default — an injectable seam; tests inject a clock to control capture grouping (spec 02 §1.1)
   const captureMs = options.captureMs ?? 500;
   const scope = DOC_TOP_LEVEL_KEYS.map((k) => doc.getMap<unknown>(k));
   const manager = new Y.UndoManager(scope, {

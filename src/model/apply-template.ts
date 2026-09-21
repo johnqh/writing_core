@@ -32,7 +32,7 @@ export function applyTemplate(
   template: TemplateJSON,
   options: { ids: IdSource; uid: string; clock?: () => number; mapping?: Readonly<Record<string, StyleId>> },
 ): { remapped: number } {
-  const now = (options.clock ?? Date.now)();
+  const now = (options.clock ?? Date.now)(); // platform-free-allow-clock: applyTemplate's options.clock default — an injectable seam; callers pass options.clock to freeze timestamps for tests (spec 02 §1.1)
   let remapped = 0;
   doc.transact(() => {
     const old = readEmbeddedTemplate(doc);

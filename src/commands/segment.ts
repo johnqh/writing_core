@@ -1,19 +1,15 @@
+import { graphemeClusters } from '../text/grapheme.js';
+
 type Unit = 'char' | 'grapheme' | 'word';
 
-interface SegmenterLike {
-  segment(input: string): Iterable<{ index: number; segment: string; isWordLike?: boolean }>;
-}
-const SegmenterCtor = (Intl as unknown as { Segmenter?: new (locale?: string, options?: { granularity: string }) => SegmenterLike }).Segmenter;
-
+/**
+ * Grapheme cluster boundaries from the package's own UAX #29 implementation, not the host's
+ * `Intl.Segmenter`: the host's ICU version decides where a caret may land, so the same keystroke
+ * would move it differently on Bun, V8 and Hermes (spec 02 §1.1). The platform-free guard used to
+ * miss this because it only matched the literal `new Intl.X` shape.
+ */
 function graphemeBounds(text: string): number[] {
-  if (SegmenterCtor) return [...new SegmenterCtor(undefined, { granularity: 'grapheme' }).segment(text)].map((s) => s.index).concat(text.length);
-  const out: number[] = [];
-  let i = 0;
-  for (const cp of text) {
-    out.push(i);
-    i += cp.length;
-  }
-  return out.concat(text.length);
+  return graphemeClusters(text).concat(text.length);
 }
 
 export function previousBoundary(text: string, index: number, unit: Unit): number {

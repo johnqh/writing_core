@@ -36,7 +36,7 @@ export function migrateDocument(
 ): MigrationResult {
   const steps = options.steps ?? MIGRATION_STEPS;
   const target = options.targetVersion ?? DOC_SCHEMA_VERSION;
-  const clock = options.clock ?? Date.now;
+  const clock = options.clock ?? Date.now; // platform-free-allow-clock: migrateDocument's options.clock default — an injectable seam; callers pass options.clock to freeze timestamps for tests (spec 02 §1.1)
   const from = versionOf(doc);
   if (from > target) return { status: 'newer', from, to: target, applied: [] };
   const applied: string[] = [];

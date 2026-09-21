@@ -144,7 +144,7 @@ export function executeBatch(req: BatchRequest): BatchResult {
   // Resolved once so a rehearsal pass and the real apply always see the same
   // instant (spec 08 §3.3 item 4) — a clock-gated command must not be able to
   // pass rehearsal and then fail (or behave differently) for the real apply.
-  const now = (req.clock ?? Date.now)();
+  const now = (req.clock ?? Date.now)(); // platform-free-allow-clock: executeBatch's req.clock default — an injectable seam; callers pass req.clock to freeze timestamps for tests/rehearsal (spec 02 §1.1)
   const clock = (): number => now;
   if (req.dryRun) return rehearse(req, p.prepared, clock, readOnly);
   // Single commands rehearse by default, same as multi-command batches: a
