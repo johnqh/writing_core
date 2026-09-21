@@ -110,6 +110,11 @@ export {
   layoutParagraph, makeDisplayText, basePitchOf, spaceBeforeOf,
   type ParaLine, type ParagraphLayout, type ParagraphInput, type DisplayText, type DisplayTextFn,
 } from './layout/paragraph.js';
+export {
+  formBlocks, keepChains, paraFlags, firstPara, lastPara,
+  type Block, type BlockPara, type ParaFlags, type SingleBlock, type DialogueBlock, type DualBlock, type ColumnRowsBlock,
+  type OmittedSceneBlock, type Chain, type FormBlocksOptions,
+} from './layout/blocks.js';
 export { contextPass, type ElementContext, type SpeakerKey, type ContextPassResult, type ContextPassDeps } from './layout/context.js';
 
 // ─── Text (shaping) ─────────────────────────────────────────────────────────
