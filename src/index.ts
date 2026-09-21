@@ -104,6 +104,7 @@ export * from './undo/undo-manager.js';
 export { LAYOUT_ENGINE_VERSION, roundHalfEven, emuFromFontUnits, sizeEmuFromPoints } from './layout/round.js';
 export * from './layout/types.js';
 export { type CategoryRule, CATEGORY_RULES, categoryOf } from './layout/category.js';
+export { contextPass, type ElementContext, type SpeakerKey, type ContextPassResult, type ContextPassDeps } from './layout/context.js';
 
 // ─── Text (shaping) ─────────────────────────────────────────────────────────
 export { nullShaper } from './text/shaper.js';

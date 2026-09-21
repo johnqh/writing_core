@@ -44,7 +44,7 @@ const ROOT_EXPORTS = [
   'TransactionOrigin', 'UNDERLINE_KINDS', 'UNDO_CLEAR_REASONS', 'UNICODE_VERSION', 'VehicleFields', 'VoiceJSON',
   'WRITING_CORE_VERSION', 'WardrobeFields', 'WireDocPos', 'WireRange', 'WriterJSON', 'addBuiltinCommands',
   'applyTemplate', 'assignNumbers', 'authoredTemplate', 'bidiClass', 'bidiLevels', 'breakOpportunities', 'builtinStyleId', 'builtinStyleSlug', 'canonicalElementText',
-  'canonicalJSON', 'categoryOf', 'compareLabels', 'comparePositions', 'computeHashVector', 'createDocument', 'createSeededIdSource',
+  'canonicalJSON', 'categoryOf', 'compareLabels', 'comparePositions', 'computeHashVector', 'contextPass', 'createDocument', 'createSeededIdSource',
   'advanceTableFor', 'aliasFor', 'alphabetFor', 'cjkRegion', 'createFontRegistry', 'createHarfBuzzShaper', 'createSessionOrigins', 'createSessionUndo', 'cryptoIdSource', 'decodeFwm', 'decodeRelativePosition', 'defaultLocaleData', 'defaultPagination',
   'defineCommand', 'deltaToTextJSON', 'deterministicId', 'disabledFooter', 'documentFromJSON', 'documentToJSON',
   'eastAsianWidth', 'elementContentHash', 'emptyTextJSON', 'emuFromFontUnits', 'emuToInches', 'encodeFwm', 'encodeRelativePosition', 'enterAction',
