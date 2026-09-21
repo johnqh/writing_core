@@ -25,8 +25,8 @@ about accounts, servers or UI.
 - `src/model/` — Yjs document creation, JSON conversion, template apply/export, portable positions, validation (`validate/`).
 - `src/migrations/` — `DOC_SCHEMA_VERSION` and idempotent steps.
 - `src/read-model/` — `openDocument`: order index, element views, scenes, dialogue blocks, outline tree, entities, suggestions, hashes.
-- `src/commands/` — registry, origins, wire positions, atomic batches, write policy, text/mark/element/entity/SmartType commands, and `page-setup.ts` (`title.setField`, `template.setHeaderFooter`, `template.setSceneNumbering`, `scene.setOmitted`).
-- `src/layout/` — `layoutDocument`; after pagination `decorate.ts` adds headers/footers and scene numbers (`DocPage.decorations`) and `title-page.ts` lays out `DocLayout.titlePages` (unnumbered, kept apart from the body `pages`).
+- `src/commands/` — registry, origins, wire positions, atomic batches, write policy, text/mark/element/entity/SmartType commands, `page-setup.ts` (`title.setField`, `template.setHeaderFooter`, `template.setSceneNumbering`, `template.setContinueds`, `scene.setOmitted`) and `dual.ts` (`dual.make`, `dual.clear`; Task 34 owns the rest of `dual.*`).
+- `src/layout/` — `layoutDocument`; after pagination `decorate.ts` adds headers/footers and scene numbers (`DocPage.decorations`) and `title-page.ts` lays out `DocLayout.titlePages` (unnumbered, kept apart from the body `pages`). `continueds.ts` owns `(MORE)`, the synthesized `NAME (CONT'D)` cue and scene CONTINUED text/geometry; `dual.ts` owns dual geometry (§15.2 derivation when the template stores none) and splitting. Generated lines come back in `DocPage.lines` with `kind` ≠ `text` (never editable) and, in a dual block, `dualSide`; a dual side's `x`/`width` already carry its column.
 - `src/smarttype/` — name normalization and harvesting.
 - `src/undo/` — per-session undo.
 
@@ -61,6 +61,9 @@ about accounts, servers or UI.
 - **A `fastPath` command skips rehearsal, so it must refuse before its first write.** The allowlist (`text.insert`, `text.insertSoftReturn`, `text.deleteBackward`, `text.deleteForward`, `element.split`, `element.setStyle`, `element.cycleStyle`) is pinned by a guard test, and each is on the keystroke path where whole-document rehearsal costs ~30 ms at 3000 elements. Resolve everything that can throw or refuse — `resolveStyle` included — before touching the document.
 - **Speaker names strip only known extensions.** `entityNameKey` folds `(V.O.)`, `(O.S.)`, `(CONT'D)` and the template's own extensions list into the base name, but leaves any other parenthetical alone: `MAYA (YOUNG)` is a different character from `MAYA`.
 - **`resolveStyle` is memoized on the template object's identity** (a WeakMap), which is the `(templateRevision, styleId)` key spec 01 §3.4.2 asks for because the read model rebuilds its frozen template object on every template mutation. The cached resolution is frozen; mutate a copy.
+
+- **`paginate` decides continueds in `openPage`, once per fresh page**, from the scene of the last placed line and the next row; `y` already includes the top decorations. A dual block is the last block of its run and one pseudo-row (as tall as its smallest legal head) in the chain; `placeDual` does the real placement. The scene-bottom reserve is skipped for a chain that ends its scene.
+- **Sentence rule makes tests hard to write.** With `breakOnSentences` a dialogue only splits after a line that ENDS a sentence; test speeches need one short sentence per line or nothing splits.
 
 ## Specs
 

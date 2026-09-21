@@ -7,11 +7,11 @@ describe('command vocabulary', () => {
     registerBuiltinCommands();
     const ids = listCommands().map((c) => c.id).sort();
     expect(ids).toEqual([
-      'element.cycleStyle', 'element.duplicate', 'element.insert', 'element.move', 'element.revertOverrides', 'element.setOverride',
+      'dual.clear', 'dual.make', 'element.cycleStyle', 'element.duplicate', 'element.insert', 'element.move', 'element.revertOverrides', 'element.setOverride',
       'element.setStyle', 'element.split', 'entity.addAlias', 'entity.create', 'entity.delete', 'entity.merge', 'entity.rebuild',
       'entity.removeAlias', 'entity.update', 'mark.clear', 'mark.set', 'mark.toggle', 'scene.move', 'scene.setOmitted', 'scene.setSynopsis', 'smartType.addEntry',
       'smartType.alphabetize', 'smartType.cleanup', 'smartType.rebuild', 'smartType.removeEntry', 'smartType.reorder',
-      'template.setHeaderFooter', 'template.setSceneNumbering', 'text.deleteBackward', 'text.deleteForward', 'text.deleteRange', 'text.insert', 'text.insertSoftReturn', 'text.insertSpecial',
+      'template.setContinueds', 'template.setHeaderFooter', 'template.setSceneNumbering', 'text.deleteBackward', 'text.deleteForward', 'text.deleteRange', 'text.insert', 'text.insertSoftReturn', 'text.insertSpecial',
       'text.replaceRange', 'text.transformCase', 'title.setField',
     ]);
     for (const c of listCommands()) {

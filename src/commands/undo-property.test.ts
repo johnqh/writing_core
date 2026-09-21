@@ -161,6 +161,16 @@ const PARAMS: Record<string, (d: RandomDoc, r: () => number) => unknown | null> 
   'title.setField': () => ({ field: 'author', text: 'A. Writer' }),
   'template.setHeaderFooter': () => ({ which: 'footer', patch: { enabled: true, center: '{title}' } }),
   'template.setSceneNumbering': () => ({ mode: 'left' }),
+  'template.setContinueds': () => ({ sceneTop: true, sceneBottom: true, moreAtBottom: false }),
+  'dual.make': (d) => {
+    if (d.elementIds.length < 8) return null;
+    const els = d.doc.getMap<Y.Map<unknown>>('elements');
+    const four = d.elementIds.slice(2, 6).map((id) => els.get(id)!);
+    if (four.some((rec) => rec.has('dual'))) return null;
+    (['st_character', 'st_dialogue', 'st_character', 'st_dialogue'] as const).forEach((style, i) => four[i]!.set('style', style));
+    return { element: d.elementIds[4] };
+  },
+  'dual.clear': (d) => ({ element: d.elementIds[2] }),
   'element.duplicate': (d) => ({ elements: [d.elementIds[2]] }),
   'element.setOverride': (d) => ({ elements: [d.elementIds[1]], key: 'align', value: 'center' }),
   'element.revertOverrides': (d) => ({ elements: d.elementIds.slice(0, 4) }),

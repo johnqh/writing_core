@@ -57,6 +57,15 @@ const HeaderFooterPatch = z.object({
   startAtPage: z.number().int().min(1).optional(),
 });
 
+const ContinuedsPatch = z.object({
+  moreAtBottom: z.boolean().optional(),
+  contAtTop: z.boolean().optional(),
+  automaticContinueds: z.boolean().optional(),
+  sceneTop: z.boolean().optional(),
+  sceneBottom: z.boolean().optional(),
+  sceneNumbered: z.boolean().optional(),
+});
+
 const SCENE_NUMBER_MODES = ['none', 'left', 'right', 'both'] as const;
 
 export const PAGE_SETUP_COMMANDS: CommandSpec<never>[] = [
@@ -133,6 +142,24 @@ export const PAGE_SETUP_COMMANDS: CommandSpec<never>[] = [
     const n = numbering as YMap;
     n.set('enabled', enabled);
     if (enabled) n.set('position', p.mode);
+    bumpRevision(ctx);
+    return { ok: true };
+  }),
+
+  // (MORE)/(CONT'D) and scene CONTINUED switches on the template's pagination rules (spec 02 §14).
+  defineCommand('template.setContinueds', ContinuedsPatch, (ctx, p): CommandResult => {
+    const pagination = childMap(ctx.doc.getMap<unknown>('template'), 'pagination');
+    // The pagination groups are stored as plain JSON objects (or Y.Maps); either way replace the group, not the leaf.
+    const patchGroup = (key: string, patch: Record<string, unknown>): void => {
+      const entries = Object.entries(patch).filter(([, v]) => v !== undefined);
+      if (entries.length === 0) return;
+      const cur = pagination.get(key);
+      if (cur instanceof Y.Map) for (const [k, v] of entries) cur.set(k, v);
+      else pagination.set(key, { ...(cur as Record<string, unknown>), ...Object.fromEntries(entries) });
+    };
+    patchGroup('dialogue', { moreAtBottom: p.moreAtBottom, contAtTop: p.contAtTop });
+    patchGroup('automaticContinueds', { enabled: p.automaticContinueds });
+    patchGroup('sceneContinueds', { top: p.sceneTop, bottom: p.sceneBottom, numbered: p.sceneNumbered });
     bumpRevision(ctx);
     return { ok: true };
   }),
