@@ -7,7 +7,7 @@ import { orderElements, setJSONMap } from '../model/ymap.js';
 import type { YDeltaOp } from '../model/ytext.js';
 import { idSchema, StyleIdSchema } from '../schema/primitives.js';
 import { ElementOverrides } from '../schema/template.js';
-import { SPEAKER_ROLES, SPEECH_MEMBER_ROLES } from '../schema/vocab.js';
+import { SCENE_ROLES, SPEAKER_ROLES, SPEECH_MEMBER_ROLES } from '../schema/vocab.js';
 import { enterAction, shiftTabAction, tabAction } from '../template/flow.js';
 import { resolveStyle } from '../template/resolve.js';
 import { bodyElements, createElement, dualGroupOf, repairDualRuns } from './element-ops.js';
@@ -329,4 +329,40 @@ export const ELEMENT_COMMANDS: CommandSpec<never>[] = [
     for (const id of p.elements) record(ctx, id)?.delete('ov');
     return { ok: true };
   }),
+
+  // Spec 08 §3.2: `{ scene?, value }`. `scene` is the target scene heading; a caller with no
+  // selection (a server, a script) must name it, so omitting it refuses `notApplicable`.
+  // Resolved against the Y.Doc, never `ctx.model`, so it also works on a scene an earlier
+  // command in the same batch created or restyled into a heading.
+  spec('scene.setSynopsis', z.object({ scene: ElementIdParam.optional(), value: z.string() }), (ctx, p) => {
+    if (!p.scene) return { ok: false, reason: 'notApplicable' };
+    const heading = record(ctx, p.scene);
+    if (!heading) return { ok: false, reason: 'notFound' };
+    const template = ctx.model.template();
+    const style = heading.get('style') as StyleId;
+    if (!template.styles.some((s) => s.id === style)) return { ok: false, reason: 'notFound' };
+    if (!(SCENE_ROLES as readonly string[]).includes(resolveStyle(template, style).role)) return { ok: false, reason: 'notFound' };
+    let scene = heading.get('scene');
+    if (!(scene instanceof Y.Map)) {
+      scene = heading.set('scene', new Y.Map<unknown>());
+      const m = scene as YMap;
+      m.set('synopsis', new Y.Text());
+      m.set('color', null);
+      m.set('title', '');
+      m.set('locationId', null);
+      m.set('storyDay', '');
+      m.set('arcBeats', new Y.Map<unknown>());
+      m.set('storylineIds', new Y.Map<unknown>());
+      m.set('omit', null);
+      m.set('versions', new Y.Array<unknown>());
+      m.set('estimatedSeconds', null);
+    }
+    let text = (scene as YMap).get('synopsis');
+    if (!(text instanceof Y.Text)) text = (scene as YMap).set('synopsis', new Y.Text());
+    const t = text as Y.Text;
+    if (t.toString() === p.value) return { ok: true };
+    if (t.length > 0) t.delete(0, t.length);
+    if (p.value) t.insert(0, p.value);
+    return { ok: true };
+  }, { scope: 'structure' }),
 ];

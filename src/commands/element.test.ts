@@ -327,3 +327,24 @@ describe('commands leave the document valid', () => {
     expect(validateDocument(h.doc, { only: ['I10', 'I12'] }).issues).toEqual([]);
   });
 });
+
+describe('scene.setSynopsis', () => {
+  it('sets, replaces and clears a scene synopsis', () => {
+    const h = commandHarness();
+    const [heading] = h.replaceBody([['st_scene_heading', 'INT. KITCHEN - DAY'], ['st_action', 'Maya cooks.']]);
+    expect(h.run('scene.setSynopsis', { scene: heading, value: 'Maya cooks dinner.' })).toMatchObject({ ok: true });
+    expect(h.model.scene(heading!)!.synopsis.plain).toBe('Maya cooks dinner.');
+    expect(h.run('scene.setSynopsis', { scene: heading, value: 'Short.' })).toMatchObject({ ok: true });
+    expect(h.model.scene(heading!)!.synopsis.plain).toBe('Short.');
+    expect(h.run('scene.setSynopsis', { scene: heading, value: '' })).toMatchObject({ ok: true });
+    expect(h.model.scene(heading!)!.synopsis.plain).toBe('');
+  });
+  it('refuses a missing scene, a non-heading element and an omitted scene id', () => {
+    const h = commandHarness();
+    const [, action] = h.replaceBody([['st_scene_heading', 'INT. X - DAY'], ['st_action', 'A']]);
+    expect(h.run('scene.setSynopsis', { scene: action, value: 'x' })).toMatchObject({ ok: false, reason: 'notFound' });
+    expect(h.run('scene.setSynopsis', { scene: newId('el', h.ids), value: 'x' })).toMatchObject({ ok: false, reason: 'notFound' });
+    expect(h.run('scene.setSynopsis', { value: 'x' })).toMatchObject({ ok: false, reason: 'notApplicable' });
+    expect(h.run('scene.setSynopsis', { scene: action })).toMatchObject({ ok: false, reason: 'invalidParams' });
+  });
+});
