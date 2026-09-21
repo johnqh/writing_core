@@ -142,6 +142,7 @@ export {
   autoAdjustLines, clampDeltaRight, LINE_ADJUST_MIN, LINE_ADJUST_MAX,
   type AutoAdjustOptions, type AutoAdjustResult, type LineAdjustment,
 } from './layout/adjust.js';
+export { buildElementIndex, type DocElementIndex, type ElementPageSpan, type SceneExtent } from './layout/output.js';
 export {
   applyRevisionDisplay, revisionReport, revisionLabel, revisionShortName, formatRevisionDate, elementRevisionMarks,
   type LineRevisionMark, type RevisedPageRef, type RevisionReportSet,
