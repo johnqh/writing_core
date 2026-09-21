@@ -61,6 +61,7 @@ const ROOT_EXPORTS = [
   'shiftTabAction', 'shotContentHash', 'sizeEmuFromPoints', 'sliceTextJSON', 'standardHeader', 'standardTitlePageSeeds',
   'stripExtension', 'styleDef', 'tabAction', 'templateHash', 'textJSONFromPlain', 'textJSONToDelta', 'textOutline',
   'titleFromKey', 'tofuFace', 'toPortablePos', 'treatment', 'validateDocument', 'validateTemplate', 'verticalDrama', 'wordBoundaries', 'wordBreakProperty',
+  'layoutParagraph', 'makeDisplayText', 'basePitchOf', 'spaceBeforeOf',
   'itemize', 'iso15924', 'layoutAdvance', 'isCourierFamily', 'measureItem',
   'upperCaseWithMap', 'smallCapsRuns', 'TAB_STOP_EMU', 'tabAdvance', 'specialCharWidth', 'embedWidth',
 ].sort();
