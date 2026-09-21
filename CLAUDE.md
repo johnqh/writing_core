@@ -25,7 +25,8 @@ about accounts, servers or UI.
 - `src/model/` — Yjs document creation, JSON conversion, template apply/export, portable positions, validation (`validate/`).
 - `src/migrations/` — `DOC_SCHEMA_VERSION` and idempotent steps.
 - `src/read-model/` — `openDocument`: order index, element views, scenes, dialogue blocks, outline tree, entities, suggestions, hashes.
-- `src/commands/` — registry, origins, wire positions, atomic batches, write policy, text/mark/element/entity/SmartType commands.
+- `src/commands/` — registry, origins, wire positions, atomic batches, write policy, text/mark/element/entity/SmartType commands, and `page-setup.ts` (`title.setField`, `template.setHeaderFooter`, `template.setSceneNumbering`, `scene.setOmitted`).
+- `src/layout/` — `layoutDocument`; after pagination `decorate.ts` adds headers/footers and scene numbers (`DocPage.decorations`) and `title-page.ts` lays out `DocLayout.titlePages` (unnumbered, kept apart from the body `pages`).
 - `src/smarttype/` — name normalization and harvesting.
 - `src/undo/` — per-session undo.
 
