@@ -72,6 +72,10 @@ function isSanitizedControl(cp: number): boolean {
  * `faceMetrics.advance(cp)` unchanged, so this is safe to call unconditionally rather than only
  * for characters known in advance to be special. Task 10 brief's exact interface.
  */
+export function isZeroWidthSpecial(cp: number): boolean {
+  return cp === ZWSP || isSanitizedControl(cp);
+}
+
 export function specialCharWidth(cp: number, faceMetrics: FontFaceMetrics): number {
   if (cp === NBSP) return faceMetrics.advance(SPACE);
   if (cp === ZWSP) return 0;

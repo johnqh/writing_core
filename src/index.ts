@@ -103,6 +103,8 @@ export * from './undo/undo-manager.js';
 // ─── Layout ─────────────────────────────────────────────────────────────────
 export { LAYOUT_ENGINE_VERSION, roundHalfEven, emuFromFontUnits, sizeEmuFromPoints } from './layout/round.js';
 export * from './layout/types.js';
+export { itemize, iso15924, type Item, type AttrRun, type ItemTier, type BaselineShift } from './layout/itemize.js';
+export { layoutAdvance, isCourierFamily, measureItem, type MeasuredItem } from './layout/measure.js';
 export { type CategoryRule, CATEGORY_RULES, categoryOf } from './layout/category.js';
 export { contextPass, type ElementContext, type SpeakerKey, type ContextPassResult, type ContextPassDeps } from './layout/context.js';
 

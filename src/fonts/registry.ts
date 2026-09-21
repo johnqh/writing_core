@@ -12,7 +12,7 @@
  */
 import { canonicalJSON } from '../hash/canonical-json.js';
 import { sha256Hex } from '../hash/sha256.js';
-import { emuFromFontUnits } from '../layout/round.js';
+import { measuredAdvance } from '../layout/measure.js';
 import type { FontRegistry } from '../layout/types.js';
 import type { FontFamilyId } from '../schema/primitives.js';
 import { FONT_ALIASES } from './aliases.js';
@@ -49,10 +49,8 @@ export interface FontRegistryHandle extends FontRegistry {
    * every `FontRegistryHandle` sharing a `(faceId, sizeEmu, familyId)` key shares one table,
    * which is safe because `decodeFwm`'s output for a given `faceId` never changes.
    *
-   * The `advanceOf` callback here is plain font-unit-to-EMU conversion
-   * (`emuFromFontUnits`), standing in for Task 18's `layoutAdvance` (which adds the §3.2
-   * 10 cpi Courier override) until that function exists — see `advanceTableFor`'s own
-   * doc comment.
+   * The `advanceOf` callback is `measuredAdvance` (`layout/measure.ts`): `layoutAdvance`'s
+   * §3.2 10 cpi Courier override plus §7.4's zero-width/NBSP special cases.
    */
   advanceTable(faceId: FaceId, sizeEmu: number, familyId: FontFamilyId): AdvanceTable;
 }
@@ -128,7 +126,7 @@ export function createFontRegistry(_opts: CreateFontRegistryOptions = {}): FontR
 
   function advanceTable(faceId: FaceId, sizeEmu: number, familyId: FontFamilyId): AdvanceTable {
     const metrics = decodedFace(faceId);
-    return advanceTableFor(metrics, sizeEmu, familyId, (cp) => emuFromFontUnits(metrics.advance(cp), sizeEmu, metrics.unitsPerEm));
+    return advanceTableFor(metrics, sizeEmu, familyId, (cp) => measuredAdvance(metrics, familyId, cp, sizeEmu));
   }
 
   return {
