@@ -115,6 +115,12 @@ export {
   type Block, type BlockPara, type ParaFlags, type SingleBlock, type DialogueBlock, type DualBlock, type ColumnRowsBlock,
   type OmittedSceneBlock, type Chain, type FormBlocksOptions,
 } from './layout/blocks.js';
+export {
+  paginate, pageGeometryOf, DEFAULT_PAGINATE_DEPS,
+  type PageGeometry, type PaginationParams, type PaginateDeps, type FillState, type FilledPage, type PlacedLine, type LockSegment,
+  type BlockLineCursor, type SplitChoice, type DualSplit, type RowSplit, type ColumnRow,
+} from './layout/paginate.js';
+export { layoutDocument, type LayoutDocumentOptions, type DocLayout, type DocPage, type DocLine } from './layout/layout-document.js';
 export { contextPass, type ElementContext, type SpeakerKey, type ContextPassResult, type ContextPassDeps } from './layout/context.js';
 
 // ─── Text (shaping) ─────────────────────────────────────────────────────────

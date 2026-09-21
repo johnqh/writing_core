@@ -61,6 +61,7 @@ const ROOT_EXPORTS = [
   'shiftTabAction', 'shotContentHash', 'sizeEmuFromPoints', 'sliceTextJSON', 'standardHeader', 'standardTitlePageSeeds',
   'stripExtension', 'styleDef', 'tabAction', 'templateHash', 'textJSONFromPlain', 'textJSONToDelta', 'textOutline',
   'titleFromKey', 'tofuFace', 'toPortablePos', 'treatment', 'validateDocument', 'validateTemplate', 'verticalDrama', 'wordBoundaries', 'wordBreakProperty',
+  'paginate', 'pageGeometryOf', 'DEFAULT_PAGINATE_DEPS', 'layoutDocument',
   'formBlocks', 'keepChains', 'paraFlags', 'firstPara', 'lastPara',
   'layoutParagraph', 'makeDisplayText', 'basePitchOf', 'spaceBeforeOf',
   'itemize', 'iso15924', 'layoutAdvance', 'isCourierFamily', 'measureItem',
