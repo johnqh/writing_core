@@ -135,6 +135,14 @@ export { panelHeadings, pageContdLine, type PanelText } from './layout/panels.js
 export { dualGeometry, dualSideBox, layoutDual, splitDual, dualMinHead, type DualLayout, type DualSplitChoice, type DualCategory } from './layout/dual.js';
 export { layoutDocument, type LayoutDocumentOptions, type DocLayout, type DocPage, type DocLine, type DocDecoration } from './layout/layout-document.js';
 export {
+  sceneEighths, distributeEighths, formatEighths, runningTime, formatRunningTime,
+  type SceneEighths, type SceneRunningTime, type RunningTime,
+} from './layout/eighths.js';
+export {
+  autoAdjustLines, clampDeltaRight, LINE_ADJUST_MIN, LINE_ADJUST_MAX,
+  type AutoAdjustOptions, type AutoAdjustResult, type LineAdjustment,
+} from './layout/adjust.js';
+export {
   applyRevisionDisplay, revisionReport, revisionLabel, revisionShortName, formatRevisionDate, elementRevisionMarks,
   type LineRevisionMark, type RevisedPageRef, type RevisionReportSet,
 } from './layout/revisions.js';

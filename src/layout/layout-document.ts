@@ -54,6 +54,8 @@ export interface LayoutDocumentOptions {
   renderTimeMs?: number;
   /** `{filename}` in headers/footers. */
   filename?: string;
+  /** `lineAdjust.deltaRight` per element, replacing the stored one (what-if layout for Auto Adjust Lines, §28.2). */
+  lineAdjustOverrides?: ReadonlyMap<ElementId, number>;
 }
 
 export interface DocLine {
@@ -161,7 +163,7 @@ export function layoutDocument(model: DocumentModel, templateIn?: EmbeddedTempla
     const style = styleOf(el);
     const layout = layoutParagraph({
       elementId: id, displayText, attrs: attrRuns(el), style, category: ctx.category, page: template.page, referenceSizePt, lang, fonts, shaper,
-      lineAdjustDeltaRight: el.lineAdjust?.deltaRight, decorationHash: ctx.decorationHash,
+      lineAdjustDeltaRight: options.lineAdjustOverrides?.get(id) ?? el.lineAdjust?.deltaRight, decorationHash: ctx.decorationHash,
       geometry: dualGeom && el.dual && groupSides.get(el.dual.group)?.size === 2 ? dualSideBox(dualGeom, ctx.category, el.dual.side) : undefined,
     });
     diagnostics.push(...layout.diagnostics);

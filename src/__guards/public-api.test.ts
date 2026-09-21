@@ -62,6 +62,8 @@ const ROOT_EXPORTS = [
   'stripExtension', 'styleDef', 'tabAction', 'templateHash', 'textJSONFromPlain', 'textJSONToDelta', 'textOutline',
   'titleFromKey', 'tofuFace', 'toPortablePos', 'treatment', 'validateDocument', 'validateTemplate', 'verticalDrama', 'wordBoundaries', 'wordBreakProperty',
   'paginate', 'pageGeometryOf', 'DEFAULT_PAGINATE_DEPS', 'layoutDocument',
+  'sceneEighths', 'distributeEighths', 'formatEighths', 'runningTime', 'formatRunningTime',
+  'autoAdjustLines', 'clampDeltaRight', 'LINE_ADJUST_MIN', 'LINE_ADJUST_MAX',
   'applyRevisionDisplay', 'revisionReport', 'revisionLabel', 'revisionShortName', 'formatRevisionDate', 'elementRevisionMarks',
   'moreLine', 'synthesizedCue', 'cueDisplayText', 'contdCueLine', 'sceneContinuedTop', 'sceneContinuedBottom', 'bottomReserve', 'makeContinueds',
   'dialogueRows', 'rowsHeight', 'legalDialogueSplit', 'splitDialogue', 'minLegalHead',
