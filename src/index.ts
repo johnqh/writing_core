@@ -49,6 +49,7 @@ export { MARK_COMMANDS } from './commands/mark.js';
 export { ELEMENT_COMMANDS } from './commands/element.js';
 export { ENTITY_COMMANDS } from './commands/entity.js';
 export { SMARTTYPE_COMMANDS } from './commands/smarttype.js';
+export { PAGE_SETUP_COMMANDS } from './commands/page-setup.js';
 export * from './commands/builtin.js';
 
 // ─── Schema ─────────────────────────────────────────────────────────────────
@@ -120,7 +121,7 @@ export {
   type PageGeometry, type PaginationParams, type PaginateDeps, type FillState, type FilledPage, type PlacedLine, type LockSegment,
   type BlockLineCursor, type SplitChoice, type DualSplit, type RowSplit, type ColumnRow,
 } from './layout/paginate.js';
-export { layoutDocument, type LayoutDocumentOptions, type DocLayout, type DocPage, type DocLine } from './layout/layout-document.js';
+export { layoutDocument, type LayoutDocumentOptions, type DocLayout, type DocPage, type DocLine, type DocDecoration } from './layout/layout-document.js';
 export { contextPass, type ElementContext, type SpeakerKey, type ContextPassResult, type ContextPassDeps } from './layout/context.js';
 
 // ─── Text (shaping) ─────────────────────────────────────────────────────────

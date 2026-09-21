@@ -27,7 +27,7 @@ const ROOT_EXPORTS = [
   'COLUMNS', 'MARK_COMMANDS', 'MAX_POSITION_LENGTH', 'MAY_END_ABBREVIATIONS', 'MIGRATION_STEPS', 'MacroAlias', 'MacroRecord', 'MacroSeed',
   'NON_PRINTING_ROLES', 'NOTE_TYPE_SEEDS', 'NUMBER_MODES', 'NUMBER_POSITIONS', 'NoteAnchor', 'NoteJSON',
   'NoteReplyJSON', 'NoteTypeJSON', 'NoteTypeSeed', 'NumberGapExhaustedError', 'NumberLabel', 'NumberingSpec', 'ORIGIN_KINDS', 'OmitRecord',
-  'PAGINATION_CATEGORIES', 'PAPER_SIZES', 'POSITION_DIGITS', 'PageLockJSON', 'PageNumberingRule', 'PageSpec', 'PaginationRules',
+  'PAGE_SETUP_COMMANDS', 'PAGINATION_CATEGORIES', 'PAPER_SIZES', 'POSITION_DIGITS', 'PageLockJSON', 'PageNumberingRule', 'PageSpec', 'PaginationRules',
   'PlotColumnJSON', 'ProductionItemFields', 'ProductionJSON', 'REASON_CODES', 'REASON_LABEL_KEYS',
   'REMAPPED_PREFIXES', 'REVISION_COLOR_SEEDS', 'REVISION_DISPLAYS', 'ROLE_DEFAULT_SPLIT', 'ROOT_REQUIRED_KEYS',
   'ROOT_STYLE_DEFAULTS', 'RevisionColorSeed', 'RevisionSetJSON', 'RevisionsJSON', 'SCENE_BOUNDARY_ROLES',

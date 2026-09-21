@@ -4,9 +4,11 @@
  * paginator (S5) — and returns plain data: pages of lines, each carrying its element id, source
  * offset range, x/width/y in EMU and 1-based page number.
  *
- * NOT run yet: title page (§19), headers/footers (§20), automatic and manual continueds — `(MORE)`,
- * `(CONT'D)` at page tops, scene CONTINUED (§14), numbering display (scene numbers in the margins,
- * §21.4), dual dialogue geometry (dual groups are laid out stacked), column blocks (laid out at
+ * Runs after pagination (never affecting it): the title page (§19; `titlePages`, unnumbered, kept apart from
+ * the body `pages`), headers/footers (§20) and scene numbers in the margins (§21.4), as `decorations` on each page.
+ *
+ * NOT run yet: automatic and manual continueds — `(MORE)`, `(CONT'D)` at page tops, scene CONTINUED (§14),
+ * dual dialogue geometry (dual groups are laid out stacked), column blocks (laid out at
  * full width), graphic-novel panels (§17), page locks / A-pages (§24), revision display (§25),
  * Track Changes and alternates view modes (§26; the `final` view is used), scene running time
  * (§27), the paragraph cache and incremental re-pagination (§31), and the element/line index (§29.5).
@@ -24,10 +26,18 @@ import type { AttrRun } from './itemize.js';
 import { layoutParagraph, makeDisplayText, type ParaLine } from './paragraph.js';
 import { pageGeometryOf, paginate, type PaginationParams } from './paginate.js';
 import type { FontRegistry, GlyphRun, LayoutDiagnostic, Shaper } from './types.js';
+import { headerFooterFor, sceneNumbersFor, type DecorateEnv, type DocDecoration } from './decorate.js';
+import { layoutTitlePages } from './title-page.js';
+
+export type { DocDecoration } from './decorate.js';
 
 export interface LayoutDocumentOptions {
   fonts?: FontRegistry;
   shaper?: Shaper | null;
+  /** `{date}` in headers/footers, epoch ms; defaults to the model's injected clock. */
+  renderTimeMs?: number;
+  /** `{filename}` in headers/footers. */
+  filename?: string;
 }
 
 export interface DocLine {
@@ -49,16 +59,24 @@ export interface DocLine {
 }
 
 export interface DocPage {
-  /** 1-based; the page's label is not computed yet (no numbering rules applied). */
+  /** 'title' pages are unnumbered (`number` 0) and live in `DocLayout.titlePages`. */
+  kind: 'body' | 'title';
+  /** 1-based physical body page; 0 for a title page. */
   number: number;
   index: number;
+  /** The page-number text `{page}` renders: `pageNumbering.start + index`; empty on a title page. */
+  label: string;
   lines: DocLine[];
+  /** Header/footer slot lines and scene numbers, drawn in the margins. */
+  decorations: DocDecoration[];
 }
 
 export interface DocLayout {
   pageSize: { width: number; height: number };
   bodyTop: number;
   bodyBottom: number;
+  /** Title page(s), before page 1; empty when the title page has no content. */
+  titlePages: DocPage[];
   pages: DocPage[];
   diagnostics: LayoutDiagnostic[];
 }
@@ -127,8 +145,11 @@ export function layoutDocument(model: DocumentModel, templateIn?: EmbeddedTempla
   diagnostics.push(...filled.diagnostics);
 
   const pages: DocPage[] = filled.pages.map((fp) => ({
+    kind: 'body' as const,
     number: fp.index + 1,
     index: fp.index,
+    label: '',
+    decorations: [] as DocDecoration[],
     lines: fp.lines.map((pl): DocLine => {
       const line: ParaLine = pl.line;
       return {
@@ -139,8 +160,25 @@ export function layoutDocument(model: DocumentModel, templateIn?: EmbeddedTempla
     }),
   }));
 
+  const env: DecorateEnv = {
+    model, template, fonts, shaper, lang, referenceSizePt, renderTimeMs: options.renderTimeMs ?? model.deps.clock(), filename: options.filename,
+  };
+  const start = template.pageNumbering.start;
+  for (const p of pages) {
+    p.label = String(start + p.index);
+    const first = p.lines[0]?.elementId ?? null;
+    p.decorations.push(
+      ...headerFooterFor(env, { index: p.index, label: p.label, firstElementId: first, isTitle: false }, pages.length, contexts, numbers, diagnostics),
+      ...sceneNumbersFor(env, p.lines, contexts, numbers, (id) => styleOf(byId.get(id) as ElementView)),
+    );
+  }
+  const titlePages = layoutTitlePages({ model, template, fonts, shaper, lang, referenceSizePt }, diagnostics);
+  for (const p of titlePages) {
+    p.decorations.push(...headerFooterFor(env, { index: p.index, label: '', firstElementId: null, isTitle: true }, pages.length, contexts, numbers, diagnostics));
+  }
+
   return {
     pageSize: { width: geometry.pageWidth, height: geometry.pageHeight }, bodyTop: geometry.bodyTop, bodyBottom: geometry.bodyBottom,
-    pages, diagnostics,
+    titlePages, pages, diagnostics,
   };
 }

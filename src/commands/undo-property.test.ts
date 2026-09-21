@@ -154,6 +154,13 @@ const PARAMS: Record<string, (d: RandomDoc, r: () => number) => unknown | null> 
     const scene = d.model.scenes()[0];
     return scene ? { scene: scene.id, value: 'A synopsis' } : null;
   },
+  'scene.setOmitted': (d) => {
+    const scene = d.model.scenes()[0];
+    return scene ? { scene: scene.id, omitted: true } : null;
+  },
+  'title.setField': () => ({ field: 'author', text: 'A. Writer' }),
+  'template.setHeaderFooter': () => ({ which: 'footer', patch: { enabled: true, center: '{title}' } }),
+  'template.setSceneNumbering': () => ({ mode: 'left' }),
   'element.duplicate': (d) => ({ elements: [d.elementIds[2]] }),
   'element.setOverride': (d) => ({ elements: [d.elementIds[1]], key: 'align', value: 'center' }),
   'element.revertOverrides': (d) => ({ elements: d.elementIds.slice(0, 4) }),
