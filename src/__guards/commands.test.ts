@@ -9,7 +9,7 @@ describe('command vocabulary', () => {
     expect(ids).toEqual([
       'dual.clear', 'dual.make', 'element.cycleStyle', 'element.duplicate', 'element.insert', 'element.move', 'element.revertOverrides', 'element.setOverride',
       'element.setStyle', 'element.split', 'entity.addAlias', 'entity.create', 'entity.delete', 'entity.merge', 'entity.rebuild',
-      'entity.removeAlias', 'entity.update', 'mark.clear', 'mark.set', 'mark.toggle', 'scene.move', 'scene.setOmitted', 'scene.setSynopsis', 'smartType.addEntry',
+      'entity.removeAlias', 'entity.update', 'mark.clear', 'mark.set', 'mark.toggle', 'page.lock', 'page.unlock', 'scene.lockNumbers', 'scene.move', 'scene.setOmitted', 'scene.setSynopsis', 'scene.unlockNumbers', 'smartType.addEntry',
       'smartType.alphabetize', 'smartType.cleanup', 'smartType.rebuild', 'smartType.removeEntry', 'smartType.reorder',
       'template.setContinueds', 'template.setHeaderFooter', 'template.setSceneNumbering', 'text.deleteBackward', 'text.deleteForward', 'text.deleteRange', 'text.insert', 'text.insertSoftReturn', 'text.insertSpecial',
       'text.replaceRange', 'text.transformCase', 'title.setField',

@@ -127,6 +127,14 @@ function randomDocument(seed: number): RandomDoc {
   return { doc, model: openDocument(doc, { ids, clock: () => 1_000, locale: 'en' }), ids, elementIds, entityIds, tagIds, listKeys };
 }
 
+/** Scene numbering is off in the seed templates; the lock commands need it on. */
+function pre(d: RandomDoc, id: string, params: unknown): void {
+  executeCommand({ doc: d.doc, model: d.model, ids: d.ids, actor: TEST_ACTOR, origin: createSessionOrigins(TEST_ACTOR).make('local-command', { commandId: id }), capabilities: new Set(['write'] as const), clock: () => 1_000, command: { id, params } });
+}
+function enableNumbering(d: RandomDoc): void {
+  pre(d, 'template.setSceneNumbering', { mode: 'both' });
+}
+
 /** Valid parameters for each mutating command against a given random document, or null to skip. */
 const PARAMS: Record<string, (d: RandomDoc, r: () => number) => unknown | null> = {
   'text.insert': (d) => ({ at: { elementId: d.elementIds[1], offset: 1 }, text: 'zz' }),
@@ -158,6 +166,10 @@ const PARAMS: Record<string, (d: RandomDoc, r: () => number) => unknown | null> 
     const scene = d.model.scenes()[0];
     return scene ? { scene: scene.id, omitted: true } : null;
   },
+  'scene.lockNumbers': (d) => { enableNumbering(d); return {}; },
+  'scene.unlockNumbers': (d) => { enableNumbering(d); pre(d, 'scene.lockNumbers', {}); return {}; },
+  'page.lock': () => ({}),
+  'page.unlock': (d) => { pre(d, 'page.lock', {}); return {}; },
   'title.setField': () => ({ field: 'author', text: 'A. Writer' }),
   'template.setHeaderFooter': () => ({ which: 'footer', patch: { enabled: true, center: '{title}' } }),
   'template.setSceneNumbering': () => ({ mode: 'left' }),

@@ -204,6 +204,15 @@ describe('batch equivalence: hand-written sequences', () => {
       { id: 'scene.move', params: { scenes: [newScene], to: { before: e[0] } } },
     ]);
   });
+  it('scene number lock, insert, omit and page lock in one batch', () => expectEquivalent((e) => [
+    { id: 'template.setSceneNumbering', params: { mode: 'both' } },
+    { id: 'scene.lockNumbers', params: {} },
+    { id: 'element.insert', params: { after: e[4], style: 'st_scene_heading', text: 'INT. NEW - DAY' } },
+    { id: 'scene.setOmitted', params: { scene: e[0], omitted: true } },
+    { id: 'page.lock', params: {} },
+    { id: 'scene.unlockNumbers', params: {} },
+    { id: 'page.unlock', params: {} },
+  ]));
   it('mixed kinds', () => expectEquivalent((e) => [
     { id: 'element.insert', params: { after: e[3], style: 'st_parenthetical', text: '(smiling)' } },
     { id: 'element.setStyle', params: { elements: [e[4]], style: 'st_transition' } },
