@@ -1,13 +1,13 @@
 {
-  "coldLayout.feature-120": 221.86733300000014,
-  "coldLayout.feature-150": 274.2157920000009,
-  "coldLayout.novel-320": 552.1633329999986,
-  "coldLayout.av-80": 87.11370799999895,
-  "coldLayout.drama-60-cjk": 88.54658299999937,
-  "coldLayout.arabic-90": 190.33762500000012,
-  "contextPass.novel-320": 1.0991670000003069,
-  "keystrokeRepagination.feature-120": 82.70945800000118,
+  "coldLayout.feature-120": 218.22208300000057,
+  "coldLayout.feature-150": 271.9316669999989,
+  "coldLayout.novel-320": 553.544167,
+  "coldLayout.av-80": 88.95787500000006,
+  "coldLayout.drama-60-cjk": 91.67170799999985,
+  "coldLayout.arabic-90": 187.528624999999,
+  "contextPass.novel-320": 1.1131249999998545,
+  "keystrokeRepagination.feature-120": 82.9675840000018,
   "hitTest.feature-120": 0.0010409999995317776,
-  "positionToCaret.feature-120": 0.0007499999992433004,
-  "commandPath.elementSplit.3000": 0.20687499999985448
+  "positionToCaret.feature-120": 0.0006250000005820766,
+  "commandPath.elementSplit.3000": 0.23295800000050804
 }

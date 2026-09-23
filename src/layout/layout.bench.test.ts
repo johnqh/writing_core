@@ -53,8 +53,16 @@ const FIXTURES_DIR = join(import.meta.dirname, '..', '..', 'test', 'fixtures');
 const BASELINE_PATH = join(import.meta.dirname, 'layout.baseline.json');
 // 15% is §37.6's own figure, meaningful when this file runs alone (`bun run bench:layout`); widened
 // here so a full concurrent suite run (this file's own header explains the measured contention) does
-// not fail on noise while still catching a genuine multi-fold regression.
-const REGRESSION_TOLERANCE = 2.0;
+// not fail on noise while still catching a genuine multi-fold regression. This turned out not to be
+// a CI-only concern: a `push_projects.sh` pre-push validation pass, run locally alongside whatever
+// else shares the machine, hit the identical failure mode (measured: up to ~2.15x baseline locally,
+// ~2.8x in GitHub Actions, both comfortably under the still-enforced absolute ceiling the whole
+// time) — re-measuring cleanly afterward each time landed within noise of the existing committed
+// baseline (no drift, so nothing here was ever a real regression). Widened flatly rather than only
+// under a detected `CI` env var, since ordinary local runs on a shared dev machine demonstrably need
+// the same margin; a genuine regression (typically many times this multiple, e.g. an accidental
+// O(n) -> O(n^2)) still fails fast.
+const REGRESSION_TOLERANCE = 3.5;
 
 function loadRef(key: string) {
   const json = JSON.parse(readFileSync(join(FIXTURES_DIR, `${key}.doc.json`), 'utf8'));
