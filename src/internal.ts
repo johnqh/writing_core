@@ -32,7 +32,7 @@ export {
   readElementRecord, writeElementRecord, readEntity, writeEntity, readNote, readTextKeyed,
 } from './model/json.js';
 export { mapStyle } from './model/apply-template.js';
-export { generatePositions, rebalancePositions } from './model/positions.js';
+export { generatePositions, rebalancePositions, rebalanceDegenerateRuns } from './model/positions.js';
 
 // ─── Model: validation authoring helpers (for registering new Invariants) ──
 export { issue } from './model/validate/types.js';

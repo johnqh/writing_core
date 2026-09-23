@@ -2,12 +2,16 @@ import { describe, expect, it } from 'vitest';
 import { commandHarness } from '../commands/test-harness.js';
 import { BUILTIN_TEMPLATES } from '../templates/catalogue.js';
 import type { EmbeddedTemplateJSON } from '../schema/document.js';
+import type { TemplateJSON } from '../schema/template.js';
 import { layoutDocument } from './layout-document.js';
 
 const GN = BUILTIN_TEMPLATES['graphic-novel']!;
 const text = (d: { runs: { text: string }[] }) => d.runs.map((r) => r.text).join('');
 
-function build(rows: [string, string][], template: EmbeddedTemplateJSON = GN) {
+// `commandHarness` seeds a document from a full (seed) `TemplateJSON` (`BUILTIN_TEMPLATES`'s own
+// shape); `layoutDocument`'s own `t` is the document-embedded form (`EmbeddedTemplateJSON`, read back
+// from the model) — two genuinely different shapes, not interchangeable.
+function build(rows: [string, string][], template: TemplateJSON = GN) {
   const h = commandHarness(template);
   const ids = h.replaceBody(rows);
   return { h, ids, layout: (t: EmbeddedTemplateJSON = h.model.template()) => layoutDocument(h.model, t) };
@@ -42,7 +46,7 @@ describe('graphic novel panels mode', () => {
     const own: [string, string][] = [['st_page', 'THE DINER'], ['st_panel', ''], ['st_action', 'Steam.']];
     const a = build(own);
     expect(lineText(a.layout(), a.ids[0]!)).toBe('THE DINER');
-    const off = { ...GN, pagination: { ...GN.pagination, panels: { autoHeadingText: false } } } as EmbeddedTemplateJSON;
+    const off: TemplateJSON = { ...GN, pagination: { ...GN.pagination, panels: { autoHeadingText: false } } };
     const b = build(script, off);
     expect(lineText(b.layout(), b.ids[0]!)).toBe('');
     expect(lineText(b.layout(), b.ids[1]!)).toBe('Panel 1.'); // the inline label is not heading text

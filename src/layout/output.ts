@@ -5,13 +5,19 @@
  * is `buildElementIndex(layout, model?)`; the `ElementLayoutIndex`/`LineRef` types are types.ts's (§29.5), and this index
  * adds `spanOf` and the per-scene page extent (`model` supplies the scene membership). Lookups are hash-map reads
  * (O(1), inside the O(log n) the spec asks for). Only body pages are indexed (title pages have no numbers), and only
- * `text` lines: a generated line (`(MORE)`, a synthesized cue, CONTINUED) belongs to no source range. NOT built here:
- * GlyphRun `clusterSource`, `drawNumbers` and `docVersion` (Task 29's remaining half, deferred).
+ * `text` lines: a generated line (`(MORE)`, a synthesized cue, CONTINUED) belongs to no source range.
+ *
+ * `docVersion` and `drawNumbers` (below): the rest of Task 29's original scope, filled in on top of the thin cut.
+ * `GlyphRun.clusterSource` was already real and populated by `measure.ts`/`paragraph.ts` (case-expansion, generated
+ * text) — the gap the earlier note meant was in this module's OWN test coverage, closed by a test here, not new code.
  */
+import * as Y from 'yjs';
+import { sha256Hex } from '../hash/sha256.js';
 import type { ElementId } from '../ids/ids.js';
 import type { DocumentModel } from '../read-model/open.js';
+import type { DocDecoration } from './decorate.js';
 import type { DocLayout } from './layout-document.js';
-import type { ElementLayoutIndex, LineRef } from './types.js';
+import type { ElementLayoutIndex, LineRef, PositionedText } from './types.js';
 
 export interface ElementPageSpan {
   elementId: ElementId;
@@ -99,4 +105,34 @@ export function buildElementIndex(layout: DocLayout, model?: DocumentModel): Doc
     sceneExtentOf: (id) => extentById.get(id),
     sceneExtents: () => extents,
   };
+}
+
+/**
+ * Spec 02 §29.1: "hash of the Yjs state vector the layout reflects." Computed here, never in `src/hash`
+ * (that module owns spec 11 §4.2's versioned content hash, `HASH_VERSION` and the frozen `vectors.json` —
+ * a different, unrelated value; this one is unversioned and carries no `v1:` prefix). Changes whenever the
+ * document's content changes and is stable across a view-only relayout (a fresh `Y.encodeStateVector` on an
+ * unchanged doc is byte-identical).
+ */
+export function docVersionOf(model: DocumentModel): string {
+  return sha256Hex(Y.encodeStateVector(model.doc));
+}
+
+/**
+ * §21.4: the numbers already drawn on this line by `sceneNumbersFor` (`decorate.ts` — left/right/both,
+ * `hideRightOnOverlap`, RTL mirroring), reshaped from the page's flat `DocDecoration[]` into the typed
+ * per-line home the plan's `LayoutLine.numbers` describes. Not a second placement implementation: a lookup
+ * over the one that already exists, matched by `elementId` + `lineIndexInElement` (a scene number only ever
+ * draws on an element's first line).
+ */
+export function drawNumbers(line: { elementId: ElementId; lineIndexInElement: number }, decorations: readonly DocDecoration[]): { left?: PositionedText; right?: PositionedText } {
+  const out: { left?: PositionedText; right?: PositionedText } = {};
+  if (line.lineIndexInElement !== 0) return out;
+  for (const d of decorations) {
+    if (d.kind !== 'sceneNumber' || d.elementId !== line.elementId) continue;
+    if (d.slot !== 'left' && d.slot !== 'right') continue;
+    const face = d.runs[0];
+    out[d.slot] = { text: d.text, x: d.x, faceId: face?.faceId ?? '', sizeEmu: face?.sizeEmu ?? 0 };
+  }
+  return out;
 }

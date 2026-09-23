@@ -4,8 +4,12 @@
  * continueds (§14.3), number label and a `decorationHash` for the paragraph-layout cache key.
  *
  * Speed-mode scope: `columnRowId` (§16) is not computed (always null; column rows are formed by `columns.ts`), and
- * graphic-novel `generatedText` (§17) is filled in afterwards by `panels.ts` (here only the §23.3 omitted placeholder); `decorationHash` does not fold in inactive
- * alternates' text versions (the pass has no `ViewSpec`).
+ * graphic-novel `generatedText` (§17) is filled in afterwards by `panels.ts` (here only the §23.3 omitted placeholder).
+ *
+ * `alternatesMode` (spec 09, M2 task 35): `'all'` folds each element's inactive alternates' own text
+ * into `decorationHash` (§10's own note: "the inactive alternates' text versions"), so editing an
+ * alternate that is not currently displayed still invalidates the one paragraph whose inline `//`
+ * suffix (`makeDisplayText`) shows it — everything else in the document is untouched.
  */
 
 import type { ElementId } from '../ids/ids.js';
@@ -47,6 +51,8 @@ export interface ContextPassResult {
 export interface ContextPassDeps {
   /** Speaker normalization; defaults to `normalizeKey(text, { speaker: true, ... })`. Injectable so tests can count calls. */
   normalizeSpeaker?: (text: string, language: string, contText: string) => string;
+  /** Spec 09 / ViewSpec.alternatesMode; defaults to `'active'` (no inline `//` suffix, no extra `decorationHash` folding). */
+  alternatesMode?: 'active' | 'all';
 }
 
 const defaultNormalize = (text: string, language: string, contText: string): string =>
@@ -76,6 +82,7 @@ export function contextPass(
   deps: ContextPassDeps = {},
 ): ContextPassResult {
   const normalize = deps.normalizeSpeaker ?? defaultNormalize;
+  const alternatesAll = deps.alternatesMode === 'all';
   const language = model.meta().language;
   const outlineHidden = model.settings().outlineHidden;
   const contText = template.continueds.cont;
@@ -139,7 +146,10 @@ export function contextPass(
       generatedText,
       dualSide: el.dual?.side ?? null,
       columnRowId: null,
-      decorationHash: fnv1a([String(autoContinued), generatedText ?? '~null', String(hidden)]),
+      decorationHash: fnv1a([
+        String(autoContinued), generatedText ?? '~null', String(hidden),
+        ...(alternatesAll ? el.alts.map((a) => a.text.plain) : []),
+      ]),
     });
     order.push(el.id);
   }

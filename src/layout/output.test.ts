@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { commandHarness } from '../commands/test-harness.js';
 import { layoutDocument } from './layout-document.js';
-import { buildElementIndex } from './output.js';
+import { buildElementIndex, docVersionOf, drawNumbers } from './output.js';
 
 const scene = (n: number, heading: string): [string, string][] => [
   ['st_scene_heading', heading],
@@ -83,5 +83,57 @@ describe('buildElementIndex', () => {
     expect(index.sceneExtents()).toHaveLength(100);
     const last = index.sceneExtents().at(-1)!;
     expect(last.lastPage).toBe(layout.pages.length - 1);
+  });
+
+  it('every source line has real clusterSource data mapping back into the element text (this module\'s own coverage gap, not new code)', () => {
+    const { layout } = build(scene(2, 'INT. A - DAY'));
+    for (const page of layout.pages) {
+      for (const line of page.lines) {
+        if (line.kind !== 'text') continue;
+        for (const run of line.runs) {
+          expect(run.clusterSource.length).toBe(run.clusters.length);
+          for (const src of run.clusterSource) expect(src).toBeLessThanOrEqual(line.sourceEnd - line.sourceStart);
+        }
+      }
+    }
+  });
+});
+
+describe('docVersionOf', () => {
+  it('changes when the document changes and is stable across a view-only relayout', () => {
+    const { h, ids, layout: before } = build(scene(2, 'INT. A - DAY'));
+    const v0 = docVersionOf(h.model);
+    expect(docVersionOf(h.model)).toBe(v0); // stable: nothing changed
+    expect(v0).toMatch(/^[0-9a-f]{64}$/);
+
+    // A view-only relayout (same document, laid out again) does not touch the doc: version is unchanged.
+    const after = layoutDocument(h.model);
+    expect(after.pages).toHaveLength(before.pages.length);
+    expect(docVersionOf(h.model)).toBe(v0);
+
+    // A real content edit changes it.
+    expect(h.run('text.insert', { at: { elementId: ids[1]!, offset: 0 }, text: 'X' }).ok).toBe(true);
+    expect(docVersionOf(h.model)).not.toBe(v0);
+  });
+});
+
+describe('drawNumbers', () => {
+  it('finds the left and right scene-number decorations for a heading\'s first line, keyed by element id', () => {
+    const { h, ids } = build(scene(2, 'INT. A - DAY'));
+    // Scene numbering is off by default (spec 05's own template.setSceneNumbering command turns it on).
+    expect(h.run('template.setSceneNumbering', { mode: 'both' }).ok).toBe(true);
+    const layout = layoutDocument(h.model);
+    const page = layout.pages[0]!;
+    const headingLine = page.lines.find((l) => l.elementId === ids[0] && l.lineIndexInElement === 0)!;
+    const numbers = drawNumbers(headingLine, page.decorations);
+    expect(numbers.left?.text).toMatch(/^\d+$/);
+    expect(numbers.right?.text).toBe(numbers.left?.text);
+    expect(numbers.left!.x).toBeLessThan(numbers.right!.x);
+    expect(numbers.left).toHaveProperty('faceId');
+    expect(numbers.left!.sizeEmu).toBeGreaterThan(0);
+
+    // A non-first line, and an unrelated element, get nothing.
+    const secondLine = page.lines.find((l) => l.elementId === ids[1])!;
+    expect(drawNumbers(secondLine, page.decorations)).toEqual({});
   });
 });

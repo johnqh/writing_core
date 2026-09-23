@@ -1,0 +1,33 @@
+{
+  "pageCount": 1,
+  "pages": [
+    {
+      "lines": [
+        {
+          "elementId": "el_01HF7YAT2TYEV3BY59BKTBZ49A",
+          "kind": "text",
+          "dualSide": "left",
+          "text": "ALICE"
+        },
+        {
+          "elementId": "el_01HF7YAT2W4PSZHDAANQ6WVXWS",
+          "kind": "text",
+          "dualSide": "right",
+          "text": "BOB"
+        },
+        {
+          "elementId": "el_01HF7YAT2VY9Q4G7A8KWNPA8FW",
+          "kind": "text",
+          "dualSide": "left",
+          "text": "After you."
+        },
+        {
+          "elementId": "el_01HF7YAT2X8NTD9Z539Y1C9SYJ",
+          "kind": "text",
+          "dualSide": "right",
+          "text": "No, after you."
+        }
+      ]
+    }
+  ]
+}

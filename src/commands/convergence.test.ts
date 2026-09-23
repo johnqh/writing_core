@@ -1,7 +1,7 @@
 import * as Y from 'yjs';
 import { describe, expect, it } from 'vitest';
 import { createSeededIdSource } from '../ids/id-source.js';
-import type { ElementId } from '../ids/ids.js';
+import { type ElementId, newId } from '../ids/ids.js';
 import { createDocument } from '../model/create.js';
 import { documentToJSON } from '../model/json.js';
 import { rebalancePositions } from '../model/positions.js';
@@ -217,6 +217,116 @@ describe('CRDT convergence', () => {
     expect(b.run('text.insert', { at: { elementId: b.elementIds()[6]!, offset: 0 }, text: 'Long ' })).toMatchObject({ ok: true });
     converge(a, b);
     expect(a.model.elements().map((e) => e.text.plain)).toEqual(b.model.elements().map((e) => e.text.plain));
+  });
+
+  it('FIXED AT THE REAL TRIGGER (I19 auto-repair), STILL A SHARP EDGE ON THE RAW FUNCTION: calling `rebalancePositions` directly still replaces every key', () => {
+    // `rebalancePositions` itself is UNCHANGED and still fully destructive by design (it is the
+    // general "regenerate everything" primitive `rebalanceDegenerateRuns` is built from) — this test
+    // now documents that calling it DIRECTLY, bypassing I19, still carries the original hazard, so
+    // anyone reaching for it that way inherits the risk `positions.ts`'s own doc comment on
+    // `rebalanceDegenerateRuns` explains. The REAL, automatic trigger — I19's auto-repair, which runs
+    // by default on every document open — is fixed; see the next test.
+    const { a, b } = pair(SCRIPT);
+    const before = a.elementIds();
+    const neighborBefore = before[3]!;
+    const r = b.run('element.insert', { after: neighborBefore, style: 'st_action', text: 'Inserted between old neighbors.' });
+    expect(r).toMatchObject({ ok: true });
+    const inserted = (r as { ok: true; effects: { inserted: string[] } }).effects.inserted[0]!;
+    a.doc.transact(() => {
+      const ordered = orderElements(a.doc.getMap<unknown>('elements'));
+      const keys = rebalancePositions(ordered.length);
+      ordered.forEach((e, i) => e.set('pos', keys[i]!));
+    });
+    converge(a, b); // still converges: both replicas agree on wherever it landed
+    const order = a.elementIds();
+    expect(order.indexOf(inserted as ElementId)).toBe(order.length - 1); // NOT order.indexOf(neighborBefore) + 1
+  });
+
+  it('FIX VERIFIED: I19\'s own auto-repair (the real, automatic trigger) no longer disturbs a concurrent insert anchored outside the degenerate run', () => {
+    // The actual, realistic hazard: I19 fires whenever ANY element's `pos` exceeds
+    // `MAX_POSITION_LENGTH`, and `validateDocument(doc).repair()` runs by default on every document
+    // open — so this could previously happen silently, concurrently with someone else's edit.
+    const { a, b } = pair(SCRIPT);
+    const ids = a.elementIds();
+    const degenerate = ids[1]!; // will get an over-long pos; ids[3]/[4] stay short and untouched
+    const farNeighbor = ids[3]!;
+    a.doc.transact(() => {
+      (a.doc.getMap<unknown>('elements').get(degenerate) as Y.Map<unknown>).set('pos', 'V'.repeat(80));
+    });
+    // A concurrent insert anchored well away from the degenerate element.
+    const r = b.run('element.insert', { after: farNeighbor, style: 'st_action', text: 'Inserted far from the degenerate key.' });
+    expect(r).toMatchObject({ ok: true });
+    const inserted = (r as { ok: true; effects: { inserted: string[] } }).effects.inserted[0]!;
+    // The real trigger: I19's own auto-repair, on replica A, independent of replica B's edit.
+    expect(validateDocument(a.doc, { only: ['I19'] }).repair()).toBe(1);
+    converge(a, b);
+    const order = a.elementIds();
+    expect(order.indexOf(inserted as ElementId)).toBe(order.indexOf(farNeighbor) + 1); // lands correctly, not at the end
+    expect(String((a.doc.getMap<unknown>('elements').get(degenerate) as Y.Map<unknown>).get('pos')).length)
+      .toBeLessThanOrEqual(64); // and the degenerate element itself really was fixed
+  });
+
+  it('two replicas concurrently inserting at the SAME position land in id order, not creation order (pos-collision tie-break, M1 carried finding)', () => {
+    // The suite's own note above says no scenario manufactures a literal `pos` collision; this one
+    // does, and pins the actual tie-break `orderElements` uses (`ymap.ts`: equal `pos` -> smaller
+    // `id` string first) rather than merely asserting "some deterministic order". A real concurrent
+    // `element.insert` from each replica does NOT naturally collide — `positionBetween` draws on
+    // each replica's own `IdSource`, so the two land on different keys even between the same
+    // neighbors — so the collision is manufactured directly, the way a real one could still arise
+    // (e.g. a future command computing `pos` without going through `positionBetween`'s own entropy).
+    const { a, b } = pair(SCRIPT);
+    const anchor = a.elementIds()[3]!;
+    const anchorPos = String((a.doc.getMap<unknown>('elements').get(anchor) as Y.Map<unknown>).get('pos'));
+    const insA = newId('el', a.ids);
+    const insB = newId('el', b.ids);
+    const record = (id: string, actor: string) => ({
+      id, pos: `${anchorPos}5`, style: 'st_action', text: new Y.Text(`From ${actor}.`),
+      meta: { createdBy: actor, createdAt: 1_000, editedBy: actor, editedAt: 1_000 },
+    });
+    a.doc.transact(() => {
+      const m = new Y.Map<unknown>();
+      a.doc.getMap<unknown>('elements').set(insA, m);
+      for (const [k, v] of Object.entries(record(insA, 'A'))) m.set(k, v);
+    });
+    b.doc.transact(() => {
+      const m = new Y.Map<unknown>();
+      b.doc.getMap<unknown>('elements').set(insB, m);
+      for (const [k, v] of Object.entries(record(insB, 'B'))) m.set(k, v);
+    });
+    // Confirms the manufactured collision is real before it is relied on below.
+    expect(String((a.doc.getMap<unknown>('elements').get(insA) as Y.Map<unknown>).get('pos')))
+      .toBe(String((b.doc.getMap<unknown>('elements').get(insB) as Y.Map<unknown>).get('pos')));
+    converge(a, b);
+    const order = a.elementIds();
+    const iAnchor = order.indexOf(anchor);
+    const [first, second] = [insA, insB].sort(); // orderElements's own tie-break: smaller id first
+    expect(order[iAnchor + 1]).toBe(first);
+    expect(order[iAnchor + 2]).toBe(second);
+  });
+
+  it('I17 breaks the mergedInto cycle at the sorted-last entity id, deterministically on both replicas (M1 carried finding, strengthened)', () => {
+    const { a, b } = pair(SCRIPT);
+    expect(a.run('smartType.rebuild', {})).toMatchObject({ ok: true });
+    converge(a, b);
+    const maya = a.model.resolveEntity('character', 'MAYA')!.id;
+    const jonah = a.model.resolveEntity('character', 'JONAH')!.id;
+    expect(a.run('entity.merge', { from: maya, into: jonah })).toMatchObject({ ok: true });
+    expect(b.run('entity.merge', { from: jonah, into: maya })).toMatchObject({ ok: true });
+    converge(a, b, ['I17']);
+    // `.sort()`'s declared return type widens the 2-tuple to a general array, so destructuring under
+    // `noUncheckedIndexedAccess` would otherwise mark each element possibly `undefined`, even though a
+    // fixed 2-element array is always fully populated after sorting.
+    const [, breakAt] = [maya, jonah].sort() as [typeof maya, typeof maya]; // I17's own rule: the sorted-LAST id in the cycle
+    for (const r of [a, b]) {
+      expect(validateDocument(r.doc, { only: ['I17'] }).repair()).toBe(1);
+      const record = r.doc.getMap<unknown>('entities').get(breakAt) as Y.Map<unknown>;
+      expect(record.get('mergedInto')).toBeNull();
+    }
+    converge(a, b);
+    // Breaking the cycle at `breakAt` means IT stands alone again (`mergedInto: null`); the OTHER
+    // entity in the pair still merged into it in the direction whichever replica's write survived
+    // the (unrelated) LWW race on that link — which one is not what I17 pins, so it is not asserted.
+    expect(a.model.entity(breakAt)!.mergedInto).toBeNull();
   });
 
   it('converges when each replica restyles the same element differently', () => {

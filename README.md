@@ -2,9 +2,14 @@
 
 Headless writing engine for screenplays, teleplays, stage plays, radio,
 AV scripts, graphic novels and manuscripts: a collaborative (Yjs) document
-model, data-driven templates, editing commands, SmartType, and per-session
-undo. Deterministic layout and pagination that produce identical pages on
-every platform is a later milestone, not part of this package yet.
+model, data-driven templates, editing commands, SmartType, per-session undo,
+and deterministic layout and pagination — paragraph layout, page filling,
+dual dialogue and column blocks, continueds, revision/lock display, headers/
+footers and scene numbering, source↔layout mapping (caret, hit testing,
+selection), and an incremental layout engine with a real paragraph cache —
+that produce identical pages on every platform (Bun, Node, and JavaScriptCore
+via Bun; Hermes and native JavaScriptCore CI are the host app's own
+responsibility, see `docs/verification/V-02.md`).
 
 ## Installation
 

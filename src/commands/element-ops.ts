@@ -23,14 +23,58 @@ export const documentLanguage = (doc: Y.Doc): string => String(doc.getMap('meta'
 /** `documentLanguage(ctx.doc)`, shared so command modules don't each redefine the same one-liner. */
 export const lang = (ctx: Pick<CommandContext, 'doc'>): string => documentLanguage(ctx.doc);
 
+// M2 task 34: a sorted-position index per container, cached across calls so the successor lookup is a binary
+// search (O(log n)) rather than the O(n) linear scan the previous version did over every element. The cache is
+// invalidated by `container.size`: any structural change from elsewhere (a real-time peer update, an undo) makes
+// the next call rebuild once (O(n log n)) and resume answering from the fresh sorted snapshot; the common case —
+// this same function called again after its own result was inserted, growing `size` by exactly one — updates the
+// cached array in place (a sorted-array insert, not a full rebuild) so repeated sequential inserts stay O(log n)
+// for the search itself, without keeping a second persisted structure the model does not already have.
+interface PosIndex { size: number; sorted: { id: string; pos: string }[] }
+const posIndexCache = new WeakMap<YMap, PosIndex>();
+
+function buildPosIndex(container: YMap): PosIndex {
+  const sorted: { id: string; pos: string }[] = [];
+  for (const [id, v] of container.entries()) sorted.push({ id, pos: String((v as YMap).get('pos')) });
+  sorted.sort((a, b) => (a.pos < b.pos ? -1 : a.pos > b.pos ? 1 : 0));
+  return { size: container.size, sorted };
+}
+
+/** First index `i` with `sorted[i].pos > afterPos` (afterPos `null` means "smallest overall", i.e. index 0). */
+function upperBound(sorted: readonly { pos: string }[], afterPos: string | null): number {
+  if (afterPos === null) return 0;
+  let lo = 0;
+  let hi = sorted.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >>> 1;
+    if (sorted[mid]!.pos <= afterPos) lo = mid + 1;
+    else hi = mid;
+  }
+  return lo;
+}
+
 export function positionAfter(container: YMap, afterId: string | null, ctx: Pick<CommandContext, 'ids'>): string {
   const afterPos = afterId ? String((container.get(afterId) as YMap).get('pos')) : null;
-  let next: string | null = null;
-  for (const v of container.values()) {
-    const p = String((v as YMap).get('pos'));
-    if ((afterPos === null || p > afterPos) && (next === null || p < next)) next = p;
-  }
-  return positionBetween(afterPos, next, ctx.ids);
+  let index = posIndexCache.get(container);
+  if (!index || index.size !== container.size) index = buildPosIndex(container);
+  const i = upperBound(index.sorted, afterPos);
+  const next = index.sorted[i]?.pos ?? null;
+  const result = positionBetween(afterPos, next, ctx.ids);
+  // Keep the cache valid for the very next call, which (in the real command flow) inserts an element at
+  // `result` and grows `container.size` by exactly one: insert it here too, at the same sorted position.
+  index.sorted.splice(i, 0, { id: '', pos: result });
+  posIndexCache.set(container, { size: container.size + 1, sorted: index.sorted });
+  return result;
+}
+
+/**
+ * `size` alone cannot detect an EXISTING record's `pos` being reassigned in place (e.g. `dual.swapSides`
+ * reordering a group without adding or removing anything): that would leave the cached sorted array holding
+ * stale `pos` values with the count still matching. Anything that writes a `pos` field directly, rather than
+ * inserting a brand new record through `createElement`, must call this afterward.
+ */
+export function invalidatePositionCache(container: YMap): void {
+  posIndexCache.delete(container);
 }
 
 export function createElement(ctx: CommandContext, input: { after: ElementId | null; style: StyleId; text?: TextJSON; ov?: ElementOverrides }): ElementId {

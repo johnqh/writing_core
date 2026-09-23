@@ -175,13 +175,44 @@ function fnv(s: string): number {
   return h >>> 0;
 }
 
+/**
+ * Task 31 (§31.4): resumes a chunked run. `blockIndex` was `state?.blockIndex ?? 0`'s whole job before
+ * Task 31 (accepted, never actually exercised — no caller ever passed a real `state`; §24's page-lock
+ * restart uses a different mechanism, `forceBreaks` mutating block flags before pagination ever runs);
+ * this replaces that unused param with one this task's chunking genuinely needs and fills in full.
+ * `pendingCueElementId`/`sceneId`/`sceneContinuationCount`/`lastHeadingElementId` carry exactly the
+ * cross-page state a stop point in the middle of a dialogue split, a scene's page run, or (`panels`
+ * layout mode) a comic page's own continuation would otherwise silently drop — the three
+ * continuation decorations (`(CONT'D)` cues, scene `CONTINUED`, `PAGE n (CONT'D)`) a resumed call
+ * could not otherwise reconstruct, since nothing else about "block index N" tells it a cue, a scene
+ * or a comic page was still open.
+ */
+export interface PaginateResumePoint {
+  blockIndex: number;
+  pendingCueElementId: ElementId | null;
+  sceneId: ElementId | null;
+  sceneContinuationCount: number;
+  lastHeadingElementId: ElementId | null;
+}
+
+/**
+ * A caller doing visible-first, time-sliced scheduling (§31.4) passes `stopAfter`, checked only at a
+ * point where the page in progress has just been closed (`page === null`) — the same "start fresh at
+ * this block" moment `resume` reconstructs — so a chunked run and a single unchunked run produce
+ * byte-identical pages; chunking only changes how many calls it takes to get them all.
+ */
+export interface PaginateStopOptions {
+  stopAfter?: (pagesCompletedThisCall: number) => boolean;
+}
+
 export function paginate(
   blocksIn: readonly Block[],
   geometry: PageGeometry,
   params: PaginationParams,
   depsIn: Partial<PaginateDeps> = {},
-  state?: PageStartState,
-): { pages: FilledPage[]; diagnostics: LayoutDiagnostic[] } {
+  resume?: PaginateResumePoint,
+  stopOpts: PaginateStopOptions = {},
+): { pages: FilledPage[]; diagnostics: LayoutDiagnostic[]; resume: PaginateResumePoint | null; retroactiveSceneBottom: readonly PlacedLine[] | null } {
   const deps: PaginateDeps = { ...DEFAULT_PAGINATE_DEPS, ...depsIn };
   const hooks = deps.continueds;
   const bodyH = geometry.bodyBottom - geometry.bodyTop;
@@ -195,10 +226,24 @@ export function paginate(
   const colRules: RowRules = { minBefore: minB, minAfter: minA, dialogueBreaks };
   const colSplit = params.columnBlocksSplit === true;
 
-  const blockOffset = state?.blockIndex ?? 0;
+  const isResuming = resume !== undefined;
+  const blockOffset = resume?.blockIndex ?? 0;
   const blocks = blocksIn.slice(blockOffset);
   const diagnostics: LayoutDiagnostic[] = [];
   const pages: FilledPage[] = [];
+  let resumePoint: PaginateResumePoint | null = null;
+  // Set only when resuming: a scene-bottom decoration was due on the page that ended the PREVIOUS
+  // chunk, which this call has no way to reach (it was already returned by an earlier `paginate()`
+  // call). A caller doing real cross-call stitching must push these onto that retained page's own
+  // `decor`; a caller that never resumes across separate calls (this file's own `PaginateStopOptions`
+  // doc comment: chunking only changes how many calls it takes within ONE logical run) never sees
+  // `isResuming` true in the first place, so this is `null` for it and there is nothing to apply.
+  let retroactiveSceneBottom: PlacedLine[] | null = null;
+
+  // Task 31: resolve a resumed cue/heading by element id against the FULL (unsliced) block list —
+  // its owning block can be before the restart point (already placed on an earlier, unaffected page).
+  const paraById = new Map<ElementId, BlockPara>();
+  if (resume?.pendingCueElementId || resume?.lastHeadingElementId) for (const b of blocksIn) for (const p of parasOf(b)) paraById.set(p.layout.elementId, p);
 
   let pageIndex = 0;
   let page: FilledPage | null = null;
@@ -209,12 +254,13 @@ export function paginate(
   /** Has the current page been opened (top decorations decided)? */
   let opened = false;
   /** Scene of the last body line placed, for scene CONTINUED (§14.4). */
-  let lastScene: ElementId | null = null;
+  let lastScene: ElementId | null = resume?.sceneId ?? null;
   /** The cue whose continuation heads the next page (a dialogue split queued it). */
-  let pendingCue: BlockPara | null = null;
+  let pendingCue: BlockPara | null = (resume?.pendingCueElementId && paraById.get(resume.pendingCueElementId)) || null;
   /** The last page-heading paragraph placed (§17), for `PAGE n (CONT'D)`. */
-  let lastHeading: BlockPara | null = null;
+  let lastHeading: BlockPara | null = (resume?.lastHeadingElementId && paraById.get(resume.lastHeadingElementId)) || null;
   const sceneCont = new Map<ElementId, number>();
+  if (resume?.sceneId) sceneCont.set(resume.sceneId, resume.sceneContinuationCount);
 
   const fillState = (): FillState => ({
     pageIndex, y, blockIndex: curGbi, lineCursor: { paragraph: curPara, line: curLine }, pendingTopDecorations: [],
@@ -241,6 +287,13 @@ export function paginate(
       opened = false;
     }
   };
+  /** True only right after a page has been closed cleanly — see `PaginateStopOptions`'s own doc comment. */
+  const checkStop = (): boolean => page === null && pages.length > 0 && (stopOpts.stopAfter?.(pages.length) ?? false);
+  const captureResume = (blockIndex: number): PaginateResumePoint => ({
+    blockIndex, pendingCueElementId: pendingCue?.layout.elementId ?? null,
+    sceneId: lastScene, sceneContinuationCount: lastScene ? (sceneCont.get(lastScene) ?? 0) : 0,
+    lastHeadingElementId: lastHeading?.layout.elementId ?? null,
+  });
   const pageEmpty = (): boolean => page === null || page.lines.length === 0;
   const reserveFor = (scene: ElementId | null): number => (scene === null ? 0 : hooks ? hooks.reserve : deps.bottomReserve(fillState()));
 
@@ -248,7 +301,12 @@ export function paginate(
   const openPage = (nextScene: ElementId | null, first: BlockPara | null = null): void => {
     opened = true;
     const prev = pages[pages.length - 1];
-    if (!prev) {
+    // A real "nothing to do" only when there is truly no earlier page anywhere — the document's own
+    // first page. When resuming, `!prev` instead means the earlier page lives in a PRIOR chunk (an
+    // earlier, separate `paginate()` call) that finished before this one started: everything below
+    // still applies, using `resume`-seeded state, except the scene-bottom write, which targets that
+    // now-inaccessible page and is instead returned to the caller as `retroactiveSceneBottom`.
+    if (!prev && !isResuming) {
       pendingCue = null;
       return;
     }
@@ -256,7 +314,11 @@ export function paginate(
     let h = 0;
     if (hooks && lastScene !== null && lastScene === nextScene) {
       const bottom = hooks.sceneBottom(lastScene);
-      if (bottom) for (const l of bottom.lines) prev.decor.push({ elementId: l.deco.elementId, lineIndexInElement: -1, line: l.deco.line, y: bodyH - l.dy, kind: l.deco.kind });
+      if (bottom) {
+        const lines = bottom.lines.map((l) => ({ elementId: l.deco.elementId, lineIndexInElement: -1, line: l.deco.line, y: bodyH - l.dy, kind: l.deco.kind }));
+        if (prev) for (const l of lines) prev.decor.push(l);
+        else retroactiveSceneBottom = lines;
+      }
       const n = (sceneCont.get(lastScene) ?? 0) + 1;
       sceneCont.set(lastScene, n);
       const top = hooks.sceneTop(lastScene, n);
@@ -321,8 +383,12 @@ export function paginate(
     return cache.get(cue) ?? null;
   };
 
-  for (let ri = 0; ri < runs.length; ri++) {
+  runsLoop: for (let ri = 0; ri < runs.length; ri++) {
     const run = runs[ri] as { from: number; to: number };
+    if (checkStop()) {
+      resumePoint = captureResume(run.from + blockOffset);
+      break runsLoop;
+    }
     // Rows of this chain.
     const rows: Row[] = [];
     const chainBlocks = blocks.slice(run.from, run.to + 1);
@@ -613,6 +679,10 @@ export function paginate(
       let s = findSplit(cursor, avail, 0, 0);
       if (s < 0 && !pageEmpty()) {
         endPage();
+        if (checkStop()) {
+          resumePoint = captureResume(row0.gbi);
+          break runsLoop;
+        }
         continue;
       }
       if (s < 0) {
@@ -647,11 +717,17 @@ export function paginate(
         pendingCue = (rows[s] as Row).cue as BlockPara;
       }
       endPage();
+      if (s < rows.length) {
+        if (checkStop()) {
+          resumePoint = captureResume((rows[s] as Row).gbi);
+          break runsLoop;
+        }
+      }
       cursor = s;
     }
   }
 
   endPage();
   if (pages.length === 0) pages.push(startPage());
-  return { pages, diagnostics };
+  return { pages, diagnostics, resume: resumePoint, retroactiveSceneBottom };
 }

@@ -1,7 +1,7 @@
 import * as Y from 'yjs';
 import { describe, expect, it } from 'vitest';
 import { createSeededIdSource } from '../ids/id-source.js';
-import { type ElementId, newDualGroupId, newId } from '../ids/ids.js';
+import { type ElementId, newId } from '../ids/ids.js';
 import { createDocument } from '../model/create.js';
 import { insertElementRecord } from '../model/element-record.js';
 import { documentToJSON } from '../model/json.js';
@@ -65,7 +65,13 @@ function randomDocument(seed: number): RandomDoc {
 
   doc.transact(() => {
     for (const k of [...elements.keys()]) elements.delete(k);
-    const count = 6 + Math.floor(r() * 10);
+    // M2 task 35 (M1 carried finding): a count/style mix left purely to per-seed luck meant
+    // `scene.move`/`entity.merge`/`scene.setOmitted`/`scene.setSynopsis`/`dual.make`/`dual.clear`
+    // occasionally found too little structure to act on (too few scene headings or entities, or no
+    // room for a dual run) and silently no-opped on more than 2 of the 8 seeds — passing the OLD
+    // "mutated at least once" bar while failing the real one. `count`'s floor is raised so a dual
+    // run always fits, and scene headings/entities below are forced rather than left to `pick()`.
+    const count = 10 + Math.floor(r() * 10);
     const positions = generatePositions(count, null, null, null);
     for (let i = 0; i < count; i++) {
       const id = newId('el', ids);
@@ -79,19 +85,12 @@ function randomDocument(seed: number): RandomDoc {
       elementIds.push(id);
     }
 
-    // A well-formed dual-dialogue run, when the shape allows one, so the dual paths are exercised.
-    if (r() < 0.5 && elementIds.length >= 8) {
-      const start = 2;
-      const group = newDualGroupId(ids);
-      const sides: ('left' | 'right')[] = ['left', 'left', 'right', 'right'];
-      (['st_character', 'st_dialogue', 'st_character', 'st_dialogue'] as const).forEach((style, i) => {
-        const record = elements.get(elementIds[start + i]!) as Y.Map<unknown>;
-        record.set('style', style);
-        record.set('dual', { group, side: sides[i]! });
-      });
-    }
+    // At least two scene headings, always — `pick(STYLES)` above leaves this to chance. `dual.make`/
+    // `dual.create`/`dual.swapSides`'s own generators (below) force styles at indices 2-5 themselves
+    // and need NO pre-existing dual group there, so scene headings go elsewhere (0, count - 1).
+    for (const i of [0, count - 1]) (elements.get(elementIds[i]!) as Y.Map<unknown>).set('style', 'st_scene_heading');
 
-    const entityCount = 1 + Math.floor(r() * 3);
+    const entityCount = 2 + Math.floor(r() * 2);
     for (let i = 0; i < entityCount; i++) {
       const id = newId('ent', ids);
       const name = `${pick(WORDS).toUpperCase()}${i}`;
@@ -187,7 +186,47 @@ const PARAMS: Record<string, (d: RandomDoc, r: () => number) => unknown | null> 
     (['st_character', 'st_dialogue', 'st_character', 'st_dialogue'] as const).forEach((style, i) => four[i]!.set('style', style));
     return { element: d.elementIds[4] };
   },
-  'dual.clear': (d) => ({ element: d.elementIds[2] }),
+  'dual.clear': (d) => {
+    // M2 task 35 (M1 carried finding): this used to just point at `elementIds[2]` and rely on
+    // `randomDocument`'s own (then 50%-chance) pre-seeded dual run happening to land there — a real
+    // "2-seed" precondition. Self-sufficient now, matching `dual.dissolve`'s own convention below:
+    // force the pair and pair it, THEN clear it.
+    if (d.elementIds.length < 6) return null;
+    const els = d.doc.getMap<Y.Map<unknown>>('elements');
+    const four = d.elementIds.slice(2, 6).map((id) => els.get(id)!);
+    if (four.some((rec) => rec.has('dual'))) return null;
+    (['st_character', 'st_dialogue', 'st_character', 'st_dialogue'] as const).forEach((style, i) => four[i]!.set('style', style));
+    pre(d, 'dual.make', { element: d.elementIds[4] });
+    return four[0]!.has('dual') ? { element: d.elementIds[2] } : null;
+  },
+  'dual.create': (d) => {
+    if (d.elementIds.length < 4) return null;
+    const els = d.doc.getMap<Y.Map<unknown>>('elements');
+    const two = d.elementIds.slice(2, 4).map((id) => els.get(id)!);
+    if (two.some((rec) => rec.has('dual'))) return null;
+    (['st_character', 'st_dialogue'] as const).forEach((style, i) => two[i]!.set('style', style));
+    return { character: d.elementIds[2] };
+  },
+  'dual.swapSides': (d) => {
+    if (d.elementIds.length < 4) return null;
+    const els = d.doc.getMap<Y.Map<unknown>>('elements');
+    const two = d.elementIds.slice(2, 4).map((id) => els.get(id)!);
+    if (two.some((rec) => rec.has('dual'))) return null;
+    (['st_character', 'st_dialogue'] as const).forEach((style, i) => two[i]!.set('style', style));
+    pre(d, 'dual.create', { character: d.elementIds[2] });
+    const dual = two[0]!.get('dual') as { group: string } | undefined;
+    return dual ? { group: dual.group } : null;
+  },
+  'dual.dissolve': (d) => {
+    if (d.elementIds.length < 4) return null;
+    const els = d.doc.getMap<Y.Map<unknown>>('elements');
+    const two = d.elementIds.slice(2, 4).map((id) => els.get(id)!);
+    if (two.some((rec) => rec.has('dual'))) return null;
+    (['st_character', 'st_dialogue'] as const).forEach((style, i) => two[i]!.set('style', style));
+    pre(d, 'dual.create', { character: d.elementIds[2] });
+    const dual = two[0]!.get('dual') as { group: string } | undefined;
+    return dual ? { group: dual.group } : null;
+  },
   'element.duplicate': (d) => ({ elements: [d.elementIds[2]] }),
   'element.setOverride': (d) => ({ elements: [d.elementIds[1]], key: 'align', value: 'center' }),
   'element.revertOverrides': (d) => ({ elements: d.elementIds.slice(0, 4) }),
@@ -216,7 +255,7 @@ describe('spec 08 §7: every mutating command undoes and redoes byte-identically
 
   for (const commandId of listCommands().filter((c) => c.mutates).map((c) => c.id).sort()) {
     it(`${commandId} round-trips through undo and redo`, () => {
-      let mutatedAtLeastOnce = false;
+      let mutatedCount = 0;
       for (const seed of SEEDS) {
         const d = randomDocument(seed);
         const params = PARAMS[commandId]!(d, rng(seed + 900));
@@ -235,7 +274,7 @@ describe('spec 08 §7: every mutating command undoes and redoes byte-identically
           continue;
         }
         const after = JSON.stringify(documentToJSON(d.doc));
-        if (after !== before) mutatedAtLeastOnce = true;
+        if (after !== before) mutatedCount++;
         expect(undo.canUndo(), `${commandId} seed ${seed}: nothing on the undo stack`).toBe(after !== before);
         if (after !== before) {
           expect(undo.undo(), `${commandId} seed ${seed}: undo refused`).toBe(true);
@@ -246,7 +285,10 @@ describe('spec 08 §7: every mutating command undoes and redoes byte-identically
         undo.destroy();
         d.model.dispose();
       }
-      expect(mutatedAtLeastOnce, `${commandId} never actually changed a document — the generator produces no-ops`).toBe(true);
+      // M2 task 35 (M1 carried finding): >= 1 of 8 let a generator that only ever hits its
+      // precondition by luck (`scene.move`/`entity.merge` needing >= 2 scenes/entities from a
+      // RANDOM document) pass as a "2-seed test". >= 6 of 8 is the real bar.
+      expect(mutatedCount, `${commandId} mutated on only ${mutatedCount}/${SEEDS.length} seeds — the generator produces too many no-ops`).toBeGreaterThanOrEqual(6);
     });
   }
 });

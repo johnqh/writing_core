@@ -1,0 +1,7279 @@
+{
+  "meta": {
+    "schemaVersion": 1,
+    "docId": "doc_01HF7YAT00440WAKYHT0DB49BM",
+    "createdAt": 0,
+    "createdBy": "fixture",
+    "kind": "script",
+    "language": "en",
+    "direction": "ltr",
+    "templateOrigin": {
+      "templateId": "tpl_2Y2HCTDBS9XZHEM1QWX3Z39XDG",
+      "key": "screenplay-standard",
+      "version": 1,
+      "hash": "v1:e37ce6772f3bfdeecfc30fc27acf5363399f6536f1ef7b53ccff817a7952aa78"
+    },
+    "forkedFrom": null,
+    "migrations": {}
+  },
+  "template": {
+    "schemaVersion": 1,
+    "id": "tpl_2Y2HCTDBS9XZHEM1QWX3Z39XDG",
+    "key": "screenplay-standard",
+    "version": 1,
+    "name": "Screenplay (Standard)",
+    "nameKey": "template.builtin.screenplayStandard.name",
+    "description": "",
+    "category": "screenplay",
+    "locale": "en",
+    "direction": "ltr",
+    "layoutMode": "flow",
+    "instructions": null,
+    "importMeta": null,
+    "page": {
+      "paper": "letter",
+      "width": 7772400,
+      "height": 10058400,
+      "orientation": "portrait",
+      "margins": {
+        "top": 914400,
+        "bottom": 914400,
+        "left": 1371600,
+        "right": 914400
+      },
+      "headerOffset": 457200,
+      "footerOffset": 457200,
+      "linesPerInch": 6,
+      "elementSpacing": 1,
+      "lineSpacingPreset": "normal",
+      "bindingGutter": 0
+    },
+    "header": {
+      "enabled": true,
+      "left": "",
+      "center": "",
+      "right": "{page}.",
+      "styleId": null,
+      "showOnFirstPage": false,
+      "showOnTitlePage": false,
+      "startAtPage": 1
+    },
+    "footer": {
+      "enabled": false,
+      "left": "",
+      "center": "",
+      "right": "",
+      "styleId": null,
+      "showOnFirstPage": false,
+      "showOnTitlePage": false,
+      "startAtPage": 1
+    },
+    "defaults": {
+      "root": "st_normal",
+      "pasteFallback": "st_action",
+      "sceneHeading": "st_scene_heading",
+      "character": "st_character",
+      "dialogue": "st_dialogue",
+      "parenthetical": "st_parenthetical",
+      "action": "st_action",
+      "transition": "st_transition",
+      "titleDefault": "st_title_center",
+      "firstElement": "st_scene_heading"
+    },
+    "pagination": {
+      "breakOnSentences": true,
+      "dialogue": {
+        "allowBreaks": true,
+        "minLinesBeforeBreak": 2,
+        "minLinesAfterBreak": 2,
+        "moreAtBottom": true,
+        "contAtTop": true
+      },
+      "automaticContinueds": {
+        "enabled": true,
+        "scope": "scene"
+      },
+      "sceneContinueds": {
+        "bottom": false,
+        "top": false,
+        "numbered": false,
+        "topBlankLines": 1,
+        "bottomBlankLines": 1
+      },
+      "widowOrphan": {
+        "minLinesAtPageBottom": 2,
+        "minLinesAtPageTop": 2
+      },
+      "keepWithNextMinLines": 2,
+      "headingsNeverOrphaned": true,
+      "dualDialogue": {
+        "enabled": true,
+        "columnGap": 228600,
+        "stackWhileEditing": false,
+        "geometry": null
+      },
+      "columnBlocks": {
+        "gap": 228600,
+        "breakBlocks": true
+      },
+      "actBreakStartsPage": false,
+      "combineConsecutiveOmitted": false,
+      "runningTime": {
+        "method": "pages",
+        "wordsPerMinute": 150,
+        "soundCueSeconds": 3
+      },
+      "panels": {
+        "autoHeadingText": true
+      }
+    },
+    "pageNumbering": {
+      "start": 1,
+      "format": "{n}.",
+      "suffixMode": "1AB",
+      "skipIO": false,
+      "combineDeletedRanges": true,
+      "titlePage": "none"
+    },
+    "sceneNumbering": {
+      "styleId": "st_scene_heading"
+    },
+    "continueds": {
+      "more": "(MORE)",
+      "cont": "(CONT'D)",
+      "joiner": " ",
+      "sceneBottom": "(CONTINUED)",
+      "sceneTop": "CONTINUED:",
+      "sceneTopNumbered": "CONTINUED: (#)",
+      "omitted": "OMITTED",
+      "styleId": null
+    },
+    "titlePageLayout": {
+      "centerTop": 3200400
+    },
+    "styles": [
+      {
+        "font": {
+          "family": "courier-screenplay",
+          "size": 12,
+          "bold": false,
+          "italic": false,
+          "underline": null,
+          "strike": false,
+          "smallCaps": false,
+          "color": "#000000"
+        },
+        "allCaps": false,
+        "align": "left",
+        "indentLeft": 0,
+        "indentRight": 0,
+        "indentFirstLine": 0,
+        "spaceBefore": 0,
+        "lineSpacing": 1,
+        "column": 0,
+        "keepWithNext": false,
+        "keepTogether": false,
+        "splitRule": "lines",
+        "pageBreakBefore": false,
+        "actBreak": false,
+        "paginateAs": null,
+        "hiddenInScript": false,
+        "printable": true,
+        "outlineLevel": 0,
+        "flow": {
+          "onEnter": null,
+          "onEnterEmpty": "picker",
+          "onTabEmpty": null,
+          "onTabText": null,
+          "onShiftTabEmpty": null
+        },
+        "numbering": null,
+        "prefix": "",
+        "suffix": "",
+        "smartTypeList": null,
+        "dualDialogue": false,
+        "id": "st_normal",
+        "name": "Normal Text",
+        "nameKey": "template.style.normalText",
+        "role": "normal",
+        "basedOn": null,
+        "shortcut": null
+      },
+      {
+        "id": "st_scene_heading",
+        "name": "Scene Heading",
+        "nameKey": "template.style.sceneHeading",
+        "role": "sceneHeading",
+        "basedOn": "st_normal",
+        "shortcut": 1,
+        "font": {},
+        "allCaps": true,
+        "spaceBefore": 2,
+        "keepWithNext": true,
+        "flow": {
+          "onEnter": "st_action",
+          "onTabEmpty": "st_action",
+          "onTabText": "st_action"
+        },
+        "numbering": {
+          "enabled": false,
+          "counter": "own",
+          "start": 1,
+          "format": "{n}",
+          "position": "both",
+          "leftOffset": 685800,
+          "rightOffset": 6748272,
+          "hideRightOnOverlap": true,
+          "resetAfterStyle": null,
+          "resetEvery": 0,
+          "suffixMode": "1AB",
+          "skipIO": false,
+          "autoOmit": false,
+          "omittedText": null,
+          "numberFont": null
+        },
+        "smartTypeList": "locations"
+      },
+      {
+        "id": "st_action",
+        "name": "Action",
+        "nameKey": "template.style.action",
+        "role": "action",
+        "basedOn": "st_normal",
+        "shortcut": 2,
+        "font": {},
+        "spaceBefore": 1,
+        "flow": {
+          "onEnter": null,
+          "onTabEmpty": "st_character",
+          "onTabText": "st_character"
+        }
+      },
+      {
+        "id": "st_character",
+        "name": "Character",
+        "nameKey": "template.style.character",
+        "role": "character",
+        "basedOn": "st_normal",
+        "shortcut": 3,
+        "font": {},
+        "allCaps": true,
+        "indentLeft": 1828800,
+        "indentRight": 228600,
+        "spaceBefore": 1,
+        "keepWithNext": true,
+        "flow": {
+          "onEnter": "st_dialogue",
+          "onTabEmpty": "st_transition",
+          "onTabText": "st_parenthetical"
+        },
+        "smartTypeList": "characters",
+        "dualDialogue": true
+      },
+      {
+        "id": "st_parenthetical",
+        "name": "Parenthetical",
+        "nameKey": "template.style.parenthetical",
+        "role": "parenthetical",
+        "basedOn": "st_normal",
+        "shortcut": 4,
+        "font": {},
+        "indentLeft": 1371600,
+        "indentRight": 1828800,
+        "indentFirstLine": -91440,
+        "spaceBefore": 0,
+        "keepWithNext": true,
+        "flow": {
+          "onEnter": "st_dialogue",
+          "onTabEmpty": "st_dialogue",
+          "onTabText": "st_dialogue"
+        },
+        "dualDialogue": true
+      },
+      {
+        "id": "st_dialogue",
+        "name": "Dialogue",
+        "nameKey": "template.style.dialogue",
+        "role": "dialogue",
+        "basedOn": "st_normal",
+        "shortcut": 5,
+        "font": {},
+        "indentLeft": 914400,
+        "indentRight": 1371600,
+        "spaceBefore": 0,
+        "flow": {
+          "onEnter": "st_action",
+          "onTabEmpty": "st_parenthetical",
+          "onTabText": "st_parenthetical"
+        },
+        "dualDialogue": true
+      },
+      {
+        "id": "st_transition",
+        "name": "Transition",
+        "nameKey": "template.style.transition",
+        "role": "transition",
+        "basedOn": "st_normal",
+        "shortcut": 6,
+        "font": {},
+        "allCaps": true,
+        "indentLeft": 3657600,
+        "indentRight": 365760,
+        "spaceBefore": 1,
+        "align": "right",
+        "flow": {
+          "onEnter": "st_scene_heading",
+          "onTabEmpty": "st_action",
+          "onTabText": "st_action"
+        },
+        "smartTypeList": "transitions"
+      },
+      {
+        "id": "st_shot",
+        "name": "Shot",
+        "nameKey": "template.style.shot",
+        "role": "shot",
+        "basedOn": "st_normal",
+        "shortcut": 7,
+        "font": {},
+        "allCaps": true,
+        "spaceBefore": 1,
+        "keepWithNext": true,
+        "flow": {
+          "onEnter": "st_action",
+          "onTabEmpty": "st_action",
+          "onTabText": "st_action"
+        },
+        "paginateAs": "st_scene_heading"
+      },
+      {
+        "id": "st_lyrics",
+        "name": "Lyrics",
+        "nameKey": "template.style.lyrics",
+        "role": "lyrics",
+        "basedOn": "st_dialogue",
+        "shortcut": null,
+        "font": {
+          "italic": true
+        },
+        "flow": {
+          "onEnter": "st_lyrics",
+          "onTabEmpty": "st_parenthetical",
+          "onTabText": "st_parenthetical"
+        },
+        "paginateAs": "st_dialogue",
+        "dualDialogue": true
+      },
+      {
+        "id": "st_cast_list",
+        "name": "Cast List",
+        "nameKey": "template.style.castList",
+        "role": "castList",
+        "basedOn": "st_normal",
+        "shortcut": null,
+        "font": {},
+        "allCaps": true,
+        "spaceBefore": 0,
+        "flow": {
+          "onEnter": "st_action",
+          "onTabEmpty": null,
+          "onTabText": null
+        }
+      },
+      {
+        "id": "st_new_act",
+        "name": "New Act",
+        "nameKey": "template.style.newAct",
+        "role": "actStart",
+        "basedOn": "st_normal",
+        "shortcut": null,
+        "font": {
+          "underline": "single"
+        },
+        "allCaps": true,
+        "spaceBefore": 0,
+        "align": "center",
+        "keepWithNext": true,
+        "pageBreakBefore": true,
+        "actBreak": true,
+        "hiddenInScript": false,
+        "flow": {
+          "onEnter": "st_scene_heading",
+          "onTabEmpty": "st_scene_heading",
+          "onTabText": "st_scene_heading"
+        }
+      },
+      {
+        "id": "st_end_of_act",
+        "name": "End of Act",
+        "nameKey": "template.style.endOfAct",
+        "role": "actEnd",
+        "basedOn": "st_normal",
+        "shortcut": null,
+        "font": {
+          "underline": "single"
+        },
+        "allCaps": true,
+        "spaceBefore": 2,
+        "align": "center",
+        "flow": {
+          "onEnter": "st_new_act",
+          "onTabEmpty": "st_new_act",
+          "onTabText": "st_new_act"
+        }
+      },
+      {
+        "id": "st_sequence",
+        "name": "Sequence",
+        "nameKey": "template.style.sequence",
+        "role": "sequence",
+        "basedOn": "st_normal",
+        "shortcut": null,
+        "font": {
+          "bold": true
+        },
+        "allCaps": true,
+        "spaceBefore": 2,
+        "align": "left",
+        "keepWithNext": true,
+        "hiddenInScript": true,
+        "printable": false,
+        "flow": {
+          "onEnter": "st_scene_heading",
+          "onTabEmpty": null,
+          "onTabText": null
+        }
+      },
+      {
+        "id": "st_outline_1",
+        "name": "Outline 1",
+        "nameKey": "template.style.outline1",
+        "role": "outline",
+        "basedOn": "st_normal",
+        "shortcut": null,
+        "font": {
+          "bold": true
+        },
+        "allCaps": true,
+        "indentLeft": 0,
+        "spaceBefore": 2,
+        "keepWithNext": true,
+        "outlineLevel": 1,
+        "hiddenInScript": true,
+        "printable": false,
+        "flow": {
+          "onEnter": "st_outline_2"
+        }
+      },
+      {
+        "id": "st_outline_2",
+        "name": "Outline 2",
+        "nameKey": "template.style.outline2",
+        "role": "outline",
+        "basedOn": "st_normal",
+        "shortcut": null,
+        "font": {
+          "bold": true
+        },
+        "indentLeft": 457200,
+        "spaceBefore": 1,
+        "keepWithNext": true,
+        "outlineLevel": 2,
+        "hiddenInScript": true,
+        "printable": false,
+        "flow": {
+          "onEnter": "st_outline_3"
+        }
+      },
+      {
+        "id": "st_outline_3",
+        "name": "Outline 3",
+        "nameKey": "template.style.outline3",
+        "role": "outline",
+        "basedOn": "st_normal",
+        "shortcut": null,
+        "font": {},
+        "indentLeft": 914400,
+        "spaceBefore": 1,
+        "keepWithNext": true,
+        "outlineLevel": 3,
+        "hiddenInScript": true,
+        "printable": false,
+        "flow": {
+          "onEnter": "st_summary"
+        }
+      },
+      {
+        "id": "st_summary",
+        "name": "Summary",
+        "nameKey": "template.style.summary",
+        "role": "synopsis",
+        "basedOn": "st_normal",
+        "shortcut": null,
+        "font": {
+          "italic": true
+        },
+        "spaceBefore": 0,
+        "hiddenInScript": true,
+        "printable": false,
+        "flow": {
+          "onEnter": "st_scene_heading",
+          "onTabEmpty": null,
+          "onTabText": null
+        }
+      },
+      {
+        "id": "st_note",
+        "name": "Note",
+        "nameKey": "template.style.note",
+        "role": "note",
+        "basedOn": "st_normal",
+        "shortcut": null,
+        "font": {
+          "italic": true,
+          "color": "#6B6B6B"
+        },
+        "spaceBefore": 1,
+        "printable": false,
+        "flow": {
+          "onEnter": "st_action",
+          "onTabEmpty": null,
+          "onTabText": null
+        }
+      }
+    ],
+    "titlePageStyles": [
+      {
+        "font": {
+          "family": "courier-screenplay",
+          "size": 12,
+          "bold": false,
+          "italic": false,
+          "underline": null,
+          "strike": false,
+          "smallCaps": false,
+          "color": "#000000"
+        },
+        "allCaps": false,
+        "align": "center",
+        "indentLeft": 0,
+        "indentRight": 0,
+        "indentFirstLine": 0,
+        "spaceBefore": 0,
+        "lineSpacing": 1,
+        "column": 0,
+        "keepWithNext": false,
+        "keepTogether": false,
+        "splitRule": "lines",
+        "pageBreakBefore": false,
+        "actBreak": false,
+        "paginateAs": null,
+        "hiddenInScript": false,
+        "printable": true,
+        "outlineLevel": 0,
+        "flow": {
+          "onEnter": null,
+          "onEnterEmpty": "picker",
+          "onTabEmpty": null,
+          "onTabText": null,
+          "onShiftTabEmpty": null
+        },
+        "numbering": null,
+        "prefix": "",
+        "suffix": "",
+        "smartTypeList": null,
+        "dualDialogue": false,
+        "id": "st_title_center",
+        "name": "Title Page Centered",
+        "nameKey": "template.style.titleCenter",
+        "role": "titleText",
+        "basedOn": null,
+        "shortcut": null
+      },
+      {
+        "id": "st_title_left",
+        "name": "Title Page Left",
+        "nameKey": "template.style.titleLeft",
+        "role": "titleText",
+        "basedOn": "st_title_center",
+        "shortcut": null,
+        "font": {},
+        "align": "left"
+      },
+      {
+        "id": "st_title_right",
+        "name": "Title Page Right",
+        "nameKey": "template.style.titleRight",
+        "role": "titleText",
+        "basedOn": "st_title_center",
+        "shortcut": null,
+        "font": {},
+        "align": "right"
+      },
+      {
+        "id": "st_title",
+        "name": "Title",
+        "nameKey": "template.style.title",
+        "role": "titleText",
+        "basedOn": "st_title_center",
+        "shortcut": null,
+        "font": {
+          "underline": "single"
+        },
+        "allCaps": true
+      }
+    ],
+    "revision": 0
+  },
+  "elements": [
+    {
+      "id": "el_01HF7YAT2T9888SVQD4975AS8P",
+      "style": "st_scene_heading",
+      "text": {
+        "plain": "int. SFPD briefing room, day",
+        "runs": [
+          {
+            "text": "int. SFPD briefing room, day",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT2V1N4M6F0K4CMV453F",
+      "style": "st_action",
+      "text": {
+        "plain": "Fluorescent lights cast a harsh glow across the cramped room. Detective KING and Detective LEE huddle with three uniformed officers around a wall-mounted flat screen. Agent MILLER sits at the head of the table, fingers flying across her laptop keyboard.",
+        "runs": [
+          {
+            "text": "Fluorescent lights cast a harsh glow across the cramped room. Detective KING and Detective LEE huddle with three uniformed officers around a wall-mounted flat screen. Agent MILLER sits at the head of the table, fingers flying across her laptop keyboard.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT2W154CPD1XWYD07PB2",
+      "style": "st_action",
+      "text": {
+        "plain": "A DMV photo fills the screen - SPENCER DALTON, white male, mid-30s, unremarkable features.",
+        "runs": [
+          {
+            "text": "A DMV photo fills the screen - SPENCER DALTON, white male, mid-30s, unremarkable features.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT2XJKBTNCZAKV5A262S",
+      "style": "st_character",
+      "text": {
+        "plain": "miller",
+        "runs": [
+          {
+            "text": "miller",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT2YZTF6NQDYY8QGFTK6",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "We've got interesting fingerprint results on this one. Spencer Dalton. His prints turned up at William's house.",
+        "runs": [
+          {
+            "text": "We've got interesting fingerprint results on this one. Spencer Dalton. His prints turned up at William's house.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT2ZGZE0BG105GZAJXR0",
+      "style": "st_action",
+      "text": {
+        "plain": "Miller pauses, letting the weight settle.",
+        "runs": [
+          {
+            "text": "Miller pauses, letting the weight settle.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT30EEJ9Q1ZWTD8AGMK6",
+      "style": "st_character",
+      "text": {
+        "plain": "miller",
+        "runs": [
+          {
+            "text": "miller",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT31N0SB4DR0AWCHX0A3",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "More significantly - they match two other cases. Bodies mutilated the same way. Back of the skull removed.  One in Seattle, one in LA.",
+        "runs": [
+          {
+            "text": "More significantly - they match two other cases. Bodies mutilated the same way. Back of the skull removed.  One in Seattle, one in LA.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT32C0H916AQQR0732SF",
+      "style": "st_action",
+      "text": {
+        "plain": "King leans forward, jaw tightening.",
+        "runs": [
+          {
+            "text": "King leans forward, jaw tightening.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT336G9RSYQMT1HJ5XH7",
+      "style": "st_character",
+      "text": {
+        "plain": "king",
+        "runs": [
+          {
+            "text": "king",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT345TFYKZ8YQCE0H3WB",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "His prints are in our database?",
+        "runs": [
+          {
+            "text": "His prints are in our database?",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT35J732JQEBANKFV8D0",
+      "style": "st_character",
+      "text": {
+        "plain": "miller",
+        "runs": [
+          {
+            "text": "miller",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT36W9NRXGJSBC7WEFM8",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "No. We only have matches from the three crime scenes. But we caught a break.",
+        "runs": [
+          {
+            "text": "No. We only have matches from the three crime scenes. But we caught a break.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT37BFYN4CTYKZVBBR92",
+      "style": "st_action",
+      "text": {
+        "plain": "She clicks. The screen transitions to grainy traffic camera footage - timestamp 4:03 AM. A white Toyota Camry.",
+        "runs": [
+          {
+            "text": "She clicks. The screen transitions to grainy traffic camera footage - timestamp 4:03 AM. A white Toyota Camry.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT38T30R5KV42C0E597W",
+      "style": "st_character",
+      "text": {
+        "plain": "miller",
+        "runs": [
+          {
+            "text": "miller",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT3987WC7KKGEG4K12BG",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "Camera near the church caught this vehicle at 4 AM. Nineteen cars passed by that night. I had highway patrol pull over fifteen of them for \"routine checks.\".",
+        "runs": [
+          {
+            "text": "Camera near the church caught this vehicle at 4 AM. Nineteen cars passed by that night. I had highway patrol pull over fifteen of them for \"routine checks.\".",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT3A66KFQAER27M8EBFN",
+      "style": "st_action",
+      "text": {
+        "plain": "Another click - close-up of the license plate: 84CA934.",
+        "runs": [
+          {
+            "text": "Another click - close-up of the license plate: 84CA934.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT3BVVD7D2JJAGQTJBZK",
+      "style": "st_character",
+      "text": {
+        "plain": "lee",
+        "runs": [
+          {
+            "text": "lee",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT3C20CTNAME8M8F9VBJ",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "Is that even legal?",
+        "runs": [
+          {
+            "text": "Is that even legal?",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT3D4KF5DYVG5E1A2HJK",
+      "style": "st_action",
+      "text": {
+        "plain": "Miller's eyes flick toward him, cold and dismissive. She doesn't break stride.",
+        "runs": [
+          {
+            "text": "Miller's eyes flick toward him, cold and dismissive. She doesn't break stride.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT3EX3TNG1C1XNFY3ED5",
+      "style": "st_character",
+      "text": {
+        "plain": "miller",
+        "runs": [
+          {
+            "text": "miller",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT3FWM780C59N203X9TB",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "Got prints from all fifteen drivers. Matched our guy. Spencer Dalton, thirty-six, single. Branch manager at Bank of America. Clean record.",
+        "runs": [
+          {
+            "text": "Got prints from all fifteen drivers. Matched our guy. Spencer Dalton, thirty-six, single. Branch manager at Bank of America. Clean record.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT3G5VE8YMN5B8Z2WMVD",
+      "style": "st_action",
+      "text": {
+        "plain": "She pauses, clicking to a new file.",
+        "runs": [
+          {
+            "text": "She pauses, clicking to a new file.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT3HDKH36J1N6D336E5Y",
+      "style": "st_character",
+      "text": {
+        "plain": "miller",
+        "runs": [
+          {
+            "text": "miller",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT3JGWFMZYBK95TEQR68",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "",
+        "runs": [],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT3KJX5NDEPVBAA4SYHN",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "But here's where it gets interesting - he traveled to Vietnam in January 2024.",
+        "runs": [
+          {
+            "text": "But here's where it gets interesting - he traveled to Vietnam in January 2024.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT3M3Q6B3JBKB52ZJZR0",
+      "style": "st_character",
+      "text": {
+        "plain": "lee",
+        "runs": [
+          {
+            "text": "lee",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT3N05YEG0N01C7YDXJH",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "That can't be coincidence. William's travel records show he was in Vietnam the same month. Same time frame.",
+        "runs": [
+          {
+            "text": "That can't be coincidence. William's travel records show he was in Vietnam the same month. Same time frame.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT3PJM8EFV2BHX6TMGF0",
+      "style": "st_action",
+      "text": {
+        "plain": "The screen switches back to William's photo - the first victim, eyes staring lifelessly from the autopsy report.",
+        "runs": [
+          {
+            "text": "The screen switches back to William's photo - the first victim, eyes staring lifelessly from the autopsy report.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT3QVXN3FXC4YG4C7V31",
+      "style": "st_character",
+      "text": {
+        "plain": "miller",
+        "runs": [
+          {
+            "text": "miller",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT3RZF1JBVKYNJGDB72D",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "It gets better. William's fingerprints were also found at the Seattle and LA crime scenes.",
+        "runs": [
+          {
+            "text": "It gets better. William's fingerprints were also found at the Seattle and LA crime scenes.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT3SCX9KW2CNK4V45ZWA",
+      "style": "st_action",
+      "text": {
+        "plain": "The room falls into suffocating silence. The uniforms exchange glances. King's weathered face goes pale.",
+        "runs": [
+          {
+            "text": "The room falls into suffocating silence. The uniforms exchange glances. King's weathered face goes pale.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT3TRPNN9193DRM6XH37",
+      "style": "st_character",
+      "text": {
+        "plain": "miller",
+        "runs": [
+          {
+            "text": "miller",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT3VX04M74DBQH993SYT",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "We're bringing Dalton in for questioning. I'll coordinate with Judge Whitmore - he's at work in San Mateo. I'm sending the address to your phones now.",
+        "runs": [
+          {
+            "text": "We're bringing Dalton in for questioning. I'll coordinate with Judge Whitmore - he's at work in San Mateo. I'm sending the address to your phones now.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT3W260BN4VRWPX0KA4P",
+      "style": "st_action",
+      "text": {
+        "plain": "She snaps the laptop shut. The screen goes dark.",
+        "runs": [
+          {
+            "text": "She snaps the laptop shut. The screen goes dark.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT3X4BTT1N9R2X9GKYRH",
+      "style": "st_character",
+      "text": {
+        "plain": "MILLER",
+        "runs": [
+          {
+            "text": "MILLER",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT3YQXW1V7X3SAWFJYK3",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "Gear up. We move in fifteen.",
+        "runs": [
+          {
+            "text": "Gear up. We move in fifteen.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT3Z8HTKDQZ9P7VDAZDR",
+      "style": "st_action",
+      "text": {
+        "plain": "The room empties in a controlled rush - bodies filing out with purpose. King lingers, his eyes tracking Miller as she exits. When the last officer disappears, he glances over his shoulder, checking the doorway.",
+        "runs": [
+          {
+            "text": "The room empties in a controlled rush - bodies filing out with purpose. King lingers, his eyes tracking Miller as she exits. When the last officer disappears, he glances over his shoulder, checking the doorway.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT40H5DDGBYSDF2TR4BB",
+      "style": "st_action",
+      "text": {
+        "plain": "EXT. SFPD PARKING LOT - DAY",
+        "runs": [
+          {
+            "text": "EXT. SFPD PARKING LOT - DAY",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT413ZWFYK5DKZHEE64R",
+      "style": "st_action",
+      "text": {
+        "plain": "King pushes through the side door into harsh sunlight. He pulls out his phone, thumb scrolling through contacts before stopping on one name. He hits dial.",
+        "runs": [
+          {
+            "text": "King pushes through the side door into harsh sunlight. He pulls out his phone, thumb scrolling through contacts before stopping on one name. He hits dial.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT42S5ARKSA7ZD62BP8Q",
+      "style": "st_action",
+      "text": {
+        "plain": "The phone rings twice.",
+        "runs": [
+          {
+            "text": "The phone rings twice.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT43M5QYW0AWYE7Z62EJ",
+      "style": "st_character",
+      "text": {
+        "plain": "king",
+        "runs": [
+          {
+            "text": "king",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT44DD4FS3ZDVHGF930N",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "Hey, Adam, that license plate you asked me to run - what was that about?",
+        "runs": [
+          {
+            "text": "Hey, Adam, that license plate you asked me to run - what was that about?",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT45R4NKDAE1BCV56P1P",
+      "style": "st_character",
+      "text": {
+        "plain": "adam (V.O.)",
+        "runs": [
+          {
+            "text": "adam (V.O.)",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT46TH1MM3JVWC7V24X6",
+      "style": "st_parenthetical",
+      "text": {
+        "plain": "(cautious)",
+        "runs": [
+          {
+            "text": "(cautious)",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT47VWTJX8YV5XA2F4KQ",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "Just... related to a case I'm working on.",
+        "runs": [
+          {
+            "text": "Just... related to a case I'm working on.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT48PABSECAJSFH1EMAW",
+      "style": "st_character",
+      "text": {
+        "plain": "king",
+        "runs": [
+          {
+            "text": "king",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT49GTD6W0FBW9N1AXKV",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "Your client?",
+        "runs": [
+          {
+            "text": "Your client?",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT4AF8367XQHKPMKRRR0",
+      "style": "st_character",
+      "text": {
+        "plain": "adam (V.O.)",
+        "runs": [
+          {
+            "text": "adam (V.O.)",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT4B507P375HF0KYP7C3",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "No. Someone connected to my client's situation.",
+        "runs": [
+          {
+            "text": "No. Someone connected to my client's situation.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT4CA48R7S2H5MZJWAHW",
+      "style": "st_action",
+      "text": {
+        "plain": "King's jaw clenches. He turns, scanning the parking lot.",
+        "runs": [
+          {
+            "text": "King's jaw clenches. He turns, scanning the parking lot.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT4DDJNJY4372Z8XAYAJ",
+      "style": "st_character",
+      "text": {
+        "plain": "king",
+        "runs": [
+          {
+            "text": "king",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT4EEJXGYPDR0ZVFCANS",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "You need to stay away from this, Adam. I mean it.",
+        "runs": [
+          {
+            "text": "You need to stay away from this, Adam. I mean it.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT4FCPM16ZPDF9ADGBPE",
+      "style": "st_character",
+      "text": {
+        "plain": "adam (V.O.)",
+        "runs": [
+          {
+            "text": "adam (V.O.)",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT4GB92ZHDQMZJNMCMEM",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "Why? What's going on?",
+        "runs": [
+          {
+            "text": "Why? What's going on?",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT4H9KXAP0CYM101QMYN",
+      "style": "st_character",
+      "text": {
+        "plain": "king",
+        "runs": [
+          {
+            "text": "king",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT4JWP5R5SAXVQ58F0H2",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "It's complicated. And confidential. Just trust me - stay the hell away from it.",
+        "runs": [
+          {
+            "text": "It's complicated. And confidential. Just trust me - stay the hell away from it.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT4KSD26GHEMAQ9RBSJ1",
+      "style": "st_character",
+      "text": {
+        "plain": "adam",
+        "runs": [
+          {
+            "text": "adam",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT4MGCWZ2N1Y4QBE00H9",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "Alright. I trust you. Thanks, King.",
+        "runs": [
+          {
+            "text": "Alright. I trust you. Thanks, King.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT4NG1MH9BACXQSYED7P",
+      "style": "st_action",
+      "text": {
+        "plain": "King ends the call, staring at the phone screen for a long moment before pocketing it.",
+        "runs": [
+          {
+            "text": "King ends the call, staring at the phone screen for a long moment before pocketing it.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT4P9SK60SZR1DCH1XQV",
+      "style": "st_scene_heading",
+      "text": {
+        "plain": "inT. coffee house, same time",
+        "runs": [
+          {
+            "text": "inT. coffee house, same time",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT4QQ8FX1KAQDN1HBPQM",
+      "style": "st_action",
+      "text": {
+        "plain": "Morning light filters through large windows. ADAM and ALICE sit at a small table near the window. Two ceramic mugs sit between them, coffee half-consumed and cooling. The café is nearly empty - the mid-morning lull.",
+        "runs": [
+          {
+            "text": "Morning light filters through large windows. ADAM and ALICE sit at a small table near the window. Two ceramic mugs sit between them, coffee half-consumed and cooling. The café is nearly empty - the mid-morning lull.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT4RW68WXTJC6985D750",
+      "style": "st_character",
+      "text": {
+        "plain": "alice",
+        "runs": [
+          {
+            "text": "alice",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT4STG49TWKZKDN5R1H5",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "What is it?",
+        "runs": [
+          {
+            "text": "What is it?",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT4TK02CBX0EE5HTBGZE",
+      "style": "st_action",
+      "text": {
+        "plain": "Adam sets his phone down slowly, processing.",
+        "runs": [
+          {
+            "text": "Adam sets his phone down slowly, processing.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT4VM7D1D6745T1XB1ZN",
+      "style": "st_character",
+      "text": {
+        "plain": "adam",
+        "runs": [
+          {
+            "text": "adam",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT4W2J6HF7J2WPG1K88W",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "That was my contact at SFPD. Shane might be involved with some dangerous people.",
+        "runs": [
+          {
+            "text": "That was my contact at SFPD. Shane might be involved with some dangerous people.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT4X57DY2MBF1KK20GMV",
+      "style": "st_action",
+      "text": {
+        "plain": "Alice's fingers tighten around her mug.",
+        "runs": [
+          {
+            "text": "Alice's fingers tighten around her mug.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT4YKAV2DW7VXZDY2XSP",
+      "style": "st_character",
+      "text": {
+        "plain": "alice",
+        "runs": [
+          {
+            "text": "alice",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT4ZFW51X16A02BMKFV7",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "What do you mean, dangerous?",
+        "runs": [
+          {
+            "text": "What do you mean, dangerous?",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT50NHESAZZPBWFCZJNM",
+      "style": "st_character",
+      "text": {
+        "plain": "adam",
+        "runs": [
+          {
+            "text": "adam",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT51RKKXT0ZSRF3BJCW8",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "The man Shane met - I followed him, got his plate number. Had my buddy run it. He just warned me to back off. That's... not like him.",
+        "runs": [
+          {
+            "text": "The man Shane met - I followed him, got his plate number. Had my buddy run it. He just warned me to back off. That's... not like him.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT52XSNV8BK4EXJFJE34",
+      "style": "st_character",
+      "text": {
+        "plain": "alice",
+        "runs": [
+          {
+            "text": "alice",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT53BWHBQPAGWXMCM9B3",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "How serious are we talking?",
+        "runs": [
+          {
+            "text": "How serious are we talking?",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT54MT842EB3P694ND2T",
+      "style": "st_action",
+      "text": {
+        "plain": "Adam drains his coffee in one deliberate gulp and stands, chair scraping against tile.",
+        "runs": [
+          {
+            "text": "Adam drains his coffee in one deliberate gulp and stands, chair scraping against tile.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT55SW6E6WS16EFFGF97",
+      "style": "st_character",
+      "text": {
+        "plain": "adam",
+        "runs": [
+          {
+            "text": "adam",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT56BM2Y38YZEYQSTQ67",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "Don't worry about it. I'll dig deeper. You stay out of it for now.",
+        "runs": [
+          {
+            "text": "Don't worry about it. I'll dig deeper. You stay out of it for now.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT57TCAWC6X2G0NA68W5",
+      "style": "st_character",
+      "text": {
+        "plain": "alice",
+        "runs": [
+          {
+            "text": "alice",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT58Y591XTHNSPQ2GZNF",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "Adam...",
+        "runs": [
+          {
+            "text": "Adam...",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT591NNV3YQK83QHDQQ0",
+      "style": "st_character",
+      "text": {
+        "plain": "adam",
+        "runs": [
+          {
+            "text": "adam",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT5A6FGHP8NK13XN4BX9",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "I'll keep you posted. Promise.",
+        "runs": [
+          {
+            "text": "I'll keep you posted. Promise.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT5BYB5VJBZSCJFZZFFT",
+      "style": "st_action",
+      "text": {
+        "plain": "Adam heads for the door. Alice remains seated, watching him leave through the window. When he's out of sight, she pulls out her phone.",
+        "runs": [
+          {
+            "text": "Adam heads for the door. Alice remains seated, watching him leave through the window. When he's out of sight, she pulls out her phone.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT5CGNYN9ES15AJDT5ZX",
+      "style": "st_character",
+      "text": {
+        "plain": "adam",
+        "runs": [
+          {
+            "text": "adam",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT5DXASVRMBJ8TR0A5XE",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "I will keep you posted.",
+        "runs": [
+          {
+            "text": "I will keep you posted.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT5EFY9Z4C29HN3MCT3S",
+      "style": "st_action",
+      "text": {
+        "plain": "Her thumb opens the Find My app. A blue dot pulses on the map - Shane's location. The dot is moving northeast.",
+        "runs": [
+          {
+            "text": "Her thumb opens the Find My app. A blue dot pulses on the map - Shane's location. The dot is moving northeast.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT5FWTBVG6Y5HYV7PHZG",
+      "style": "st_action",
+      "text": {
+        "plain": "She stares at it for ten seconds, then stands abruptly, leaving her coffee behind.",
+        "runs": [
+          {
+            "text": "She stares at it for ten seconds, then stands abruptly, leaving her coffee behind.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT5G7WHHDPWJ6H95R8MX",
+      "style": "st_scene_heading",
+      "text": {
+        "plain": "exT. bank of america parking lot, san mateo, day",
+        "runs": [
+          {
+            "text": "exT. bank of america parking lot, san mateo, day",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT5H9V8DQDZ1HS5JJ7TM",
+      "style": "st_action",
+      "text": {
+        "plain": "A suburban parking lot baking under midday sun. SHANE sits behind the wheel of a nondescript sedan, fingers drumming the steering wheel.",
+        "runs": [
+          {
+            "text": "A suburban parking lot baking under midday sun. SHANE sits behind the wheel of a nondescript sedan, fingers drumming the steering wheel.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT5JKR3QPKXXJ16TBC7B",
+      "style": "st_action",
+      "text": {
+        "plain": "A black Jeep Cherokee swings into a spot three spaces down. The driver emerges - LILY (late 20s, Latina, athletic build, moving with quiet confidence). Her eyes meet Shane's through the windshield. He gives a barely perceptible nod. She returns it.",
+        "runs": [
+          {
+            "text": "A black Jeep Cherokee swings into a spot three spaces down. The driver emerges - LILY (late 20s, Latina, athletic build, moving with quiet confidence). Her eyes meet Shane's through the windshield. He gives a barely perceptible nod. She returns it.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT5K883P8QBZQCZ9P559",
+      "style": "st_action",
+      "text": {
+        "plain": "Both exit their vehicles without a word. They walk toward the bank entrance separately, professional distance between them.",
+        "runs": [
+          {
+            "text": "Both exit their vehicles without a word. They walk toward the bank entrance separately, professional distance between them.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT5MZM7WFG5WHT8NXP9X",
+      "style": "st_scene_heading",
+      "text": {
+        "plain": "inT. bank of america, san mateo, day",
+        "runs": [
+          {
+            "text": "inT. bank of america, san mateo, day",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT5NKPSJHV9N0RJHGQ9A",
+      "style": "st_action",
+      "text": {
+        "plain": "Polished tile floors, muted conversations, the hum of transaction machines. SPENCER DALTON (in business casual, professional smile firmly in place) sits behind a desk, phone pressed to his ear.",
+        "runs": [
+          {
+            "text": "Polished tile floors, muted conversations, the hum of transaction machines. SPENCER DALTON (in business casual, professional smile firmly in place) sits behind a desk, phone pressed to his ear.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT5PYT777736DBHQQEG2",
+      "style": "st_action",
+      "text": {
+        "plain": "His eyes track Shane and Lily as they enter. His expression shifts - recognition, urgency.",
+        "runs": [
+          {
+            "text": "His eyes track Shane and Lily as they enter. His expression shifts - recognition, urgency.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT5QFYD7B4SDC7BD9KT5",
+      "style": "st_character",
+      "text": {
+        "plain": "Spencer",
+        "runs": [
+          {
+            "text": "Spencer",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT5RA71VHZ32BFBYY109",
+      "style": "st_parenthetical",
+      "text": {
+        "plain": "(into phone",
+        "runs": [
+          {
+            "text": "(into phone",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT5S9YESF7E28JZ67620",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "I apologize, Mr. Harrington. Something urgent just came up. Can I call you back within the hour?",
+        "runs": [
+          {
+            "text": "I apologize, Mr. Harrington. Something urgent just came up. Can I call you back within the hour?",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT5TD54EBPWGKYEB889P",
+      "style": "st_action",
+      "text": {
+        "plain": "The customer's voice continues to protest through the speaker. Spencer ends the call anyway. He rises smoothly, gesturing toward a small glass-walled conference room in the corner.",
+        "runs": [
+          {
+            "text": "The customer's voice continues to protest through the speaker. Spencer ends the call anyway. He rises smoothly, gesturing toward a small glass-walled conference room in the corner.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT5V14MS71D32R8R1PB7",
+      "style": "st_character",
+      "text": {
+        "plain": "spencer",
+        "runs": [
+          {
+            "text": "spencer",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT5W7EM3TC3F73PH2HB3",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "Shane, Lily.",
+        "runs": [
+          {
+            "text": "Shane, Lily.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT5XJF6DQRM5TS8FW4AV",
+      "style": "st_character",
+      "text": {
+        "plain": "shane",
+        "runs": [
+          {
+            "text": "shane",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT5YXQQM1S8VD0M1PN56",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "Somewhere private?",
+        "runs": [
+          {
+            "text": "Somewhere private?",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT5ZNHT51976VDPKJHRR",
+      "style": "st_action",
+      "text": {
+        "plain": "Spencer tilts his head toward the conference room.",
+        "runs": [
+          {
+            "text": "Spencer tilts his head toward the conference room.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT6068VXNSCWFK18RV9S",
+      "style": "st_character",
+      "text": {
+        "plain": "spencer",
+        "runs": [
+          {
+            "text": "spencer",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT616ME3TVGPSEJCVVFW",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "This way.",
+        "runs": [
+          {
+            "text": "This way.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT62T9PCH09DXFVNCE36",
+      "style": "st_scene_heading",
+      "text": {
+        "plain": "INT. BANK CONFERENCE ROOM - CONTINUOUS",
+        "runs": [
+          {
+            "text": "INT. BANK CONFERENCE ROOM - CONTINUOUS",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT63PZDQD1P93CTJ0V5X",
+      "style": "st_action",
+      "text": {
+        "plain": "The three file in. Spencer closes the door with a soft click, pulling the internal blinds down. As they settle into chairs, he reaches into his pocket and produces a small silver key, placing it deliberately on the table.",
+        "runs": [
+          {
+            "text": "The three file in. Spencer closes the door with a soft click, pulling the internal blinds down. As they settle into chairs, he reaches into his pocket and produces a small silver key, placing it deliberately on the table.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT64XFXWYPZ7C7H4SANX",
+      "style": "st_character",
+      "text": {
+        "plain": "spencer",
+        "runs": [
+          {
+            "text": "spencer",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT65Q57Q1B87QRJ5ZYAK",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "This should open the server rack. Row 6, rack 14, slot 8.",
+        "runs": [
+          {
+            "text": "This should open the server rack. Row 6, rack 14, slot 8.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT66KPPH80PS7S2M60MX",
+      "style": "st_action",
+      "text": {
+        "plain": "Shane picks up the key, turning it over between his fingers.",
+        "runs": [
+          {
+            "text": "Shane picks up the key, turning it over between his fingers.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT67EP8CG6H4SW2N7ZWZ",
+      "style": "st_character",
+      "text": {
+        "plain": "shane",
+        "runs": [
+          {
+            "text": "shane",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT688F6H0H48Q2Q1WK02",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "You make it sound simple.",
+        "runs": [
+          {
+            "text": "You make it sound simple.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT6990J17BWNN5ZSR22D",
+      "style": "st_character",
+      "text": {
+        "plain": "lily",
+        "runs": [
+          {
+            "text": "lily",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT6ACZBY79WRGB4KZCAS",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "I'll be your backup. We've planned for contingencies.",
+        "runs": [
+          {
+            "text": "I'll be your backup. We've planned for contingencies.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT6BVA8BMPS2NPHV9VX7",
+      "style": "st_character",
+      "text": {
+        "plain": "shane",
+        "runs": [
+          {
+            "text": "shane",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT6CKNCFV3680S1TH5XF",
+      "style": "st_parenthetical",
+      "text": {
+        "plain": "(edge in his voice)",
+        "runs": [
+          {
+            "text": "(edge in his voice)",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT6DQK2M2K66CEVFDCPG",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "You understand how data centers work? Biometric locks, cameras, security protocols. This isn't breaking into a filing cabinet.",
+        "runs": [
+          {
+            "text": "You understand how data centers work? Biometric locks, cameras, security protocols. This isn't breaking into a filing cabinet.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT6EGCRFKZ1XHHK31258",
+      "style": "st_action",
+      "text": {
+        "plain": "Spencer leans forward, voice dropping to something almost reverent.",
+        "runs": [
+          {
+            "text": "Spencer leans forward, voice dropping to something almost reverent.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT6FRCEZ7CC9NQF89JFM",
+      "style": "st_character",
+      "text": {
+        "plain": "spencer",
+        "runs": [
+          {
+            "text": "spencer",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT6GB05AANX1S3HBVMHN",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "You'll be a hero. For all of us. For William's memory.",
+        "runs": [
+          {
+            "text": "You'll be a hero. For all of us. For William's memory.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT6H6Z9R4YK2XFHWT2RM",
+      "style": "st_character",
+      "text": {
+        "plain": "shane",
+        "runs": [
+          {
+            "text": "shane",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT6J0YTKWTJ6Y71SD2PC",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "I  know it's important. I'll do it. But let's be clear - I didn't volunteer for this. You forced me.",
+        "runs": [
+          {
+            "text": "I  know it's important. I'll do it. But let's be clear - I didn't volunteer for this. You forced me.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT6KYZ06C6VRGTJMNCE7",
+      "style": "st_character",
+      "text": {
+        "plain": "spencer",
+        "runs": [
+          {
+            "text": "spencer",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT6MSCES0F7FFR50A4B2",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "I know. I'm sorry.",
+        "runs": [
+          {
+            "text": "I know. I'm sorry.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT6NQ5F1SHS6NVY74NSA",
+      "style": "st_action",
+      "text": {
+        "plain": "Through the window blinds, movement catches Spencer's eye. Two unmarked sedans roll into the parking lot - too deliberate, too coordinated. One of the vehicle has a uniformed police officer on the driver's seat.",
+        "runs": [
+          {
+            "text": "Through the window blinds, movement catches Spencer's eye. Two unmarked sedans roll into the parking lot - too deliberate, too coordinated. One of the vehicle has a uniformed police officer on the driver's seat.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT6P2VPSBFCV8BRG0VBF",
+      "style": "st_action",
+      "text": {
+        "plain": "His face drains of color.",
+        "runs": [
+          {
+            "text": "His face drains of color.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT6QVPPDZR585ZR3NNG3",
+      "style": "st_character",
+      "text": {
+        "plain": "spencer",
+        "runs": [
+          {
+            "text": "spencer",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT6RVJ9WA9BPYEDJ5XYP",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "What the fuck-",
+        "runs": [
+          {
+            "text": "What the fuck-",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT6SRE7AZC1J722PENWD",
+      "style": "st_scene_heading",
+      "text": {
+        "plain": "exT. BANK OF AMERICA PARKING LOT - CONTINUOUS",
+        "runs": [
+          {
+            "text": "exT. BANK OF AMERICA PARKING LOT - CONTINUOUS",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT6TEJFEBRD7JFNMZMRT",
+      "style": "st_action",
+      "text": {
+        "plain": "Detective KING and Detective LEE emerge from the first sedan. Agent MILLER and a uniformed officer exit the second. They move with tactical precision toward the entrance.",
+        "runs": [
+          {
+            "text": "Detective KING and Detective LEE emerge from the first sedan. Agent MILLER and a uniformed officer exit the second. They move with tactical precision toward the entrance.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT6VKQ4WR6HX4NRPV5SF",
+      "style": "st_scene_heading",
+      "text": {
+        "plain": "iNT. BANK OF AMERICA - CONTINUOUS",
+        "runs": [
+          {
+            "text": "iNT. BANK OF AMERICA - CONTINUOUS",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT6WB07JVD2TZDMKKEFV",
+      "style": "st_action",
+      "text": {
+        "plain": "Miller strides to the first teller window, flashing her FBI credentials.",
+        "runs": [
+          {
+            "text": "Miller strides to the first teller window, flashing her FBI credentials.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT6XX0B1ZPG2B6QM242E",
+      "style": "st_character",
+      "text": {
+        "plain": "miller",
+        "runs": [
+          {
+            "text": "miller",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT6YYEYEFKE4M4DN4DGW",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "We need to speak with Spencer Dalton. Branch manager. Now.",
+        "runs": [
+          {
+            "text": "We need to speak with Spencer Dalton. Branch manager. Now.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT6ZV3VC3QJ7M32GD08D",
+      "style": "st_action",
+      "text": {
+        "plain": "The teller - young, startled - glances toward Spencer's empty desk.",
+        "runs": [
+          {
+            "text": "The teller - young, startled - glances toward Spencer's empty desk.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT702803NPYQC4CDGF85",
+      "style": "st_character",
+      "text": {
+        "plain": "teller 1",
+        "runs": [
+          {
+            "text": "teller 1",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT71ERERQXRTPCCM1H9R",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "He was just... I think he went out the back. Like, right now.",
+        "runs": [
+          {
+            "text": "He was just... I think he went out the back. Like, right now.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT721YZJTGWJ05ZCHWK6",
+      "style": "st_action",
+      "text": {
+        "plain": "Miller's hand moves to her holster.",
+        "runs": [
+          {
+            "text": "Miller's hand moves to her holster.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT73WMBTPS55KKMX5XKK",
+      "style": "st_character",
+      "text": {
+        "plain": "miller",
+        "runs": [
+          {
+            "text": "miller",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT7459JPNR0W80HG589N",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "Show me.",
+        "runs": [
+          {
+            "text": "Show me.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT75EAF3CHT5ECJHZ6WP",
+      "style": "st_action",
+      "text": {
+        "plain": "The four officers rush toward the rear exit.",
+        "runs": [
+          {
+            "text": "The four officers rush toward the rear exit.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT76Z8VNKGNH0RHC0S1E",
+      "style": "st_action",
+      "text": {
+        "plain": "In the waiting area, Shane and Lily rise from their chairs, calm and unhurried. They walk toward the front entrance, just two customers leaving a bank.",
+        "runs": [
+          {
+            "text": "In the waiting area, Shane and Lily rise from their chairs, calm and unhurried. They walk toward the front entrance, just two customers leaving a bank.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT77VNEXBPNFG0ZZJF1Z",
+      "style": "st_action",
+      "text": {
+        "plain": "EXT. SAN MATEO DOWNTOWN STREETS - DAY",
+        "runs": [
+          {
+            "text": "EXT. SAN MATEO DOWNTOWN STREETS - DAY",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT78SVDQRG6S1H51KJD2",
+      "style": "st_action",
+      "text": {
+        "plain": "Lunch hour chaos - suits and casual wear mixing on crowded sidewalks, food trucks lining the curbs, the smell of tacos and coffee thick in the air.",
+        "runs": [
+          {
+            "text": "Lunch hour chaos - suits and casual wear mixing on crowded sidewalks, food trucks lining the curbs, the smell of tacos and coffee thick in the air.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT79M253DZXG1J3TD96D",
+      "style": "st_action",
+      "text": {
+        "plain": "Spencer bursts from an alley, shoving through the crowd. His professional veneer is gone - sweat beads on his forehead, eyes wild. He glances back repeatedly.",
+        "runs": [
+          {
+            "text": "Spencer bursts from an alley, shoving through the crowd. His professional veneer is gone - sweat beads on his forehead, eyes wild. He glances back repeatedly.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT7A7A9N0PS03ATQ41VP",
+      "style": "st_action",
+      "text": {
+        "plain": "Detective King rounds a corner a block behind, scanning faces.",
+        "runs": [
+          {
+            "text": "Detective King rounds a corner a block behind, scanning faces.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT7BE73ZRYBHAH6MAZTR",
+      "style": "st_action",
+      "text": {
+        "plain": "Spencer shoulder-checks an elderly man in a cardigan, sending him stumbling. A younger man beside the elder catches him, fury flashing across his face.",
+        "runs": [
+          {
+            "text": "Spencer shoulder-checks an elderly man in a cardigan, sending him stumbling. A younger man beside the elder catches him, fury flashing across his face.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT7CF2V6B0M3AQ3NABS1",
+      "style": "st_character",
+      "text": {
+        "plain": "young man 1",
+        "runs": [
+          {
+            "text": "young man 1",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT7D127Q01F98647M5FY",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "Hey! Watch where you're-",
+        "runs": [
+          {
+            "text": "Hey! Watch where you're-",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT7E3Q46X4BM4QBHV9DG",
+      "style": "st_action",
+      "text": {
+        "plain": "King's head snaps toward the commotion.",
+        "runs": [
+          {
+            "text": "King's head snaps toward the commotion.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT7FGK574WQ3W81TJAA0",
+      "style": "st_character",
+      "text": {
+        "plain": "king",
+        "runs": [
+          {
+            "text": "king",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT7GQ75PJCWSG2XWPN06",
+      "style": "st_parenthetical",
+      "text": {
+        "plain": "(shouting, pointing)",
+        "runs": [
+          {
+            "text": "(shouting, pointing)",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT7HBPAWKGP3C9HGTVZK",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "There! This way!",
+        "runs": [
+          {
+            "text": "There! This way!",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT7J2YQ8ZCH5RG224BYX",
+      "style": "st_action",
+      "text": {
+        "plain": "He waves to Lee and Miller. The four officers surge forward, boots pounding pavement.",
+        "runs": [
+          {
+            "text": "He waves to Lee and Miller. The four officers surge forward, boots pounding pavement.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT7KW1R8VXNH7ZMENQ53",
+      "style": "st_action",
+      "text": {
+        "plain": "Spencer darts left, weaving between pedestrians. King is closing the distance.",
+        "runs": [
+          {
+            "text": "Spencer darts left, weaving between pedestrians. King is closing the distance.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT7MPYM6S80RX48WKGGP",
+      "style": "st_action",
+      "text": {
+        "plain": "At the next intersection, King signals to Lee.",
+        "runs": [
+          {
+            "text": "At the next intersection, King signals to Lee.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT7NA6AWNDX23ZCKT80K",
+      "style": "st_character",
+      "text": {
+        "plain": "king",
+        "runs": [
+          {
+            "text": "king",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT7PBQDR63WE54KX2HVX",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "Lee - cut him off! Circle around!",
+        "runs": [
+          {
+            "text": "Lee - cut him off! Circle around!",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT7QQ0BRBG66WMYSR779",
+      "style": "st_action",
+      "text": {
+        "plain": "Lee and the uniform peel left. King charges straight ahead, reaching the corner where Spencer vanished.",
+        "runs": [
+          {
+            "text": "Lee and the uniform peel left. King charges straight ahead, reaching the corner where Spencer vanished.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT7R6KE7HTTGKPXX97GS",
+      "style": "st_action",
+      "text": {
+        "plain": "Empty sidewalk.",
+        "runs": [
+          {
+            "text": "Empty sidewalk.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT7SHCDTA3Z0BJ0W1SNM",
+      "style": "st_action",
+      "text": {
+        "plain": "King speaks into his radio, breath coming hard.",
+        "runs": [
+          {
+            "text": "King speaks into his radio, breath coming hard.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT7TZDE64AR9R69PSEK9",
+      "style": "st_character",
+      "text": {
+        "plain": "king",
+        "runs": [
+          {
+            "text": "king",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT7VFQPHZJF6JSDKQYF9",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "I've lost visual. Anyone have eyes?",
+        "runs": [
+          {
+            "text": "I've lost visual. Anyone have eyes?",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT7W3B85JBPFNYME0TV3",
+      "style": "st_character",
+      "text": {
+        "plain": "lee",
+        "runs": [
+          {
+            "text": "lee",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT7XPE5900R1XNN8DNHM",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "Negative. Nothing on my side.",
+        "runs": [
+          {
+            "text": "Negative. Nothing on my side.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT7YZWA7WTNQB4QMS5VH",
+      "style": "st_character",
+      "text": {
+        "plain": "miller",
+        "runs": [
+          {
+            "text": "miller",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT7ZMVFB4WWZRNSKNPFS",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "He can't have gone far. Keep searching.",
+        "runs": [
+          {
+            "text": "He can't have gone far. Keep searching.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT804JKD3AFSPGVQ2NB5",
+      "style": "st_action",
+      "text": {
+        "plain": "King jogs forward, eyes sweeping the street. Across the intersection - a multi-level parking structure, entrance yawning dark.",
+        "runs": [
+          {
+            "text": "King jogs forward, eyes sweeping the street. Across the intersection - a multi-level parking structure, entrance yawning dark.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT8181DP6EVX978WEY35",
+      "style": "st_scene_heading",
+      "text": {
+        "plain": "inT. parking structure, san mateo - CONTINUOUS",
+        "runs": [
+          {
+            "text": "inT. parking structure, san mateo - CONTINUOUS",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT82H05KP2XD84AG4566",
+      "style": "st_action",
+      "text": {
+        "plain": "King enters the shadowed concrete structure, drawing his service weapon. The garage is quiet - distant engine echoes.",
+        "runs": [
+          {
+            "text": "King enters the shadowed concrete structure, drawing his service weapon. The garage is quiet - distant engine echoes.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT839FEHQAGZ1S4BCVJ4",
+      "style": "st_action",
+      "text": {
+        "plain": "He moves up the entrance ramp, weapon low but ready, checking between parked cars.",
+        "runs": [
+          {
+            "text": "He moves up the entrance ramp, weapon low but ready, checking between parked cars.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT84BDY5W7Z69D8RMY4Y",
+      "style": "st_action",
+      "text": {
+        "plain": "A sedan rounds the corner above, descending toward him. King steps into the center of the lane, raising his free hand. The car stops.",
+        "runs": [
+          {
+            "text": "A sedan rounds the corner above, descending toward him. King steps into the center of the lane, raising his free hand. The car stops.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT85QG5F2NSEHVV22KPC",
+      "style": "st_action",
+      "text": {
+        "plain": "A woman in the driver's seat, eyes wide with alarm.",
+        "runs": [
+          {
+            "text": "A woman in the driver's seat, eyes wide with alarm.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT86HBF312TWFJRMDJST",
+      "style": "st_action",
+      "text": {
+        "plain": "King holsters his weapon, tapping his badge on his belt. He gestures for her to lower the window.",
+        "runs": [
+          {
+            "text": "King holsters his weapon, tapping his badge on his belt. He gestures for her to lower the window.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT87FZ8W7N6RNK5069PS",
+      "style": "st_character",
+      "text": {
+        "plain": "king",
+        "runs": [
+          {
+            "text": "king",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT88PVRBZW0N8XPE0ZCJ",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "Ma'am, have you seen a man running through here? White, thirties, dark jacket-",
+        "runs": [
+          {
+            "text": "Ma'am, have you seen a man running through here? White, thirties, dark jacket-",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT89V7VWZ1SK9FJPQDNM",
+      "style": "st_action",
+      "text": {
+        "plain": "He fumbles out his phone, pulling up Spencer's photo.",
+        "runs": [
+          {
+            "text": "He fumbles out his phone, pulling up Spencer's photo.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT8AFFQHYGBDFAVDEVF7",
+      "style": "st_character",
+      "text": {
+        "plain": "king",
+        "runs": [
+          {
+            "text": "king",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT8BBJGCVVP5TZQV6JV9",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "This man. Have you seen him?",
+        "runs": [
+          {
+            "text": "This man. Have you seen him?",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT8CXBT3X46FHG9ASQ7M",
+      "style": "st_character",
+      "text": {
+        "plain": "female driver",
+        "runs": [
+          {
+            "text": "female driver",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT8DGREBEQJQXKJ67QSX",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "No, I haven't seen anyone. Sorry.",
+        "runs": [
+          {
+            "text": "No, I haven't seen anyone. Sorry.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT8ENWT8ERJBXQCJH9BS",
+      "style": "st_action",
+      "text": {
+        "plain": "King peers into the backseat - empty fast food bags, child's car seat. He steps aside.",
+        "runs": [
+          {
+            "text": "King peers into the backseat - empty fast food bags, child's car seat. He steps aside.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT8F93XATA1TBA1CZSTQ",
+      "style": "st_character",
+      "text": {
+        "plain": "king",
+        "runs": [
+          {
+            "text": "king",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT8GSP5VY9Z3CHCWAEA5",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "Get out of here. Quickly.",
+        "runs": [
+          {
+            "text": "Get out of here. Quickly.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT8HKSBNDH8WMC7Z2N4M",
+      "style": "st_action",
+      "text": {
+        "plain": "The car accelerates away, tires squealing.",
+        "runs": [
+          {
+            "text": "The car accelerates away, tires squealing.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT8J9HZ6M9J2FBBWM555",
+      "style": "st_action",
+      "text": {
+        "plain": "King continues up the ramp, footsteps echoing.",
+        "runs": [
+          {
+            "text": "King continues up the ramp, footsteps echoing.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT8KSYGPVS65NNS5979A",
+      "style": "st_action",
+      "text": {
+        "plain": "WHAM.",
+        "runs": [
+          {
+            "text": "WHAM.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT8M9TTJHX93RY3PDPRZ",
+      "style": "st_action",
+      "text": {
+        "plain": "Spencer explodes from behind a concrete pillar, tackling King from the side. King hits the ground hard, his weapon skittering across oil-stained concrete.",
+        "runs": [
+          {
+            "text": "Spencer explodes from behind a concrete pillar, tackling King from the side. King hits the ground hard, his weapon skittering across oil-stained concrete.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT8ND424XG7N499C870Z",
+      "style": "st_action",
+      "text": {
+        "plain": "King rolls instinctively, dodging a clumsy kick from Spencer. He springs to his feet with a boxer's fluid grace, fists raised.",
+        "runs": [
+          {
+            "text": "King rolls instinctively, dodging a clumsy kick from Spencer. He springs to his feet with a boxer's fluid grace, fists raised.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT8PQ87VR72R9QKMCW9H",
+      "style": "st_action",
+      "text": {
+        "plain": "Spencer charges again.",
+        "runs": [
+          {
+            "text": "Spencer charges again.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT8QW4P77G3B64SW3XM2",
+      "style": "st_action",
+      "text": {
+        "plain": "King sidesteps, landing a sharp jab to Spencer's ribs - textbook form. Spencer stumbles but doesn't fall. King follows with a hook to the jaw. Spencer's head snaps back.",
+        "runs": [
+          {
+            "text": "King sidesteps, landing a sharp jab to Spencer's ribs - textbook form. Spencer stumbles but doesn't fall. King follows with a hook to the jaw. Spencer's head snaps back.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT8RWSJZMBNK87B7Y1HY",
+      "style": "st_action",
+      "text": {
+        "plain": "He should go down. Any normal person would go down.",
+        "runs": [
+          {
+            "text": "He should go down. Any normal person would go down.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT8S0VM019Y6HN79WMVQ",
+      "style": "st_action",
+      "text": {
+        "plain": "Spencer straightens, blood trickling from his split lip. His eyes are empty, mechanical.",
+        "runs": [
+          {
+            "text": "Spencer straightens, blood trickling from his split lip. His eyes are empty, mechanical.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT8TVZY0PJHY9TFQTPGS",
+      "style": "st_action",
+      "text": {
+        "plain": "They circle each other. King lands another combination - body shot, uppercut. The impacts sound solid, brutal.",
+        "runs": [
+          {
+            "text": "They circle each other. King lands another combination - body shot, uppercut. The impacts sound solid, brutal.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT8VWJ7XSMYHG7XPK859",
+      "style": "st_action",
+      "text": {
+        "plain": "Spencer drops to one knee.",
+        "runs": [
+          {
+            "text": "Spencer drops to one knee.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT8WY38HN31G9701CWBT",
+      "style": "st_action",
+      "text": {
+        "plain": "Then rises again.",
+        "runs": [
+          {
+            "text": "Then rises again.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT8X0M54GBAJR4Z6DG20",
+      "style": "st_action",
+      "text": {
+        "plain": "King's breathing grows labored. He throws another punch - slower this time. Spencer absorbs it, barely flinching.",
+        "runs": [
+          {
+            "text": "King's breathing grows labored. He throws another punch - slower this time. Spencer absorbs it, barely flinching.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT8YW1EDVMVB7XDDEGBC",
+      "style": "st_action",
+      "text": {
+        "plain": "Something is wrong. King's eyes widen, fear creeping into his veteran's composure.",
+        "runs": [
+          {
+            "text": "Something is wrong. King's eyes widen, fear creeping into his veteran's composure.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT8ZZBB87Q6BR6FB3ZRW",
+      "style": "st_action",
+      "text": {
+        "plain": "Spencer lunges forward, wild and uncoordinated but relentless. King blocks, counters, throws him to the ground again.",
+        "runs": [
+          {
+            "text": "Spencer lunges forward, wild and uncoordinated but relentless. King blocks, counters, throws him to the ground again.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT90TJCZJTT6KV7TP2B0",
+      "style": "st_action",
+      "text": {
+        "plain": "Spencer gets up.",
+        "runs": [
+          {
+            "text": "Spencer gets up.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT915RRW6YD6XDYPZ0J0",
+      "style": "st_action",
+      "text": {
+        "plain": "Again.",
+        "runs": [
+          {
+            "text": "Again.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT9279E7TNT4K3DXNG1T",
+      "style": "st_action",
+      "text": {
+        "plain": "And again.",
+        "runs": [
+          {
+            "text": "And again.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT93JEZFTMYZ5NWNW2WK",
+      "style": "st_action",
+      "text": {
+        "plain": "King is tiring. His movement gets slower. His guard drops. Spencer's fist crashes into his ribs with shocking force. King gasps, doubling over, dropping to one knee.",
+        "runs": [
+          {
+            "text": "King is tiring. His movement gets slower. His guard drops. Spencer's fist crashes into his ribs with shocking force. King gasps, doubling over, dropping to one knee.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT94H5SC43D50B9QYCVY",
+      "style": "st_action",
+      "text": {
+        "plain": "Spencer doesn't press the attack. Instead, he scans the ground, spots King's service weapon. He walks over and picks it up, turning it over in his hands like he's never held a gun before.",
+        "runs": [
+          {
+            "text": "Spencer doesn't press the attack. Instead, he scans the ground, spots King's service weapon. He walks over and picks it up, turning it over in his hands like he's never held a gun before.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT9542H19R43AG35HXKR",
+      "style": "st_action",
+      "text": {
+        "plain": "Footsteps echo from below.",
+        "runs": [
+          {
+            "text": "Footsteps echo from below.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT96DNTPWRS0QEBR2MJ9",
+      "style": "st_character",
+      "text": {
+        "plain": "miller (O.S.)",
+        "runs": [
+          {
+            "text": "miller (O.S.)",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT97M5Y3V1V0ZG43ESAX",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "King!",
+        "runs": [
+          {
+            "text": "King!",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT98ACSR4G5F4B6CEAHB",
+      "style": "st_action",
+      "text": {
+        "plain": "Spencer pivots toward the sound, raising the weapon toward Miller's approaching figure at the base of the ramp.",
+        "runs": [
+          {
+            "text": "Spencer pivots toward the sound, raising the weapon toward Miller's approaching figure at the base of the ramp.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT992RH40YW09112NW0K",
+      "style": "st_action",
+      "text": {
+        "plain": "He pulls the trigger.",
+        "runs": [
+          {
+            "text": "He pulls the trigger.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT9AXWHRQ0T47AHYRHW9",
+      "style": "st_action",
+      "text": {
+        "plain": "Click.",
+        "runs": [
+          {
+            "text": "Click.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT9BYQ57JK1NE5TAKEH0",
+      "style": "st_action",
+      "text": {
+        "plain": "Nothing.",
+        "runs": [
+          {
+            "text": "Nothing.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT9C6CG29XJZEYCNC6CT",
+      "style": "st_action",
+      "text": {
+        "plain": "Miller's weapon clears her holster in a practiced draw. She fires once.",
+        "runs": [
+          {
+            "text": "Miller's weapon clears her holster in a practiced draw. She fires once.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT9DBDHT34HTZTYVBA9E",
+      "style": "st_action",
+      "text": {
+        "plain": "The shot cracks through the garage.",
+        "runs": [
+          {
+            "text": "The shot cracks through the garage.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT9E6BY6995X6VKRAGB1",
+      "style": "st_action",
+      "text": {
+        "plain": "Spencer's head snaps back, a neat hole appearing in his forehead. He drops like a puppet with cut strings.",
+        "runs": [
+          {
+            "text": "Spencer's head snaps back, a neat hole appearing in his forehead. He drops like a puppet with cut strings.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT9FY5DGGGVPCAK9WHA9",
+      "style": "st_action",
+      "text": {
+        "plain": "Miller advances cautiously, weapon trained on the body. King sits on the concrete, one hand pressed to his bruised ribs, breathing hard.",
+        "runs": [
+          {
+            "text": "Miller advances cautiously, weapon trained on the body. King sits on the concrete, one hand pressed to his bruised ribs, breathing hard.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT9G49KMSDRPHE4DCAPC",
+      "style": "st_action",
+      "text": {
+        "plain": "Miller reaches Spencer's corpse, kneeling to check for a pulse she knows isn't there. She picks up King's fallen weapon, testing its weight. Something's off.",
+        "runs": [
+          {
+            "text": "Miller reaches Spencer's corpse, kneeling to check for a pulse she knows isn't there. She picks up King's fallen weapon, testing its weight. Something's off.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT9HHHX7EJDHQR19XF52",
+      "style": "st_action",
+      "text": {
+        "plain": "She pops the magazine.",
+        "runs": [
+          {
+            "text": "She pops the magazine.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT9JC79MB0VGRD760KC3",
+      "style": "st_action",
+      "text": {
+        "plain": "Empty.",
+        "runs": [
+          {
+            "text": "Empty.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT9KGZSNPT2P59NVHVEV",
+      "style": "st_character",
+      "text": {
+        "plain": "miller",
+        "runs": [
+          {
+            "text": "miller",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT9MW1D4BTFJJ8GKTDXS",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "King... your gun.",
+        "runs": [
+          {
+            "text": "King... your gun.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT9NA0BY9F75X8ZV041Q",
+      "style": "st_character",
+      "text": {
+        "plain": "king",
+        "runs": [
+          {
+            "text": "king",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT9P1YET6DAP0T8G7HRK",
+      "style": "st_parenthetical",
+      "text": {
+        "plain": "(between breaths)",
+        "runs": [
+          {
+            "text": "(between breaths)",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT9Q72075X6S8SH0YJM5",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "Yeah.",
+        "runs": [
+          {
+            "text": "Yeah.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT9RPHF6E8EP1E97292Y",
+      "style": "st_character",
+      "text": {
+        "plain": "miller",
+        "runs": [
+          {
+            "text": "miller",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT9S4Z6KHG50DE86EM5P",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "It's empty. Why the hell is it empty?",
+        "runs": [
+          {
+            "text": "It's empty. Why the hell is it empty?",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT9TRNBE62P9Y7418615",
+      "style": "st_character",
+      "text": {
+        "plain": "king",
+        "runs": [
+          {
+            "text": "king",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT9VDWFA2SDNRD80SF38",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "Old habit when I pursue on foot. Just for bluffing.",
+        "runs": [
+          {
+            "text": "Old habit when I pursue on foot. Just for bluffing.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT9W38M63EVJK7Z5SF4C",
+      "style": "st_action",
+      "text": {
+        "plain": "Miller processes this, then turns back to Spencer's body. She lifts his head gently, parting the hair at the base of his skull.",
+        "runs": [
+          {
+            "text": "Miller processes this, then turns back to Spencer's body. She lifts his head gently, parting the hair at the base of his skull.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT9X08EV8E9SMG7EETMX",
+      "style": "st_action",
+      "text": {
+        "plain": "There - a thin surgical scar, precise and deliberate, running along the occipital bone.",
+        "runs": [
+          {
+            "text": "There - a thin surgical scar, precise and deliberate, running along the occipital bone.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT9YE01WZX494WMGKYQY",
+      "style": "st_action",
+      "text": {
+        "plain": "Miller's expression hardens.",
+        "runs": [
+          {
+            "text": "Miller's expression hardens.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YAT9ZMMHSD5ZWSWMESSYK",
+      "style": "st_scene_heading",
+      "text": {
+        "plain": "INT. SFPD BRIEFING ROOM - DAY (LATER)",
+        "runs": [
+          {
+            "text": "INT. SFPD BRIEFING ROOM - DAY (LATER)",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YATA0BAZB9444WEM6Y04Z",
+      "style": "st_action",
+      "text": {
+        "plain": "Golden afternoon light slants through the blinds. Lee stands at the front, reading from a tablet. King sits at the table, ice pack pressed to his ribs. Miller leans against the wall, arms crossed.",
+        "runs": [
+          {
+            "text": "Golden afternoon light slants through the blinds. Lee stands at the front, reading from a tablet. King sits at the table, ice pack pressed to his ribs. Miller leans against the wall, arms crossed.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YATA1TJ0TGB61TDS9N90W",
+      "style": "st_character",
+      "text": {
+        "plain": "lee",
+        "runs": [
+          {
+            "text": "lee",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YATA2EN79SF26HYZ5NZ53",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "",
+        "runs": [],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YATA31FW6DEYTRHHSTY9J",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "We didn't find much on Dalton. Model employee by all accounts - punctual, detail-oriented, exceeded quarterly targets. His colleagues described him as competent but... distant. Emotionally cold.",
+        "runs": [
+          {
+            "text": "We didn't find much on Dalton. Model employee by all accounts - punctual, detail-oriented, exceeded quarterly targets. His colleagues described him as competent but... distant. Emotionally cold.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YATA49YH8B59BZSPD7JCZ",
+      "style": "st_character",
+      "text": {
+        "plain": "king",
+        "runs": [
+          {
+            "text": "king",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YATA52KT4V6X99FD7J3G6",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "Medical examiner has the body now. They're analyzing that scar. We should have preliminary findings in a few hours.",
+        "runs": [
+          {
+            "text": "Medical examiner has the body now. They're analyzing that scar. We should have preliminary findings in a few hours.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YATA6QHEYMGXBH6B2G8MJ",
+      "style": "st_action",
+      "text": {
+        "plain": "Miller pushes off the wall, pacing.",
+        "runs": [
+          {
+            "text": "Miller pushes off the wall, pacing.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YATA7PWGCXXTNTDX08N4V",
+      "style": "st_character",
+      "text": {
+        "plain": "miller",
+        "runs": [
+          {
+            "text": "miller",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YATA86Y5YBHWWGSWNT8FE",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "I hate dead ends. What does the scar mean? What were they doing to these people?",
+        "runs": [
+          {
+            "text": "I hate dead ends. What does the scar mean? What were they doing to these people?",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YATA9TT4MKZCK9PBH3KPM",
+      "style": "st_character",
+      "text": {
+        "plain": "lee",
+        "runs": [
+          {
+            "text": "lee",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YATAA7HSR2D9GHP4G3RZC",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "May not be a complete dead end.",
+        "runs": [
+          {
+            "text": "May not be a complete dead end.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YATABY3S3M3Q4EKBZ8CGK",
+      "style": "st_action",
+      "text": {
+        "plain": "He taps the tablet. The wall screen flickers to life - surveillance footage from the bank, frozen on two figures entering the conference room with Spencer.",
+        "runs": [
+          {
+            "text": "He taps the tablet. The wall screen flickers to life - surveillance footage from the bank, frozen on two figures entering the conference room with Spencer.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YATAC3MFJ95X6K31P2974",
+      "style": "st_character",
+      "text": {
+        "plain": "lee",
+        "runs": [
+          {
+            "text": "lee",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YATADQN7HW9GH69YXQKJV",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "",
+        "runs": [],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YATAEQ925JV4VMZXF4ENT",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "Spencer met with these two just before we arrived. I've sent the stills to your phones.",
+        "runs": [
+          {
+            "text": "Spencer met with these two just before we arrived. I've sent the stills to your phones.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YATAFSG8TKFKS53JX8J99",
+      "style": "st_action",
+      "text": {
+        "plain": "The image zooms in - SHANE and LILY, faces partially visible.",
+        "runs": [
+          {
+            "text": "The image zooms in - SHANE and LILY, faces partially visible.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YATAGYJNGH1ZCBW83H06W",
+      "style": "st_character",
+      "text": {
+        "plain": "lee",
+        "runs": [
+          {
+            "text": "lee",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YATAHS6J4105TVRF3WE0H",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "They left through the front entrance while we were after Dalton.",
+        "runs": [
+          {
+            "text": "They left through the front entrance while we were after Dalton.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YATAJ6C6VM3RJ61BC06YV",
+      "style": "st_action",
+      "text": {
+        "plain": "Miller stares at the screen, jaw tight.",
+        "runs": [
+          {
+            "text": "Miller stares at the screen, jaw tight.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YATAKHBV7ADWPGGBA42XY",
+      "style": "st_character",
+      "text": {
+        "plain": "miller",
+        "runs": [
+          {
+            "text": "miller",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YATAMTZXSG1G6B3GDCYA9",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "Find them.",
+        "runs": [
+          {
+            "text": "Find them.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YATAN5N6SFN7FQGGHKSCK",
+      "style": "st_action",
+      "text": {
+        "plain": "FADE OUT.",
+        "runs": [
+          {
+            "text": "FADE OUT.",
+            "attrs": {}
+          }
+        ],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YATAPXXZZNZ6SE8N2R28G",
+      "style": "st_action",
+      "text": {
+        "plain": "",
+        "runs": [],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YATAQD82X50CHDDDG22G2",
+      "style": "st_action",
+      "text": {
+        "plain": "",
+        "runs": [],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YATARWH06WHS76N4S5SXJ",
+      "style": "st_dialogue",
+      "text": {
+        "plain": "",
+        "runs": [],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YATASF9785JS3KX0Q5EFP",
+      "style": "st_action",
+      "text": {
+        "plain": "",
+        "runs": [],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    },
+    {
+      "id": "el_01HF7YATAT1FJX4ZWCRVE70W7N",
+      "style": "st_action",
+      "text": {
+        "plain": "",
+        "runs": [],
+        "embeds": []
+      },
+      "meta": {
+        "createdBy": "fixture",
+        "createdAt": 0,
+        "editedBy": "fixture",
+        "editedAt": 0
+      }
+    }
+  ],
+  "titlePage": {
+    "elements": [
+      {
+        "id": "el_01HF7YAT026EWYPKZJ56JY9PSY",
+        "style": "st_title",
+        "text": {
+          "plain": "UNTITLED",
+          "runs": [
+            {
+              "text": "UNTITLED",
+              "attrs": {}
+            }
+          ],
+          "embeds": []
+        },
+        "ov": {
+          "spaceBefore": 20
+        },
+        "field": "title",
+        "meta": {
+          "createdBy": "fixture",
+          "createdAt": 0,
+          "editedBy": "fixture",
+          "editedAt": 0
+        }
+      },
+      {
+        "id": "el_01HF7YAT03AWA02A70YKXE4ZG7",
+        "style": "st_title_center",
+        "text": {
+          "plain": "Written by",
+          "runs": [
+            {
+              "text": "Written by",
+              "attrs": {}
+            }
+          ],
+          "embeds": []
+        },
+        "ov": {
+          "spaceBefore": 1
+        },
+        "field": "credit",
+        "meta": {
+          "createdBy": "fixture",
+          "createdAt": 0,
+          "editedBy": "fixture",
+          "editedAt": 0
+        }
+      },
+      {
+        "id": "el_01HF7YAT04Y4D469XQX52N9BC5",
+        "style": "st_title_center",
+        "text": {
+          "plain": "",
+          "runs": [],
+          "embeds": []
+        },
+        "ov": {
+          "spaceBefore": 1
+        },
+        "field": "author",
+        "meta": {
+          "createdBy": "fixture",
+          "createdAt": 0,
+          "editedBy": "fixture",
+          "editedAt": 0
+        }
+      },
+      {
+        "id": "el_01HF7YAT057ESWSNDMTKA59MWD",
+        "style": "st_title_left",
+        "text": {
+          "plain": "",
+          "runs": [],
+          "embeds": []
+        },
+        "ov": {
+          "anchor": "bottom"
+        },
+        "field": "copyright",
+        "meta": {
+          "createdBy": "fixture",
+          "createdAt": 0,
+          "editedBy": "fixture",
+          "editedAt": 0
+        }
+      },
+      {
+        "id": "el_01HF7YAT06DMK01HV0P3A4NVEC",
+        "style": "st_title_left",
+        "text": {
+          "plain": "",
+          "runs": [],
+          "embeds": []
+        },
+        "ov": {
+          "anchor": "bottom"
+        },
+        "field": "draftDate",
+        "meta": {
+          "createdBy": "fixture",
+          "createdAt": 0,
+          "editedBy": "fixture",
+          "editedAt": 0
+        }
+      },
+      {
+        "id": "el_01HF7YAT07HT8H0R6W0MVCV7YG",
+        "style": "st_title_left",
+        "text": {
+          "plain": "",
+          "runs": [],
+          "embeds": []
+        },
+        "ov": {
+          "anchor": "bottom"
+        },
+        "field": "contact",
+        "meta": {
+          "createdBy": "fixture",
+          "createdAt": 0,
+          "editedBy": "fixture",
+          "editedAt": 0
+        }
+      }
+    ],
+    "fields": {
+      "title": "el_01HF7YAT026EWYPKZJ56JY9PSY",
+      "credit": "el_01HF7YAT03AWA02A70YKXE4ZG7",
+      "author": "el_01HF7YAT04Y4D469XQX52N9BC5",
+      "copyright": "el_01HF7YAT057ESWSNDMTKA59MWD",
+      "draftDate": "el_01HF7YAT06DMK01HV0P3A4NVEC",
+      "contact": "el_01HF7YAT07HT8H0R6W0MVCV7YG"
+    },
+    "computed": {}
+  },
+  "folders": [],
+  "entities": [],
+  "traitDefs": [
+    {
+      "id": "trt_01HF7YAT1ZPMJXMZXFC3QHVFMF",
+      "key": "role",
+      "name": "Role",
+      "type": "choice",
+      "options": [
+        "Lead",
+        "Supporting",
+        "Featured",
+        "Background"
+      ],
+      "pos": "8"
+    },
+    {
+      "id": "trt_01HF7YAT20ACK7FSAQ8PVREAAD",
+      "key": "gender",
+      "name": "Gender",
+      "type": "text",
+      "options": [],
+      "pos": "G"
+    },
+    {
+      "id": "trt_01HF7YAT21AE3NJ7AN8FPAK8X6",
+      "key": "age",
+      "name": "Age",
+      "type": "text",
+      "options": [],
+      "pos": "O"
+    },
+    {
+      "id": "trt_01HF7YAT22YP2Z0W5FXJMB2HV1",
+      "key": "ethnicity",
+      "name": "Ethnicity",
+      "type": "text",
+      "options": [],
+      "pos": "V"
+    },
+    {
+      "id": "trt_01HF7YAT2354F67P6AMHDAZXRY",
+      "key": "orientation",
+      "name": "Orientation",
+      "type": "text",
+      "options": [],
+      "pos": "d"
+    },
+    {
+      "id": "trt_01HF7YAT24GSJFNVCBZCYTX130",
+      "key": "disability",
+      "name": "Disability",
+      "type": "text",
+      "options": [],
+      "pos": "l"
+    },
+    {
+      "id": "trt_01HF7YAT25QT2ZC4NQAJTFN0YA",
+      "key": "occupation",
+      "name": "Occupation",
+      "type": "text",
+      "options": [],
+      "pos": "t"
+    }
+  ],
+  "tagCategories": [
+    {
+      "id": "cat_01HF7YAT0WAHBK0QW7ZJX91W4S",
+      "key": "cast",
+      "name": "Cast",
+      "color": "#0000FF",
+      "entityKind": "character",
+      "textStyle": {
+        "bold": true,
+        "underline": false,
+        "highlight": false
+      },
+      "visible": true,
+      "pos": "4",
+      "fdxGuid": "01fc9642-84ff-4366-b37c-a3068dee57e8",
+      "osfUuid": null
+    },
+    {
+      "id": "cat_01HF7YAT0X487F8P3ZNVZZM7QJ",
+      "key": "backgroundActors",
+      "name": "Background Actors",
+      "color": "#00BFFF",
+      "entityKind": "backgroundActor",
+      "textStyle": {
+        "bold": true,
+        "underline": false,
+        "highlight": false
+      },
+      "visible": true,
+      "pos": "6",
+      "fdxGuid": "028a4e2b-b507-4d09-88ab-90e3edae9071",
+      "osfUuid": null
+    },
+    {
+      "id": "cat_01HF7YAT0Y4BWQ014EXX4CPHMR",
+      "key": "stunts",
+      "name": "Stunts",
+      "color": "#FFA500",
+      "entityKind": "stunt",
+      "textStyle": {
+        "bold": true,
+        "underline": false,
+        "highlight": false
+      },
+      "visible": true,
+      "pos": "8",
+      "fdxGuid": "0377dbe6-77a3-41af-bda8-86eb2468fdbf",
+      "osfUuid": null
+    },
+    {
+      "id": "cat_01HF7YAT0ZR5K6QWWPYZYG1Q8T",
+      "key": "vehicles",
+      "name": "Vehicles",
+      "color": "#8B0000",
+      "entityKind": "vehicle",
+      "textStyle": {
+        "bold": true,
+        "underline": false,
+        "highlight": false
+      },
+      "visible": true,
+      "pos": "A",
+      "fdxGuid": "04721a56-f54b-49c8-80ad-d53887d6b851",
+      "osfUuid": null
+    },
+    {
+      "id": "cat_01HF7YAT10PCZZRRSQZRC89A7T",
+      "key": "props",
+      "name": "Props",
+      "color": "#FF0000",
+      "entityKind": "prop",
+      "textStyle": {
+        "bold": true,
+        "underline": false,
+        "highlight": false
+      },
+      "visible": true,
+      "pos": "C",
+      "fdxGuid": "05c556eb-6bc1-4a3a-b09f-f8b5ba1b6afa",
+      "osfUuid": null
+    },
+    {
+      "id": "cat_01HF7YAT111TVXGKN41R9FGVQV",
+      "key": "camera",
+      "name": "Camera",
+      "color": "#CCFF00",
+      "entityKind": "camera",
+      "textStyle": {
+        "bold": true,
+        "underline": false,
+        "highlight": false
+      },
+      "visible": true,
+      "pos": "E",
+      "fdxGuid": "47b02ff1-5161-4137-b736-f36eebba7643",
+      "osfUuid": null
+    },
+    {
+      "id": "cat_01HF7YAT12FWK80060PAFJAJ1T",
+      "key": "specialEffects",
+      "name": "Special Effects",
+      "color": "#1E90FF",
+      "entityKind": "specialEffect",
+      "textStyle": {
+        "bold": true,
+        "underline": false,
+        "highlight": false
+      },
+      "visible": true,
+      "pos": "G",
+      "fdxGuid": "069e18b8-2109-4f3d-94e7-d802027a60a8",
+      "osfUuid": null
+    },
+    {
+      "id": "cat_01HF7YAT13H6KCZS9BSRV08QZY",
+      "key": "wardrobe",
+      "name": "Wardrobe",
+      "color": "#800080",
+      "entityKind": "wardrobe",
+      "textStyle": {
+        "bold": true,
+        "underline": false,
+        "highlight": false
+      },
+      "visible": true,
+      "pos": "I",
+      "fdxGuid": "0726fa85-1e65-4ab8-87de-bf21d09b01f0",
+      "osfUuid": null
+    },
+    {
+      "id": "cat_01HF7YAT141RDYV3RNEV0A4FC6",
+      "key": "makeupHair",
+      "name": "Makeup Hair",
+      "color": "#9370DB",
+      "entityKind": "makeupHair",
+      "textStyle": {
+        "bold": true,
+        "underline": false,
+        "highlight": false
+      },
+      "visible": true,
+      "pos": "K",
+      "fdxGuid": "08ae1eef-32ce-415f-9a9b-0982d2453ec4",
+      "osfUuid": null
+    },
+    {
+      "id": "cat_01HF7YAT15ZH98YAYNSGBGW19W",
+      "key": "animals",
+      "name": "Animals",
+      "color": "#CD853F",
+      "entityKind": "animal",
+      "textStyle": {
+        "bold": true,
+        "underline": false,
+        "highlight": false
+      },
+      "visible": true,
+      "pos": "M",
+      "fdxGuid": "09cb0d1c-ce01-4f22-bb64-b5f2e6c491c6",
+      "osfUuid": null
+    },
+    {
+      "id": "cat_01HF7YAT16N8A9B035PVZ10A4K",
+      "key": "animalHandler",
+      "name": "Animal Handler",
+      "color": "#8B4513",
+      "entityKind": "animalHandler",
+      "textStyle": {
+        "bold": true,
+        "underline": false,
+        "highlight": false
+      },
+      "visible": true,
+      "pos": "O",
+      "fdxGuid": "0ae40617-cc7c-48e6-ae2b-5aaecc09986f",
+      "osfUuid": null
+    },
+    {
+      "id": "cat_01HF7YAT17M30XH30C8CMNZ00A",
+      "key": "music",
+      "name": "Music",
+      "color": "#20B2AA",
+      "entityKind": "music",
+      "textStyle": {
+        "bold": true,
+        "underline": false,
+        "highlight": false
+      },
+      "visible": true,
+      "pos": "Q",
+      "fdxGuid": "0b0b44c9-aa4b-4c40-88b1-d94472ad7a26",
+      "osfUuid": null
+    },
+    {
+      "id": "cat_01HF7YAT1821FWXF6PGEFBSR6G",
+      "key": "sound",
+      "name": "Sound",
+      "color": "#008080",
+      "entityKind": "sound",
+      "textStyle": {
+        "bold": true,
+        "underline": false,
+        "highlight": false
+      },
+      "visible": true,
+      "pos": "S",
+      "fdxGuid": "0ce7d308-096d-4603-8fe8-349f72cd89ff",
+      "osfUuid": null
+    },
+    {
+      "id": "cat_01HF7YAT19KF715H9XZYXXHRDK",
+      "key": "setDressing",
+      "name": "Set Dressing",
+      "color": "#BA55D3",
+      "entityKind": "setDressing",
+      "textStyle": {
+        "bold": true,
+        "underline": false,
+        "highlight": false
+      },
+      "visible": true,
+      "pos": "U",
+      "fdxGuid": "0debb71b-5743-4c53-80cc-e17e841ce645",
+      "osfUuid": null
+    },
+    {
+      "id": "cat_01HF7YAT1AK2SGZS3QND5JYNF1",
+      "key": "greenery",
+      "name": "Greenery",
+      "color": "#008000",
+      "entityKind": "greenery",
+      "textStyle": {
+        "bold": true,
+        "underline": false,
+        "highlight": false
+      },
+      "visible": true,
+      "pos": "V",
+      "fdxGuid": "0e7a8fc5-5441-4bad-a9bf-5ddd3fe51c69",
+      "osfUuid": null
+    },
+    {
+      "id": "cat_01HF7YAT1BYCW3TJQGY1F2E14K",
+      "key": "specialEquipment",
+      "name": "Special Equipment",
+      "color": "#BDB76B",
+      "entityKind": "specialEquipment",
+      "textStyle": {
+        "bold": true,
+        "underline": false,
+        "highlight": false
+      },
+      "visible": true,
+      "pos": "Z",
+      "fdxGuid": "0ff5cda4-4d43-4cfe-940f-91380c46fdad",
+      "osfUuid": null
+    },
+    {
+      "id": "cat_01HF7YAT1CJNZ1YB3S9YX01SRF",
+      "key": "security",
+      "name": "Security",
+      "color": "#DAA520",
+      "entityKind": "security",
+      "textStyle": {
+        "bold": true,
+        "underline": false,
+        "highlight": false
+      },
+      "visible": true,
+      "pos": "b",
+      "fdxGuid": "109d0eaa-0334-4823-ac0c-b44d3f209dc4",
+      "osfUuid": null
+    },
+    {
+      "id": "cat_01HF7YAT1DT266K8JGQ8HDNK9H",
+      "key": "additionalLabor",
+      "name": "Additional Labor",
+      "color": "#B8860B",
+      "entityKind": "additionalLabor",
+      "textStyle": {
+        "bold": true,
+        "underline": false,
+        "highlight": false
+      },
+      "visible": true,
+      "pos": "d",
+      "fdxGuid": "1179a4b1-70ee-4011-b4a2-809a0af09e92",
+      "osfUuid": null
+    },
+    {
+      "id": "cat_01HF7YAT1ENK1BS8K5WR62QRMB",
+      "key": "visualEffects",
+      "name": "Visual Effects",
+      "color": "#32CD32",
+      "entityKind": "visualEffect",
+      "textStyle": {
+        "bold": true,
+        "underline": false,
+        "highlight": false
+      },
+      "visible": true,
+      "pos": "f",
+      "fdxGuid": "12ab0932-e3b9-4b4a-bcd0-3da1b4e61d5e",
+      "osfUuid": null
+    },
+    {
+      "id": "cat_01HF7YAT1F11GR466D92M9Y0DR",
+      "key": "mechanicalEffects",
+      "name": "Mechanical Effects",
+      "color": "#B22222",
+      "entityKind": "mechanicalEffect",
+      "textStyle": {
+        "bold": true,
+        "underline": false,
+        "highlight": false
+      },
+      "visible": true,
+      "pos": "h",
+      "fdxGuid": "135cc9d1-c4d5-4d00-83d9-571f584ea9cd",
+      "osfUuid": null
+    },
+    {
+      "id": "cat_01HF7YAT1GVFWPQ4HSV14JKES4",
+      "key": "miscellaneous",
+      "name": "Miscellaneous",
+      "color": "#708090",
+      "entityKind": "misc",
+      "textStyle": {
+        "bold": true,
+        "underline": false,
+        "highlight": false
+      },
+      "visible": true,
+      "pos": "j",
+      "fdxGuid": "ce04f547-f7ee-40c9-ab66-d95a0c98034e",
+      "osfUuid": null
+    },
+    {
+      "id": "cat_01HF7YAT1HVYTTNWBBTWPQHXSK",
+      "key": "notes",
+      "name": "Notes",
+      "color": "#FFD700",
+      "entityKind": "misc",
+      "textStyle": {
+        "bold": true,
+        "underline": false,
+        "highlight": false
+      },
+      "visible": true,
+      "pos": "l",
+      "fdxGuid": "15b6f4fd-4e74-4ad8-9971-b239d88c2997",
+      "osfUuid": null
+    },
+    {
+      "id": "cat_01HF7YAT1JDS4JBTRF0D4VJTA5",
+      "key": "artDepartment",
+      "name": "Art Department",
+      "color": "#C71585",
+      "entityKind": "artDepartment",
+      "textStyle": {
+        "bold": true,
+        "underline": false,
+        "highlight": false
+      },
+      "visible": true,
+      "pos": "n",
+      "fdxGuid": "c86eae40-3b01-41c3-a7de-6859e6ec971d",
+      "osfUuid": null
+    },
+    {
+      "id": "cat_01HF7YAT1K1JZ92CZAENCD010C",
+      "key": "scriptDay",
+      "name": "Script Day",
+      "color": "#4682B4",
+      "entityKind": "scriptDay",
+      "textStyle": {
+        "bold": true,
+        "underline": false,
+        "highlight": false
+      },
+      "visible": true,
+      "pos": "p",
+      "fdxGuid": "63c140da-ef2b-491a-b416-b46f461abb89",
+      "osfUuid": null
+    },
+    {
+      "id": "cat_01HF7YAT1MQ4RENSNHSN0VV7F6",
+      "key": "unit",
+      "name": "Unit",
+      "color": "#6A5ACD",
+      "entityKind": "unit",
+      "textStyle": {
+        "bold": true,
+        "underline": false,
+        "highlight": false
+      },
+      "visible": true,
+      "pos": "r",
+      "fdxGuid": "849f1ebf-5507-4f33-bff6-3a5b4d73be14",
+      "osfUuid": null
+    },
+    {
+      "id": "cat_01HF7YAT1N2TWTSEQKVXWD6GGN",
+      "key": "sequence",
+      "name": "Sequence",
+      "color": "#2E8B57",
+      "entityKind": "sequence",
+      "textStyle": {
+        "bold": true,
+        "underline": false,
+        "highlight": false
+      },
+      "visible": true,
+      "pos": "t",
+      "fdxGuid": "70877d87-30ef-45b6-be46-c6fa94b83a71",
+      "osfUuid": null
+    },
+    {
+      "id": "cat_01HF7YAT1P2QS4T8R6QX6MDVD7",
+      "key": "location",
+      "name": "Location",
+      "color": "#A0522D",
+      "entityKind": "location",
+      "textStyle": {
+        "bold": true,
+        "underline": false,
+        "highlight": false
+      },
+      "visible": true,
+      "pos": "v",
+      "fdxGuid": "c5e89e4d-f83e-4c28-950c-92a63f1b5f26",
+      "osfUuid": null
+    },
+    {
+      "id": "cat_01HF7YAT1Q7QY53GFSP9QHTH4Z",
+      "key": "comments",
+      "name": "Comments",
+      "color": "#696969",
+      "entityKind": "misc",
+      "textStyle": {
+        "bold": true,
+        "underline": false,
+        "highlight": false
+      },
+      "visible": true,
+      "pos": "x",
+      "fdxGuid": "216f33fd-fc42-4269-be01-b05b18f815a0",
+      "osfUuid": null
+    },
+    {
+      "id": "cat_01HF7YAT1R5MH0YNZ1W6M0BCVD",
+      "key": "synopsis",
+      "name": "Synopsis",
+      "color": "#556B2F",
+      "entityKind": "misc",
+      "textStyle": {
+        "bold": true,
+        "underline": false,
+        "highlight": false
+      },
+      "visible": true,
+      "pos": "z",
+      "fdxGuid": "8e5e75c2-713b-47df-a75f-f12648b98ded",
+      "osfUuid": null
+    }
+  ],
+  "tags": [],
+  "notes": [],
+  "noteTypes": [
+    {
+      "id": "ntp_01HF7YAT1SH7XQV3Z679DZGPYV",
+      "key": "general",
+      "name": "General",
+      "color": "#FFD700",
+      "marker": "",
+      "pos": "G"
+    },
+    {
+      "id": "ntp_01HF7YAT1TRCEP8N3QG64E00T0",
+      "key": "research",
+      "name": "Research",
+      "color": "#1E90FF",
+      "marker": "",
+      "pos": "O"
+    },
+    {
+      "id": "ntp_01HF7YAT1V9D295XEHFPYANYSN",
+      "key": "polish",
+      "name": "Polish",
+      "color": "#32CD32",
+      "marker": "",
+      "pos": "V"
+    },
+    {
+      "id": "ntp_01HF7YAT1W6X7N65VVDAYJSZNK",
+      "key": "continuity",
+      "name": "Continuity",
+      "color": "#FF8C00",
+      "marker": "",
+      "pos": "d"
+    },
+    {
+      "id": "ntp_01HF7YAT1X1T9BQ4HWJ0EZX26B",
+      "key": "question",
+      "name": "Question",
+      "color": "#9370DB",
+      "marker": "",
+      "pos": "l"
+    },
+    {
+      "id": "ntp_01HF7YAT1YH9W2WS5HS2NPSH7E",
+      "key": "production",
+      "name": "Production",
+      "color": "#B22222",
+      "marker": "",
+      "pos": "t"
+    }
+  ],
+  "revisions": {
+    "sets": [
+      {
+        "id": "rev_01HF7YAT08GMACDG049G3MYEBV",
+        "pos": "4",
+        "name": "White Revision",
+        "colorKey": "white",
+        "textColor": "#FFFFFF",
+        "pageColor": "#FFFFFF",
+        "mark": "",
+        "textStyle": {
+          "underline": "none",
+          "bold": false,
+          "strike": false
+        },
+        "fullDraft": false,
+        "date": null,
+        "createdBy": "fixture",
+        "createdAt": 0
+      },
+      {
+        "id": "rev_01HF7YAT0971EVZJE0VADY347Q",
+        "pos": "8",
+        "name": "Blue Revision",
+        "colorKey": "blue",
+        "textColor": "#0000FF",
+        "pageColor": "#C6EDFE",
+        "mark": "*",
+        "textStyle": {
+          "underline": "none",
+          "bold": false,
+          "strike": false
+        },
+        "fullDraft": false,
+        "date": null,
+        "createdBy": "fixture",
+        "createdAt": 0
+      },
+      {
+        "id": "rev_01HF7YAT0AQJG4G2NVTFNA2W0R",
+        "pos": "C",
+        "name": "Pink Revision",
+        "colorKey": "pink",
+        "textColor": "#FF00FF",
+        "pageColor": "#FBD3E9",
+        "mark": "*",
+        "textStyle": {
+          "underline": "none",
+          "bold": false,
+          "strike": false
+        },
+        "fullDraft": false,
+        "date": null,
+        "createdBy": "fixture",
+        "createdAt": 0
+      },
+      {
+        "id": "rev_01HF7YAT0BCM6QJ4BHJ0C5MNX6",
+        "pos": "E",
+        "name": "Yellow Revision",
+        "colorKey": "yellow",
+        "textColor": "#A0A000",
+        "pageColor": "#FFF7B0",
+        "mark": "*",
+        "textStyle": {
+          "underline": "none",
+          "bold": false,
+          "strike": false
+        },
+        "fullDraft": false,
+        "date": null,
+        "createdBy": "fixture",
+        "createdAt": 0
+      },
+      {
+        "id": "rev_01HF7YAT0CNB39TG6WTTD2VPM1",
+        "pos": "G",
+        "name": "Green Revision",
+        "colorKey": "green",
+        "textColor": "#008000",
+        "pageColor": "#CDEFC6",
+        "mark": "*",
+        "textStyle": {
+          "underline": "none",
+          "bold": false,
+          "strike": false
+        },
+        "fullDraft": false,
+        "date": null,
+        "createdBy": "fixture",
+        "createdAt": 0
+      },
+      {
+        "id": "rev_01HF7YAT0DR4PPHV301CQYX4MM",
+        "pos": "K",
+        "name": "Goldenrod Revision",
+        "colorKey": "goldenrod",
+        "textColor": "#CC7F32",
+        "pageColor": "#F2D08C",
+        "mark": "*",
+        "textStyle": {
+          "underline": "none",
+          "bold": false,
+          "strike": false
+        },
+        "fullDraft": false,
+        "date": null,
+        "createdBy": "fixture",
+        "createdAt": 0
+      },
+      {
+        "id": "rev_01HF7YAT0EQHQ4PVNPTM10NYFX",
+        "pos": "O",
+        "name": "Buff Revision",
+        "colorKey": "buff",
+        "textColor": "#8E6B23",
+        "pageColor": "#F0DC82",
+        "mark": "*",
+        "textStyle": {
+          "underline": "none",
+          "bold": false,
+          "strike": false
+        },
+        "fullDraft": false,
+        "date": null,
+        "createdBy": "fixture",
+        "createdAt": 0
+      },
+      {
+        "id": "rev_01HF7YAT0FXSEY14E8JKFZEBJS",
+        "pos": "S",
+        "name": "Salmon Revision",
+        "colorKey": "salmon",
+        "textColor": "#A74242",
+        "pageColor": "#FAB8A0",
+        "mark": "*",
+        "textStyle": {
+          "underline": "none",
+          "bold": false,
+          "strike": false
+        },
+        "fullDraft": false,
+        "date": null,
+        "createdBy": "fixture",
+        "createdAt": 0
+      },
+      {
+        "id": "rev_01HF7YAT0GN0HA9ZX3SB335SV5",
+        "pos": "U",
+        "name": "Cherry Revision",
+        "colorKey": "cherry",
+        "textColor": "#D5236B",
+        "pageColor": "#F5A5C0",
+        "mark": "*",
+        "textStyle": {
+          "underline": "none",
+          "bold": false,
+          "strike": false
+        },
+        "fullDraft": false,
+        "date": null,
+        "createdBy": "fixture",
+        "createdAt": 0
+      },
+      {
+        "id": "rev_01HF7YAT0HJGB1B62FV2Q4B7NR",
+        "pos": "V",
+        "name": "Tan Revision",
+        "colorKey": "tan",
+        "textColor": "#DB9370",
+        "pageColor": "#E6CBA8",
+        "mark": "*",
+        "textStyle": {
+          "underline": "none",
+          "bold": false,
+          "strike": false
+        },
+        "fullDraft": false,
+        "date": null,
+        "createdBy": "fixture",
+        "createdAt": 0
+      },
+      {
+        "id": "rev_01HF7YAT0J47WK66VJZ48N1NSF",
+        "pos": "Z",
+        "name": "Double White Revision",
+        "colorKey": "doubleWhite",
+        "textColor": "#FFFFFF",
+        "pageColor": "#FFFFFF",
+        "mark": "**",
+        "textStyle": {
+          "underline": "none",
+          "bold": false,
+          "strike": false
+        },
+        "fullDraft": false,
+        "date": null,
+        "createdBy": "fixture",
+        "createdAt": 0
+      },
+      {
+        "id": "rev_01HF7YAT0K4X7JEFZPTV9VG0PK",
+        "pos": "d",
+        "name": "Double Blue Revision",
+        "colorKey": "doubleBlue",
+        "textColor": "#0000FF",
+        "pageColor": "#C6EDFE",
+        "mark": "**",
+        "textStyle": {
+          "underline": "none",
+          "bold": false,
+          "strike": false
+        },
+        "fullDraft": false,
+        "date": null,
+        "createdBy": "fixture",
+        "createdAt": 0
+      },
+      {
+        "id": "rev_01HF7YAT0MGQACJBBC2BXB0Y3E",
+        "pos": "h",
+        "name": "Double Pink Revision",
+        "colorKey": "doublePink",
+        "textColor": "#FF00FF",
+        "pageColor": "#FBD3E9",
+        "mark": "**",
+        "textStyle": {
+          "underline": "none",
+          "bold": false,
+          "strike": false
+        },
+        "fullDraft": false,
+        "date": null,
+        "createdBy": "fixture",
+        "createdAt": 0
+      },
+      {
+        "id": "rev_01HF7YAT0NS1G0FGN6E3TQDA7D",
+        "pos": "j",
+        "name": "Double Yellow Revision",
+        "colorKey": "doubleYellow",
+        "textColor": "#A0A000",
+        "pageColor": "#FFF7B0",
+        "mark": "**",
+        "textStyle": {
+          "underline": "none",
+          "bold": false,
+          "strike": false
+        },
+        "fullDraft": false,
+        "date": null,
+        "createdBy": "fixture",
+        "createdAt": 0
+      },
+      {
+        "id": "rev_01HF7YAT0P6CQ5E8XR4RXJWDZN",
+        "pos": "l",
+        "name": "Double Green Revision",
+        "colorKey": "doubleGreen",
+        "textColor": "#008000",
+        "pageColor": "#CDEFC6",
+        "mark": "**",
+        "textStyle": {
+          "underline": "none",
+          "bold": false,
+          "strike": false
+        },
+        "fullDraft": false,
+        "date": null,
+        "createdBy": "fixture",
+        "createdAt": 0
+      },
+      {
+        "id": "rev_01HF7YAT0QNMMEJ9PP9FKXPE22",
+        "pos": "p",
+        "name": "Double Goldenrod Revision",
+        "colorKey": "doubleGoldenrod",
+        "textColor": "#CC7F32",
+        "pageColor": "#F2D08C",
+        "mark": "**",
+        "textStyle": {
+          "underline": "none",
+          "bold": false,
+          "strike": false
+        },
+        "fullDraft": false,
+        "date": null,
+        "createdBy": "fixture",
+        "createdAt": 0
+      },
+      {
+        "id": "rev_01HF7YAT0R5NBJF5HBZM70Q1HP",
+        "pos": "r",
+        "name": "Double Buff Revision",
+        "colorKey": "doubleBuff",
+        "textColor": "#8E6B23",
+        "pageColor": "#F0DC82",
+        "mark": "**",
+        "textStyle": {
+          "underline": "none",
+          "bold": false,
+          "strike": false
+        },
+        "fullDraft": false,
+        "date": null,
+        "createdBy": "fixture",
+        "createdAt": 0
+      },
+      {
+        "id": "rev_01HF7YAT0SZHKVP9QX7HWXX9PA",
+        "pos": "t",
+        "name": "Double Salmon Revision",
+        "colorKey": "doubleSalmon",
+        "textColor": "#A74242",
+        "pageColor": "#FAB8A0",
+        "mark": "**",
+        "textStyle": {
+          "underline": "none",
+          "bold": false,
+          "strike": false
+        },
+        "fullDraft": false,
+        "date": null,
+        "createdBy": "fixture",
+        "createdAt": 0
+      },
+      {
+        "id": "rev_01HF7YAT0TRDSFXFDK6QKDHSJZ",
+        "pos": "x",
+        "name": "Double Cherry Revision",
+        "colorKey": "doubleCherry",
+        "textColor": "#D5236B",
+        "pageColor": "#F5A5C0",
+        "mark": "**",
+        "textStyle": {
+          "underline": "none",
+          "bold": false,
+          "strike": false
+        },
+        "fullDraft": false,
+        "date": null,
+        "createdBy": "fixture",
+        "createdAt": 0
+      },
+      {
+        "id": "rev_01HF7YAT0VEBNDFHJS48N4TFC6",
+        "pos": "z",
+        "name": "Double Tan Revision",
+        "colorKey": "doubleTan",
+        "textColor": "#DB9370",
+        "pageColor": "#E6CBA8",
+        "mark": "**",
+        "textStyle": {
+          "underline": "none",
+          "bold": false,
+          "strike": false
+        },
+        "fullDraft": false,
+        "date": null,
+        "createdBy": "fixture",
+        "createdAt": 0
+      }
+    ],
+    "activeSetId": null,
+    "headerSetId": null,
+    "mode": false,
+    "display": "none",
+    "selectedSetIds": [],
+    "showPageColor": false,
+    "colorRevisedText": false,
+    "markColumn": 7086600
+  },
+  "trackChanges": {
+    "enabled": false,
+    "view": "markup"
+  },
+  "writers": [],
+  "production": {
+    "scenesLocked": false,
+    "scenesLockedAt": null,
+    "lockedStyles": [],
+    "pagesLocked": false,
+    "pagesLockedAt": null,
+    "pageLocks": []
+  },
+  "beats": [],
+  "beatLinks": [],
+  "plotColumns": [],
+  "storylines": [],
+  "lanes": [],
+  "bin": [],
+  "shots": [],
+  "bookmarks": [],
+  "macros": [
+    {
+      "id": "mac_01HF7YAT26Q6EPSP6WFV3JDQS2",
+      "pos": "4",
+      "name": "INT.",
+      "text": "INT. ",
+      "styleId": "st_scene_heading",
+      "nextStyleId": null,
+      "shortcut": "Mod+Alt+1",
+      "alias": null
+    },
+    {
+      "id": "mac_01HF7YAT27CNXAZ5FF9VJPP835",
+      "pos": "8",
+      "name": "EXT.",
+      "text": "EXT. ",
+      "styleId": "st_scene_heading",
+      "nextStyleId": null,
+      "shortcut": "Mod+Alt+2",
+      "alias": null
+    },
+    {
+      "id": "mac_01HF7YAT283Z5ACCGEGZ52R0SZ",
+      "pos": "C",
+      "name": "INT./EXT.",
+      "text": "INT./EXT. ",
+      "styleId": "st_scene_heading",
+      "nextStyleId": null,
+      "shortcut": "Mod+Alt+3",
+      "alias": null
+    },
+    {
+      "id": "mac_01HF7YAT29RV2GCGV3A6Z4DBJP",
+      "pos": "E",
+      "name": "- DAY",
+      "text": " - DAY",
+      "styleId": null,
+      "nextStyleId": "st_action",
+      "shortcut": "Mod+Alt+4",
+      "alias": null
+    },
+    {
+      "id": "mac_01HF7YAT2AJ9P7YYPTBH6BMKHM",
+      "pos": "G",
+      "name": "- NIGHT",
+      "text": " - NIGHT",
+      "styleId": null,
+      "nextStyleId": "st_action",
+      "shortcut": "Mod+Alt+5",
+      "alias": null
+    },
+    {
+      "id": "mac_01HF7YAT2B2S9SHDHNRAE2MTFW",
+      "pos": "K",
+      "name": "- CONTINUOUS",
+      "text": " - CONTINUOUS",
+      "styleId": null,
+      "nextStyleId": "st_action",
+      "shortcut": "Mod+Alt+6",
+      "alias": null
+    },
+    {
+      "id": "mac_01HF7YAT2CYFX2V9KDR1XR0BWK",
+      "pos": "O",
+      "name": "- LATER",
+      "text": " - LATER",
+      "styleId": null,
+      "nextStyleId": "st_action",
+      "shortcut": "Mod+Alt+7",
+      "alias": null
+    },
+    {
+      "id": "mac_01HF7YAT2D04BTPBXAF8SPHVSY",
+      "pos": "S",
+      "name": "- MOMENTS LATER",
+      "text": " - MOMENTS LATER",
+      "styleId": null,
+      "nextStyleId": "st_action",
+      "shortcut": "Mod+Alt+8",
+      "alias": null
+    },
+    {
+      "id": "mac_01HF7YAT2EBM9F2C7HY2FT1GSF",
+      "pos": "U",
+      "name": "CUT TO:",
+      "text": "CUT TO:",
+      "styleId": "st_transition",
+      "nextStyleId": "st_scene_heading",
+      "shortcut": "Mod+Alt+9",
+      "alias": null
+    },
+    {
+      "id": "mac_01HF7YAT2FY10KTQFYCS043TW2",
+      "pos": "V",
+      "name": "DISSOLVE TO:",
+      "text": "DISSOLVE TO:",
+      "styleId": "st_transition",
+      "nextStyleId": "st_scene_heading",
+      "shortcut": "Mod+Alt+0",
+      "alias": null
+    },
+    {
+      "id": "mac_01HF7YAT2G1ZJF0BCQNJ9FWHY9",
+      "pos": "Z",
+      "name": "FADE IN:",
+      "text": "FADE IN:",
+      "styleId": "st_transition",
+      "nextStyleId": "st_scene_heading",
+      "shortcut": "Mod+Alt+F1",
+      "alias": null
+    },
+    {
+      "id": "mac_01HF7YAT2HT34VC5P654VVCNDS",
+      "pos": "d",
+      "name": "FADE OUT.",
+      "text": "FADE OUT.",
+      "styleId": "st_transition",
+      "nextStyleId": null,
+      "shortcut": "Mod+Alt+F2",
+      "alias": null
+    },
+    {
+      "id": "mac_01HF7YAT2JXWN6041EX7A78ZDT",
+      "pos": "h",
+      "name": "SMASH CUT TO:",
+      "text": "SMASH CUT TO:",
+      "styleId": "st_transition",
+      "nextStyleId": "st_scene_heading",
+      "shortcut": "Mod+Alt+F3",
+      "alias": null
+    },
+    {
+      "id": "mac_01HF7YAT2KCRXJ97FK58G9DFWF",
+      "pos": "j",
+      "name": "MATCH CUT TO:",
+      "text": "MATCH CUT TO:",
+      "styleId": "st_transition",
+      "nextStyleId": "st_scene_heading",
+      "shortcut": "Mod+Alt+F4",
+      "alias": null
+    },
+    {
+      "id": "mac_01HF7YAT2MS657E4SQT6JV24DX",
+      "pos": "l",
+      "name": "BACK TO:",
+      "text": "BACK TO:",
+      "styleId": "st_transition",
+      "nextStyleId": "st_scene_heading",
+      "shortcut": "Mod+Alt+F5",
+      "alias": null
+    },
+    {
+      "id": "mac_01HF7YAT2N386BTDHRPZPM0Y6Q",
+      "pos": "p",
+      "name": "INTERCUT WITH:",
+      "text": "INTERCUT WITH:",
+      "styleId": "st_transition",
+      "nextStyleId": "st_scene_heading",
+      "shortcut": "Mod+Alt+F6",
+      "alias": null
+    },
+    {
+      "id": "mac_01HF7YAT2P2PMJ85S5C26XK16B",
+      "pos": "r",
+      "name": "(V.O.)",
+      "text": " (V.O.)",
+      "styleId": null,
+      "nextStyleId": "st_dialogue",
+      "shortcut": "Mod+Alt+F7",
+      "alias": null
+    },
+    {
+      "id": "mac_01HF7YAT2Q0XB0TK4ZG5NXR5BJ",
+      "pos": "t",
+      "name": "(O.S.)",
+      "text": " (O.S.)",
+      "styleId": null,
+      "nextStyleId": "st_dialogue",
+      "shortcut": "Mod+Alt+F8",
+      "alias": null
+    },
+    {
+      "id": "mac_01HF7YAT2R45EA59Z32XYC679X",
+      "pos": "x",
+      "name": "SUPER:",
+      "text": "SUPER: ",
+      "styleId": "st_action",
+      "nextStyleId": "st_action",
+      "shortcut": "Mod+Alt+F9",
+      "alias": null
+    },
+    {
+      "id": "mac_01HF7YAT2SJG8RP9ABGEJ7F42P",
+      "pos": "z",
+      "name": "FLASHBACK:",
+      "text": "FLASHBACK:",
+      "styleId": "st_action",
+      "nextStyleId": "st_scene_heading",
+      "shortcut": "Mod+Alt+F10",
+      "alias": null
+    }
+  ],
+  "smartType": {
+    "sceneIntros": [
+      {
+        "key": "int",
+        "text": "INT.",
+        "pos": "G",
+        "origin": "seed",
+        "count": 0
+      },
+      {
+        "key": "ext",
+        "text": "EXT.",
+        "pos": "V",
+        "origin": "seed",
+        "count": 0
+      },
+      {
+        "key": "int./ext",
+        "text": "INT./EXT.",
+        "pos": "l",
+        "origin": "seed",
+        "count": 0
+      }
+    ],
+    "times": [
+      {
+        "key": "day",
+        "text": "DAY",
+        "pos": "8",
+        "origin": "seed",
+        "count": 0
+      },
+      {
+        "key": "night",
+        "text": "NIGHT",
+        "pos": "G",
+        "origin": "seed",
+        "count": 0
+      },
+      {
+        "key": "morning",
+        "text": "MORNING",
+        "pos": "O",
+        "origin": "seed",
+        "count": 0
+      },
+      {
+        "key": "afternoon",
+        "text": "AFTERNOON",
+        "pos": "S",
+        "origin": "seed",
+        "count": 0
+      },
+      {
+        "key": "evening",
+        "text": "EVENING",
+        "pos": "V",
+        "origin": "seed",
+        "count": 0
+      },
+      {
+        "key": "later",
+        "text": "LATER",
+        "pos": "d",
+        "origin": "seed",
+        "count": 0
+      },
+      {
+        "key": "moments later",
+        "text": "MOMENTS LATER",
+        "pos": "l",
+        "origin": "seed",
+        "count": 0
+      },
+      {
+        "key": "continuous",
+        "text": "CONTINUOUS",
+        "pos": "t",
+        "origin": "seed",
+        "count": 0
+      },
+      {
+        "key": "the next day",
+        "text": "THE NEXT DAY",
+        "pos": "x",
+        "origin": "seed",
+        "count": 0
+      }
+    ],
+    "extensions": [
+      {
+        "key": "(v.o.)",
+        "text": "(V.O.)",
+        "pos": "G",
+        "origin": "seed",
+        "count": 0
+      },
+      {
+        "key": "(o.s.)",
+        "text": "(O.S.)",
+        "pos": "V",
+        "origin": "seed",
+        "count": 0
+      },
+      {
+        "key": "(o.c.)",
+        "text": "(O.C.)",
+        "pos": "l",
+        "origin": "seed",
+        "count": 0
+      },
+      {
+        "key": "(subtitle)",
+        "text": "(SUBTITLE)",
+        "pos": "t",
+        "origin": "seed",
+        "count": 0
+      }
+    ],
+    "transitions": [
+      {
+        "key": "cut to",
+        "text": "CUT TO:",
+        "pos": "8",
+        "origin": "seed",
+        "count": 0
+      },
+      {
+        "key": "fade in",
+        "text": "FADE IN:",
+        "pos": "G",
+        "origin": "seed",
+        "count": 0
+      },
+      {
+        "key": "fade out",
+        "text": "FADE OUT.",
+        "pos": "O",
+        "origin": "seed",
+        "count": 0
+      },
+      {
+        "key": "fade to",
+        "text": "FADE TO:",
+        "pos": "S",
+        "origin": "seed",
+        "count": 0
+      },
+      {
+        "key": "dissolve to",
+        "text": "DISSOLVE TO:",
+        "pos": "V",
+        "origin": "seed",
+        "count": 0
+      },
+      {
+        "key": "back to",
+        "text": "BACK TO:",
+        "pos": "d",
+        "origin": "seed",
+        "count": 0
+      },
+      {
+        "key": "match cut to",
+        "text": "MATCH CUT TO:",
+        "pos": "l",
+        "origin": "seed",
+        "count": 0
+      },
+      {
+        "key": "jump cut to",
+        "text": "JUMP CUT TO:",
+        "pos": "t",
+        "origin": "seed",
+        "count": 0
+      },
+      {
+        "key": "fade to black",
+        "text": "FADE TO BLACK.",
+        "pos": "x",
+        "origin": "seed",
+        "count": 0
+      }
+    ],
+    "soundCues": [],
+    "introSeparator": " ",
+    "timeSeparator": " - ",
+    "sortMode": "alphabetical",
+    "dismissed": [],
+    "entityTombstones": []
+  },
+  "spelling": {
+    "language": "en",
+    "words": [],
+    "ignored": []
+  },
+  "tableRead": {
+    "narrator": {
+      "platformVoiceId": null,
+      "rate": 1,
+      "pitch": 1,
+      "volume": 1
+    },
+    "narratorStyleIds": [],
+    "dialogueOnly": false,
+    "speakCharacterNames": true,
+    "defaultVoice": {
+      "platformVoiceId": null,
+      "rate": 1,
+      "pitch": 1,
+      "volume": 1
+    }
+  },
+  "settings": {
+    "enterOnBlank": "template",
+    "smartQuotes": true,
+    "autoCapitalizeSentences": true,
+    "fixDoubleCapitals": true,
+    "autoParentheses": true,
+    "smartTypeEnabled": true,
+    "guessNextCharacter": true,
+    "macrosEnabled": true,
+    "highlightCharacters": false,
+    "targetPages": null,
+    "targetEpisodeSeconds": null,
+    "secondsPerPage": 60,
+    "dualDialogueEditStacked": false,
+    "outlineHidden": false,
+    "showRevisionsInPrint": true,
+    "watermark": null,
+    "readingDirection": "ltr"
+  },
+  "importMeta": null,
+  "aiSuggestions": []
+}

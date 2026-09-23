@@ -1,6 +1,6 @@
 {
   "name": "@sudobility/writing_core",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Headless, platform-free writing engine for screenplays, stage plays and manuscripts: collaborative document model (Yjs), templates, editing commands, SmartType and per-session undo",
   "type": "module",
   "main": "./dist/index.js",
@@ -30,6 +30,12 @@
     "fonts:generate": "bun scripts/build-font-metrics.ts",
     "ucd:generate": "bun scripts/build-ucd.ts",
     "dict:generate": "bun scripts/build-dictionaries.ts",
+    "fixtures:build": "bun scripts/build-fixtures.ts",
+    "fixtures:reference": "bun scripts/build-reference-docs.ts",
+    "golden:update": "bun scripts/golden-update.ts",
+    "bench:layout": "vitest run src/layout/layout.bench.test.ts",
+    "bench:layout:update": "BENCH_UPDATE_BASELINE=1 vitest run src/layout/layout.bench.test.ts",
+    "test:bun": "bun test src/layout/determinism.test.ts",
     "verify": "bun run typecheck && bun run lint && bun run test:unit && bun run build",
     "prepublishOnly": "bun run clean && bun run verify"
   },
@@ -48,6 +54,7 @@
     "fast-xml-parser": "^5.11.1",
     "fontkit": "^2.0.4",
     "globals": "^16.4.0",
+    "pdfjs-dist": "^6.3.289",
     "rimraf": "^6.0.1",
     "typescript": "^6.0.3",
     "vitest": "^4.1.10"

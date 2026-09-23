@@ -38,6 +38,17 @@ export interface ModelPosition {
   offset: number;
 }
 
+/**
+ * Spec 02 §8.2's `selectionRects(range: ModelRange)` names this type but never gives its field list
+ * (M2 task 31): the minimal shape every other spec 02 range already uses — an anchor and a head, not
+ * necessarily in document order (the engine, which holds the model, orders them before calling
+ * `mapping.ts`'s `selectionRects`, which has no ordering of its own to check them against).
+ */
+export interface ModelRange {
+  anchor: ModelPosition;
+  head: ModelPosition;
+}
+
 /** Placeholder: §4 (font metrics) owns the branded id; a bare string here, e.g. `'courier-prime:regular'`. */
 export type FaceId = string;
 

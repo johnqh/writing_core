@@ -7,7 +7,7 @@ describe('command vocabulary', () => {
     registerBuiltinCommands();
     const ids = listCommands().map((c) => c.id).sort();
     expect(ids).toEqual([
-      'dual.clear', 'dual.make', 'element.cycleStyle', 'element.duplicate', 'element.insert', 'element.move', 'element.revertOverrides', 'element.setOverride',
+      'dual.clear', 'dual.create', 'dual.dissolve', 'dual.make', 'dual.swapSides', 'element.cycleStyle', 'element.duplicate', 'element.insert', 'element.move', 'element.revertOverrides', 'element.setOverride',
       'element.setStyle', 'element.split', 'entity.addAlias', 'entity.create', 'entity.delete', 'entity.merge', 'entity.rebuild',
       'entity.removeAlias', 'entity.update', 'mark.clear', 'mark.set', 'mark.toggle', 'page.lock', 'page.unlock', 'revision.clear', 'revision.markElements', 'revision.mode', 'revision.setCurrent', 'revision.setDisplay', 'scene.lockNumbers', 'scene.move', 'scene.setOmitted', 'scene.setSynopsis', 'scene.unlockNumbers', 'smartType.addEntry',
       'smartType.alphabetize', 'smartType.cleanup', 'smartType.rebuild', 'smartType.removeEntry', 'smartType.reorder',

@@ -124,4 +124,42 @@ describe('contextPass', () => {
     contextPass(first.model, first.model.template(), assignNumbers(first.model), { normalizeSpeaker });
     expect(calls).toBe(2);
   });
+
+  describe('alternatesMode (spec 09, M2 task 35)', () => {
+    function addAlt(record: Y.Map<unknown>, id: string, text: string) {
+      let altsMap = record.get('alts') as Y.Map<unknown> | undefined;
+      if (!(altsMap instanceof Y.Map)) { altsMap = new Y.Map(); record.set('alts', altsMap); }
+      const alt = new Y.Map<unknown>();
+      alt.set('id', id);
+      alt.set('pos', 'M');
+      const t = new Y.Text();
+      t.insert(0, text);
+      alt.set('text', t);
+      alt.set('style', builtinStyleId('action'));
+      alt.set('label', '');
+      alt.set('createdBy', 'u');
+      alt.set('createdAt', 0);
+      altsMap.set(id, alt);
+    }
+
+    it('"active" (default) never folds inactive alternates into decorationHash', () => {
+      const { add, idOf, run } = setup();
+      const a = add('action', 'Same active text.');
+      const before = run().contexts.get(idOf(a))!.decorationHash;
+      addAlt(a, 'alt_01ARYZ6S410000000000000000', 'A very different alternate.');
+      const after = run().contexts.get(idOf(a))!.decorationHash;
+      expect(after).toBe(before);
+    });
+
+    it('"all" folds inactive alternates\' text into decorationHash, so editing one changes it', () => {
+      const { add, idOf, run } = setup();
+      const a = add('action', 'Same active text.');
+      const noAlts = run({ alternatesMode: 'all' }).contexts.get(idOf(a))!.decorationHash;
+      addAlt(a, 'alt_01ARYZ6S410000000000000000', 'Alternate one.');
+      const withAlt = run({ alternatesMode: 'all' }).contexts.get(idOf(a))!.decorationHash;
+      expect(withAlt).not.toBe(noAlts);
+      // "active" mode is unaffected by the very same alt being present.
+      expect(run({ alternatesMode: 'active' }).contexts.get(idOf(a))!.decorationHash).toBe(noAlts);
+    });
+  });
 });

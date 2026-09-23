@@ -1,6 +1,6 @@
 import { z } from 'zod/v4';
 import { describe, expect, it } from 'vitest';
-import { defineCommand, getCommand, registerCommand } from './registry.js';
+import { createCommandRegistry, defineCommand, getCommand, listCommands, registerCommand } from './registry.js';
 import type { CommandContext } from './types.js';
 
 describe('defineCommand', () => {
@@ -41,5 +41,40 @@ describe('defineCommand', () => {
   it('produces a spec the registry can register and resolve', () => {
     registerCommand(defineCommand('test.defRegistered', z.object({}), () => ({ ok: true })));
     expect(getCommand('test.defRegistered')?.id).toBe('test.defRegistered');
+  });
+});
+
+describe('createCommandRegistry', () => {
+  it('gives an isolated instance: the same id registered with two different specs in two instances does not throw', () => {
+    const a = createCommandRegistry();
+    const b = createCommandRegistry();
+    const specA = defineCommand('test.isolated', z.object({ x: z.number() }), () => ({ ok: true }));
+    const specB = defineCommand('test.isolated', z.object({ y: z.string() }), () => ({ ok: true }));
+    a.registerCommand(specA);
+    expect(() => b.registerCommand(specB)).not.toThrow();
+    expect(a.getCommand('test.isolated')).toBe(specA);
+    expect(b.getCommand('test.isolated')).toBe(specB);
+    expect(a.listCommands()).toEqual([specA]);
+    expect(b.listCommands()).toEqual([specB]);
+    // Neither instance leaks into the shared default registry used by registerCommand/getCommand.
+    expect(getCommand('test.isolated')).toBeUndefined();
+  });
+
+  it('re-registering the exact same spec object on one instance is idempotent, a different one still throws', () => {
+    const r = createCommandRegistry();
+    const spec = defineCommand('test.reReg', z.object({}), () => ({ ok: true }));
+    r.registerCommand(spec);
+    expect(() => r.registerCommand(spec)).not.toThrow();
+    const other = defineCommand('test.reReg', z.object({}), () => ({ ok: true }));
+    expect(() => r.registerCommand(other)).toThrow(/already registered/);
+  });
+
+  it('module-level registerCommand/getCommand/listCommands accept an explicit registry, defaulting to the shared one', () => {
+    const r = createCommandRegistry();
+    const spec = defineCommand('test.explicitRegistry', z.object({}), () => ({ ok: true }));
+    registerCommand(spec, [], r);
+    expect(getCommand('test.explicitRegistry', r)?.id).toBe('test.explicitRegistry');
+    expect(getCommand('test.explicitRegistry')).toBeUndefined(); // not on the default
+    expect(listCommands(r)).toEqual([spec]);
   });
 });

@@ -5,6 +5,7 @@ import { screenplayStandard } from '../../templates/builtin/screenplay-standard.
 import { ROOT_STYLE_DEFAULTS } from '../../templates/shared.js';
 import { createDocument } from '../create.js';
 import { documentToJSON } from '../json.js';
+import { positionBetween } from '../positions.js';
 import { UNIMPLEMENTED_INVARIANTS, validateDocument } from './index.js';
 import { INVARIANT_CODES } from './types.js';
 
@@ -210,17 +211,30 @@ describe('structural invariants', () => {
     expect(tpElements.has(newTitleId!)).toBe(true);
   });
 
-  it('I18 normalizes text to NFC and I19 rebalances long positions', () => {
+  it('I18 normalizes text to NFC and I19 rebalances long positions, bounded to only the degenerate ones', () => {
     const doc = fresh();
+    const elements = doc.getMap<unknown>('elements');
     const el = firstElement(doc);
     (el.get('text') as Y.Text).insert(0, 'Café', { b: true });
     el.set('pos', 'V'.repeat(80));
+    // A second, healthy element after it: I19's repair must not touch its `pos` at all — the whole
+    // point of the bounded fix (`positions.ts`'s own `rebalanceDegenerateRuns` doc comment).
+    const healthyPos = positionBetween('V'.repeat(80), null, null);
+    const second = new Y.Map<unknown>();
+    elements.set('el_healthy', second);
+    second.set('id', 'el_healthy');
+    second.set('pos', healthyPos);
+    second.set('style', 'st_action');
+    second.set('text', new Y.Text('Untouched.'));
+    second.set('meta', { createdBy: 'u', createdAt: 0, editedBy: 'u', editedAt: 0 });
     const v = validateDocument(doc);
     expect(v.issues.map((i) => i.code).sort()).toEqual(['I18', 'I19']);
     v.repair();
     expect((el.get('text') as Y.Text).toString()).toBe('Café');
     expect((el.get('text') as Y.Text).toDelta()).toEqual([{ insert: 'Café', attributes: { b: true } }]);
     expect((el.get('pos') as string).length).toBeLessThanOrEqual(64);
+    expect(second.get('pos')).toBe(healthyPos); // exactly byte-identical: not regenerated, not touched
+    expect(validateDocument(doc).issues).toEqual([]); // fully clean after repair
   });
 
   it('I20 flags a document newer than the code', () => {

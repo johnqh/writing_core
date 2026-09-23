@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { commandHarness } from '../commands/test-harness.js';
 import { BUILTIN_TEMPLATES } from '../templates/catalogue.js';
 import type { EmbeddedTemplateJSON } from '../schema/document.js';
+import type { TemplateJSON } from '../schema/template.js';
 import { CATEGORY_RULES, type PaginationCategory } from './category.js';
 import { formBlocks, type BlockPara } from './blocks.js';
 import { formRows } from './columns.js';
@@ -45,7 +46,10 @@ describe('formRows (§16.1)', () => {
   });
 });
 
-function build(template: EmbeddedTemplateJSON, rows: [string, string][]) {
+// `commandHarness` seeds a document from a full (seed) `TemplateJSON` (`BUILTIN_TEMPLATES`'s own
+// shape); `layoutDocument`'s own `t` is the document-embedded form (`EmbeddedTemplateJSON`, read back
+// from the model) — two genuinely different shapes, not interchangeable.
+function build(template: TemplateJSON, rows: [string, string][]) {
   const h = commandHarness(template);
   const ids = h.replaceBody(rows);
   return { h, ids, layout: (t: EmbeddedTemplateJSON = h.model.template()) => layoutDocument(h.model, t) };
@@ -93,7 +97,10 @@ describe('AV two-column layout', () => {
 
     // With dialogue breaks allowed and room for a head, each side splits independently and the tails start page 2 top-aligned.
     const b2 = build(AV, [...filler(44), ...row]);
-    const t = { ...AV, pagination: { ...AV.pagination, dialogue: { ...AV.pagination.dialogue, allowBreaks: true } } } as EmbeddedTemplateJSON;
+    // Based on the document's own embedded template (the correct shape for `layout()`'s override),
+    // not `AV` (the seed `TemplateJSON` `build` was constructed from) directly.
+    const base = b2.h.model.template();
+    const t: EmbeddedTemplateJSON = { ...base, pagination: { ...base.pagination, dialogue: { ...base.pagination.dialogue, allowBreaks: true } } };
     const split = b2.layout(t);
     expect(split.pages).toHaveLength(2);
     const p1 = split.pages[0]!.lines.filter((x) => x.column > 0);

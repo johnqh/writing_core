@@ -6,7 +6,7 @@ import { FLOW_KEYS, FONT_KEYS, ROOT_REQUIRED_KEYS } from '../../template/resolve
 import { validateTemplate } from '../../template/validate.js';
 import { ROOT_STYLE_DEFAULTS } from '../../templates/shared.js';
 import { readElementRecord, writeElementRecord } from '../json.js';
-import { MAX_POSITION_LENGTH, positionBetween, rebalancePositions } from '../positions.js';
+import { MAX_POSITION_LENGTH, positionBetween, rebalanceDegenerateRuns } from '../positions.js';
 import { orderElements } from '../ymap.js';
 import type { YDeltaOp } from '../ytext.js';
 import { BUILTIN_STYLE_ROLES, allTexts } from './context.js';
@@ -192,8 +192,13 @@ const I19: Invariant = {
       const ordered = orderElements(map);
       if (!ordered.some((e) => String(e.get('pos') ?? '').length > MAX_POSITION_LENGTH)) continue;
       out.push(issue(I19, `position keys exceed ${MAX_POSITION_LENGTH} characters`, [], () => {
-        const keys = rebalancePositions(ordered.length);
-        ordered.forEach((e, i) => e.set('pos', keys[i]!));
+        // Bounded, not a full flatten (`positions.ts`'s own doc comment on `rebalanceDegenerateRuns`
+        // explains why): repair runs by default on every document open, so a whole-document
+        // reassignment here could silently race a concurrent edit from another session. Only the
+        // actually-degenerate runs are touched; every other element's `pos` is untouched.
+        const positions = ordered.map((e) => String(e.get('pos') ?? ''));
+        const fixes = rebalanceDegenerateRuns(positions);
+        for (const [i, key] of fixes) ordered[i]!.set('pos', key);
       }));
     }
     return out;

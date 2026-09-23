@@ -110,8 +110,11 @@ export { layoutAdvance, isCourierFamily, measureItem, type MeasuredItem } from '
 export { type CategoryRule, CATEGORY_RULES, categoryOf } from './layout/category.js';
 export {
   layoutParagraph, makeDisplayText, basePitchOf, spaceBeforeOf,
-  type ParaLine, type ParagraphLayout, type ParagraphInput, type DisplayText, type DisplayTextFn,
+  type ParaLine, type ParagraphLayout, type ParagraphInput, type DisplayText, type DisplayTextFn, type ParagraphCache,
 } from './layout/paragraph.js';
+export {
+  createParagraphCache, effectiveStyleHash, estimateParagraphBytes, paragraphCacheBound, type SizedParagraphCache,
+} from './layout/paragraph-cache.js';
 export {
   formBlocks, keepChains, paraFlags, firstPara, lastPara,
   type Block, type BlockPara, type ParaFlags, type SingleBlock, type DialogueBlock, type DualBlock, type ColumnRowsBlock,
@@ -120,7 +123,7 @@ export {
 export {
   paginate, pageGeometryOf, DEFAULT_PAGINATE_DEPS,
   type PageGeometry, type PaginationParams, type PaginateDeps, type FillState, type FilledPage, type PlacedLine, type LockSegment,
-  type BlockLineCursor, type SplitChoice, type DualSplit, type RowSplit,
+  type BlockLineCursor, type SplitChoice, type DualSplit, type RowSplit, type PaginateResumePoint, type PaginateStopOptions,
 } from './layout/paginate.js';
 export {
   moreLine, synthesizedCue, cueDisplayText, contdCueLine, sceneContinuedTop, sceneContinuedBottom, bottomReserve, makeContinueds,
@@ -133,7 +136,7 @@ export {
 } from './layout/columns.js';
 export { panelHeadings, pageContdLine, type PanelText } from './layout/panels.js';
 export { dualGeometry, dualSideBox, layoutDual, splitDual, dualMinHead, type DualLayout, type DualSplitChoice, type DualCategory } from './layout/dual.js';
-export { layoutDocument, type LayoutDocumentOptions, type DocLayout, type DocPage, type DocLine, type DocDecoration } from './layout/layout-document.js';
+export { layoutDocument, getRawFilledPages, type LayoutDocumentOptions, type DocLayout, type DocPage, type DocLine, type DocDecoration } from './layout/layout-document.js';
 export {
   sceneEighths, distributeEighths, formatEighths, runningTime, formatRunningTime,
   type SceneEighths, type SceneRunningTime, type RunningTime,
@@ -142,7 +145,9 @@ export {
   autoAdjustLines, clampDeltaRight, LINE_ADJUST_MIN, LINE_ADJUST_MAX,
   type AutoAdjustOptions, type AutoAdjustResult, type LineAdjustment,
 } from './layout/adjust.js';
-export { buildElementIndex, type DocElementIndex, type ElementPageSpan, type SceneExtent } from './layout/output.js';
+export { buildElementIndex, docVersionOf, drawNumbers, type DocElementIndex, type ElementPageSpan, type SceneExtent } from './layout/output.js';
+export { pageOf, pointToPosition, positionAbove, positionBelow, positionToCaret, selectionRects, type VerticalMove } from './layout/mapping.js';
+export { createLayoutEngine, type LayoutEngine, type DocLayoutDelta } from './layout/engine.js';
 export {
   applyRevisionDisplay, revisionReport, revisionLabel, revisionShortName, formatRevisionDate, elementRevisionMarks,
   type LineRevisionMark, type RevisedPageRef, type RevisionReportSet,

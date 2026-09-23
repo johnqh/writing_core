@@ -3,16 +3,27 @@
  * alignment -> pitch grid. Output is `ParagraphLayout` (§11.4).
  *
  * Speed-mode scope: RTL paragraphs swap left/right alignment and reorder runs (L2) but indents are
- * not mirrored; inline images/embeds, hyphenation, tab stops, `leadingAdjust` beyond the additive
- * term, and the Track Changes / alternates display modes (the default `displayText` is the `final`
- * view) are not implemented.
+ * not mirrored; inline images/embeds, hyphenation, tab stops, and `leadingAdjust` beyond the additive
+ * term are not implemented. Track Changes display (§26, M2 task 35): `makeDisplayText`'s
+ * `trackChangesView` genuinely renders `final`/`simple`/`original` (run- and, via `layoutDocument`,
+ * element-level hiding); `markup` is NOT laid out by this pipeline — it needs speed view (deleted
+ * text takes real space alongside its live replacement), which does not exist here (`paginate.ts`'s
+ * own header: page mode only) — `layoutTrackChangesMarkup` below is the pure text transform, real and
+ * tested, waiting for whichever future speed-view pass wants it. Alternates display (`alternatesMode:
+ * 'all'`, spec 09, M2 task 35): `makeDisplayText`'s own `alternatesMode` parameter appends each
+ * inactive alternate inline as ` // ` + its text, a non-editable generated suffix exactly like
+ * `autoContinued`'s — real and tested. Not done: a distinct tint / `GlyphRun.annotations.decoration`
+ * tag for it, which is unset (`'none'`) for every one of the four decoration kinds §29.3 lists
+ * (`autoContd`, `inlineNumber`, `alternates`, `generatedHeading`) — a pre-existing gap in this whole
+ * annotations field across the pipeline, not something specific to alternates to fix in isolation.
  */
 import type { ElementId } from '../ids/ids.js';
 import type { DocumentModel } from '../read-model/open.js';
 import type { ElementView } from '../read-model/views.js';
 import type { EmbeddedTemplateJSON } from '../schema/document.js';
 import type { PageSpec } from '../schema/template.js';
-import { LINE_SPACING_FACTORS } from '../schema/vocab.js';
+import type { ChangeMark, TextRun } from '../schema/text.js';
+import { LINE_SPACING_FACTORS, type TrackChangeView } from '../schema/vocab.js';
 import type { ResolvedStyle } from '../template/resolve.js';
 import { mirrorChar, reorderVisual } from '../text/bidi.js';
 import { upperCaseWithMap } from '../text/casing.js';
@@ -61,6 +72,14 @@ export interface DisplayText {
 /** §11.2 step 1 is owned by Task 28 (Track Changes view); the default is the `final` view. */
 export type DisplayTextFn = (elementId: ElementId) => DisplayText;
 
+/** Spec 02 §31.2's paragraph cache (M2 task 31): get-or-nothing plus a stored write, so a hit skips
+ *  the rest of `layoutParagraph` entirely. Defined in `paragraph-cache.ts`, imported type-only here to
+ *  avoid a runtime circular dependency (that module imports `ParagraphLayout` from this one). */
+export interface ParagraphCache {
+  get(cacheKey: string): ParagraphLayout | undefined;
+  set(cacheKey: string, value: ParagraphLayout): void;
+}
+
 export interface ParagraphInput {
   elementId: ElementId;
   displayText: DisplayTextFn;
@@ -76,9 +95,19 @@ export interface ParagraphInput {
   lineAdjustDeltaRight?: number;
   /** Pre-computed `fontRegistryVersion|engineVersion|viewTextMode` from Task 31. */
   keyPrefix?: string;
+  /**
+   * Hash of the FULLY RESOLVED style (inheritance + `ov` + `paginateAs` already applied), spec
+   * 02 §31.2's `effectiveStyleHash`. `style.id` alone (already in `cacheKey`) is not enough: two
+   * elements sharing a style id but different per-element `ov` overrides that don't touch
+   * `textLeft`/`width` — `spaceBefore`, `lineSpacing`, `indentFirstLine`, font weight/size, etc. —
+   * would otherwise collide on the same cache entry. Task 31.
+   */
+  styleHash?: string;
   decorationHash?: number;
   /** Geometry override for dual dialogue / column rows (§15/§16). */
   geometry?: { textLeft: number; width: number };
+  /** Task 31: checked (after geometry is known, before any measuring) and written to on a miss. */
+  cache?: ParagraphCache;
 }
 
 /** `basePitch = round(914400 / linesPerInch)`. */
@@ -130,6 +159,19 @@ export function layoutParagraph(input: ParagraphInput): ParagraphLayout {
   const width =
     input.geometry?.width ?? page.width - page.margins.right - style.indentRight + (input.lineAdjustDeltaRight ?? 0) - textLeft;
   const textRight = textLeft + width;
+
+  // Task 31 (§31.2): every ingredient is known now, before any itemizing/measuring/breaking — a cache
+  // hit returns straight away, and a miss is written once the real result is ready below. `dt.sourceLength`
+  // is folded in alongside `fnv(display)`: generated display text (an omitted scene's "OMITTED"
+  // placeholder, a synthesized cue) can stay byte-identical while the REAL underlying source range it
+  // collapses to changes length (e.g. editing an omitted scene's own heading text) — `display` alone
+  // would then wrongly hit a cache entry built from the old `sourceStart`/`sourceEnd`.
+  const cacheKey = [
+    input.keyPrefix ?? '', input.elementId, fnv(display), dt.sourceLength, style.id, input.styleHash ?? '', textLeft, width, input.decorationHash ?? 0,
+    page.linesPerInch, page.lineSpacingPreset, page.elementSpacing, fnv(JSON.stringify(input.attrs)),
+  ].join('|');
+  const cached = input.cache?.get(cacheKey);
+  if (cached) return cached;
 
   // Display offset -> source offset, per grapheme cluster start.
   const dStarts = graphemeClusters(display);
@@ -339,20 +381,61 @@ export function layoutParagraph(input: ParagraphInput): ParagraphLayout {
     top += pitch;
   }
 
-  const cacheKey = [
-    input.keyPrefix ?? '', input.elementId, fnv(display), style.id, textLeft, width, input.decorationHash ?? 0,
-    page.linesPerInch, page.lineSpacingPreset, page.elementSpacing, fnv(JSON.stringify(input.attrs)),
-  ].join('|');
-
-  return {
+  const result: ParagraphLayout = {
     elementId: input.elementId, cacheKey, spaceBefore: spaceBeforeOf(style, page), lines, totalHeight: top,
     sentenceEndLines, category: input.category, diagnostics,
   };
+  input.cache?.set(cacheKey, result);
+  return result;
 }
 
 /**
- * The default (`final` Track Changes view) display text: all caps (§7.1), the omitted-scene
- * placeholder and the automatic `(CONT'D)` suffix (§11.2 step 3).
+ * Spec 02 §26: which run-level marks a non-`markup` Track Changes view hides. `final`/`simple` hide
+ * `del` runs (accepted state); `original` hides `ins` runs (rejected state) instead. `markup` hides
+ * nothing here — it lays out everything inline (struck through / underlined), which needs speed
+ * view (§34.2, not implemented by this pipeline — see this file's own header and `layoutTrackChangesMarkup`
+ * below) to have room for both a deletion's text and its replacement at once; page mode never reaches
+ * this function with `markup` (`layoutDocument` narrows it to `final` first — see that file's header).
+ */
+export function hiddenMarkFor(view: TrackChangeView): ChangeMark | null {
+  if (view === 'final' || view === 'simple') return 'del';
+  if (view === 'original') return 'ins';
+  return null;
+}
+
+/**
+ * Drops the hidden mark's run text (§26) from `runs`, returning the filtered text plus, per UTF-16
+ * code unit of that filtered text, which code unit of the FULL (unfiltered) source it came from — so
+ * a caller composing further transforms (all-caps, prefixes) on the filtered text can still map back
+ * to real Y.Text offsets afterward. A `revDel` embed (spec 01: a deletion placeholder) is dropped
+ * unconditionally — spec 11's own `canonicalElementText` does the same, for the same reason: it is
+ * never real, visible content.
+ */
+export function filterTrackChanges(runs: readonly TextRun[], view: TrackChangeView): { text: string; sourceOffsetAt: readonly number[] } {
+  const hidden = hiddenMarkFor(view);
+  let text = '';
+  const sourceOffsetAt: number[] = [];
+  let srcOffset = 0;
+  for (const run of runs) {
+    const isHidden = hidden !== null && run.attrs[hidden] !== undefined && run.attrs[hidden] !== null;
+    if (!isHidden) {
+      text += run.text;
+      for (let i = 0; i < run.text.length; i++) sourceOffsetAt.push(srcOffset + i);
+    }
+    srcOffset += run.text.length;
+  }
+  return { text, sourceOffsetAt };
+}
+
+/**
+ * The display text for one Track Changes view (§26; defaults to `final`): all caps (§7.1), the
+ * omitted-scene placeholder, the automatic `(CONT'D)` suffix and, with `alternatesMode: 'all'` (spec
+ * 09), each inactive alternate appended inline as ` // ` + its own plain text (§11.2 step 3), composed
+ * on top of `filterTrackChanges`'s own run-level hiding. Element-level hiding (`tc.kind:
+ * 'delete'`/`'insert'`) and `tc.kind: 'style'`'s `fromStyle` substitution are `layoutDocument`'s own
+ * job (they decide whether this function is even called for an element, and which style it resolves
+ * against) — this function only ever sees an element it has already been decided should lay out, in
+ * the style it should lay out in.
  */
 export function makeDisplayText(
   model: DocumentModel,
@@ -360,17 +443,20 @@ export function makeDisplayText(
   contexts: ReadonlyMap<ElementId, ElementContext>,
   styleOf: (el: ElementView) => ResolvedStyle,
   lang: string,
+  trackChangesView: TrackChangeView = 'final',
+  alternatesMode: 'active' | 'all' = 'active',
 ): DisplayTextFn {
   const byId = new Map<ElementId, ElementView>();
   for (const el of model.elements()) byId.set(el.id, el);
   return (id) => {
     const el = byId.get(id) as ElementView;
     const ctx = contexts.get(id);
-    const source = el.text.plain;
+    const fullSource = el.text.plain;
     if (ctx?.generatedText) {
       const g = ctx.generatedText;
-      return { text: g, clusterSource: new Uint32Array(graphemeClusters(g).length), sourceLength: source.length };
+      return { text: g, clusterSource: new Uint32Array(graphemeClusters(g).length), sourceLength: fullSource.length };
     }
+    const { text: source, sourceOffsetAt } = filterTrackChanges(el.text.runs, trackChangesView);
     let text = source;
     let map: number[];
     if (styleOf(el).allCaps) {
@@ -378,6 +464,8 @@ export function makeDisplayText(
       text = up.display;
       map = Array.from(up.clusterSource);
     } else map = graphemeClusters(source);
+    // Re-base onto the FULL source: `map` so far is offsets into the filtered `source`.
+    map = map.map((filteredOffset) => sourceOffsetAt[filteredOffset] ?? fullSource.length);
     if (ctx?.numberPrefix) {
       const pre = ctx.numberPrefix + (source === '' ? '' : ' ');
       text = pre + text;
@@ -386,8 +474,46 @@ export function makeDisplayText(
     if (ctx?.autoContinued) {
       const extra = template.continueds.joiner + template.continueds.cont;
       text += extra;
-      for (let i = 0; i < graphemeClusters(extra).length; i++) map.push(source.length);
+      for (let i = 0; i < graphemeClusters(extra).length; i++) map.push(fullSource.length);
     }
-    return { text, clusterSource: Uint32Array.from(map), sourceLength: source.length };
+    if (alternatesMode === 'all') {
+      for (const alt of el.alts) {
+        const extra = ' // ' + alt.text.plain;
+        text += extra;
+        for (let i = 0; i < graphemeClusters(extra).length; i++) map.push(fullSource.length);
+      }
+    }
+    return { text, clusterSource: Uint32Array.from(map), sourceLength: fullSource.length };
   };
+}
+
+/**
+ * Spec 02 §26 `markup`: deletions laid out inline, struck through in writer colour; insertions
+ * underlined in writer colour. A pure transform on `runs`, NOT wired into `layoutDocument` — markup
+ * needs speed view (deleted text takes real space alongside its replacement), which this pipeline
+ * does not implement (page mode, `paginate.ts`'s own header, is the only mode built). Kept here,
+ * tested on its own, for whichever future speed-view pass wants it: the logic exists once, not
+ * reimplemented the day speed view lands.
+ */
+export function layoutTrackChangesMarkup(runs: readonly TextRun[], writerColorOf: (by: string) => string): TextRun[] {
+  const out: TextRun[] = [];
+  for (const run of runs) {
+    const del = run.attrs.del as { by?: string } | undefined;
+    const ins = run.attrs.ins as { by?: string } | undefined;
+    if (!del && !ins) {
+      out.push(run);
+      continue;
+    }
+    const by = (del ?? ins)?.by ?? '';
+    const attrs: TextRun['attrs'] = { ...run.attrs };
+    if (del) {
+      attrs.s = true;
+      attrs.fc = writerColorOf(by);
+    } else if (ins) {
+      attrs.u = true;
+      attrs.fc = writerColorOf(by);
+    }
+    out.push({ text: run.text, attrs });
+  }
+  return out;
 }
