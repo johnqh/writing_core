@@ -56,7 +56,7 @@ describe('contextPass', () => {
     expect(contexts.get(idOf(b))!.hidden).toBe(true);
   });
 
-  it('auto-continues a repeated speaker only across an intervening non-dialogue element', () => {
+  it('auto-continues a repeated speaker, after action and as a second speech straight away', () => {
     const { add, idOf, run } = setup();
     add('scene_heading', 'INT. A - DAY');
     const c1 = add('character', 'MILLER');
@@ -69,7 +69,7 @@ describe('contextPass', () => {
     const c4 = add('character', "MILLER (CONT’D)");
     const { contexts } = run();
     expect(contexts.get(idOf(c1))!.autoContinued).toBe(false);
-    expect(contexts.get(idOf(c2))!.autoContinued).toBe(false); // no interruption
+    expect(contexts.get(idOf(c2))!.autoContinued).toBe(true); // a second speech straight away, whatever the extension
     expect(contexts.get(idOf(c2))!.speaker).toBe('miller');
     expect(contexts.get(idOf(c3))!.autoContinued).toBe(true);
     expect(contexts.get(idOf(c4))!.autoContinued).toBe(false); // already has CONT'D (curly apostrophe)
@@ -102,8 +102,8 @@ describe('contextPass', () => {
     expect(same.decorationHash).toBe(before.decorationHash);
     const d = setup();
     d.add('scene_heading', 'INT. A - DAY');
-    d.add('character', 'MILLER');
-    d.add('dialogue', 'no interruption');
+    d.add('character', 'JONAH'); // someone else spoke last
+    d.add('dialogue', 'Not Miller.');
     const c3 = d.add('character', 'MILLER');
     const flipped = d.run().contexts.get(d.idOf(c3))!;
     expect(flipped.autoContinued).toBe(false);

@@ -98,7 +98,6 @@ export function contextPass(
   let sceneOrdinal = -1;
   let actId: ElementId | null = null;
   let lastSpeaker: SpeakerKey | null = null;
-  let interrupted = false;
 
   for (const el of model.elements()) {
     const style = resolveStyle(template, el.style);
@@ -108,7 +107,6 @@ export function contextPass(
       sceneId = el.id;
       sceneOrdinal++;
       lastSpeaker = null;
-      interrupted = false;
     }
     if (category === 'actBreak') actId = el.id;
 
@@ -130,13 +128,13 @@ export function contextPass(
       if (!hidden) {
         const folded = foldContd(el.text.plain);
         const alreadyContd = (contFolded !== '' && folded.includes(contFolded)) || folded.includes("(CONT'D)");
-        autoContinued = continuedsOn && lastSpeaker !== null && lastSpeaker === speaker && interrupted && !alreadyContd;
+        // The same character speaks again in the scene, with nobody else speaking in between: after action, or
+        // straight away as a new speech. (§14.3 asked for an interruption by a non-dialogue element; writers expect
+        // the mark on a second consecutive speech too, which is how the cue is then read aloud and printed.)
+        autoContinued = continuedsOn && lastSpeaker !== null && lastSpeaker === speaker && !alreadyContd;
         // A dual block resets the last speaker to none (§14.3 condition 3).
         lastSpeaker = el.dual !== null ? null : speaker;
-        interrupted = false;
-      }
-    } else if (!hidden && !boundary && CATEGORY_RULES[category].dialogueBlock === false) {
-      interrupted = true;
+        }
     }
 
     const generatedText = isHeadingOfOmitted ? template.continueds.omitted : null;
